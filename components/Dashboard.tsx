@@ -4,15 +4,14 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area
 } from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem } from '../types';
-import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts, calculateClassHealth } from '../services/analysisService';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus } from '../types';
+import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 import { 
-    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy
+    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getTeacherAssignments, getSchedules } from '../services/storageService';
+import { getSchedules } from '../services/storageService';
 import LiveAssistant from './LiveAssistant';
-import ActivityWheel from './ActivityWheel';
 import NarrativeAIInsights from './NarrativeAIInsights';
 import OmniSearch from './OmniSearch';
 import DailyAgenda from './DailyAgenda';
@@ -29,7 +28,6 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-  const [isWheelOpen, setIsWheelOpen] = useState(false);
   const [isOmniOpen, setIsOmniOpen] = useState(false);
   const [teacherSchedule, setTeacherSchedule] = useState<ScheduleItem[]>([]);
 
@@ -46,6 +44,14 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
       totalStudents: students.length,
       avgGrade: performance.length > 0 ? Math.round(performance.reduce((a,b)=>a+(b.score/b.maxScore),0)/performance.length*100) : 0
   }), [students, attendance, performance]);
+
+  const recentActivity = useMemo(() => {
+      const combined = [
+          ...attendance.slice(0, 10).map(a => ({ ...a, type: 'ATT' })),
+          ...performance.slice(0, 10).map(p => ({ ...p, type: 'PERF' }))
+      ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+      return combined;
+  }, [attendance, performance]);
 
   return (
     <div className="p-4 md:p-10 space-y-10 animate-fade-in bg-[#F8FAFC] pb-32 font-tajawal overflow-x-hidden">
@@ -93,7 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
               <NarrativeAIInsights stats={dashboardStats} />
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <CommandCard icon={<CheckCircle/>} label="تحضير الحصة" sub="رصد مباشر" onClick={()=>navigate('/attendance')} color="bg-indigo-600"/>
+                  <CommandCard icon={<UserCheck/>} label="تحضير الحصة" sub="رصد مباشر" onClick={()=>navigate('/attendance')} color="bg-indigo-600"/>
                   <TrophyCard icon={<Trophy/>} label="الأبطال" sub="لوحة الشرف" onClick={()=>navigate('/leaderboard')} color="bg-yellow-500"/>
                   <CommandCard icon={<MonitorPlay/>} label="شاشة الفصل" sub="أدوات العرض" onClick={()=>navigate('/screen')} color="bg-purple-600"/>
                   <CommandCard icon={<PlusCircle/>} label="رصد الأعمال" sub="تقييم سريع" onClick={()=>navigate('/works')} color="bg-emerald-600"/>
@@ -101,6 +107,37 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
           </div>
 
           <div className="space-y-8">
+              {/* Live Pulse Feed */}
+              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
+                  <div className="flex justify-between items-center mb-8">
+                      <div>
+                        <h3 className="text-xl font-black text-slate-800">نبض الفصل اللحظي</h3>
+                        <p className="text-[10px] text-slate-400 font-bold">آخر الإجراءات المرصودة</p>
+                      </div>
+                      <div className="p-2.5 bg-indigo-50 rounded-xl"><Activity size={18} className="text-indigo-600 animate-pulse"/></div>
+                  </div>
+                  <div className="space-y-4">
+                      {recentActivity.map((act: any, idx) => {
+                          const student = students.find(s => s.id === act.studentId);
+                          return (
+                              <div key={idx} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-all border border-transparent hover:border-slate-100">
+                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${act.type === 'ATT' ? (act.status === AttendanceStatus.ABSENT ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500') : 'bg-indigo-50 text-indigo-600'}`}>
+                                      {student?.name.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-black text-slate-700 truncate">{student?.name}</p>
+                                      <p className="text-[9px] text-slate-400 font-bold">
+                                          {act.type === 'ATT' ? `تم رصد: ${act.status === AttendanceStatus.PRESENT ? 'حاضر' : 'غائب'}` : `تم رصد درجة: ${act.score}/${act.maxScore}`}
+                                      </p>
+                                  </div>
+                                  <span className="text-[8px] font-black text-slate-300">{act.date.slice(5)}</span>
+                              </div>
+                          );
+                      })}
+                      {recentActivity.length === 0 && <p className="text-center py-10 text-slate-300 text-xs font-bold">لا يوجد نشاط مؤخراً</p>}
+                  </div>
+              </div>
+
               <div className="bg-slate-900 rounded-[3.5rem] p-8 text-white relative overflow-hidden shadow-2xl group min-h-[420px]">
                   <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-700"><Bot size={200}/></div>
                   <div className="relative z-10">
@@ -131,32 +168,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                               <p className="text-sm font-black">جميع الطلاب مستقرون أكاديمياً</p>
                           </div>
                       )}
-                  </div>
-              </div>
-
-              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
-                  <div className="flex justify-between items-center mb-8">
-                      <div>
-                        <h3 className="text-xl font-black text-slate-800">نبض الأداء</h3>
-                        <p className="text-[10px] text-slate-400 font-bold">آخر 7 أيام فعالة</p>
-                      </div>
-                      <div className="p-2.5 bg-slate-50 rounded-xl"><Activity size={18} className="text-indigo-600"/></div>
-                  </div>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={pulseData}>
-                            <defs>
-                                <linearGradient id="colorPart" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <XAxis dataKey="name" hide />
-                            <YAxis hide domain={[0, 100]} />
-                            <Tooltip contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} />
-                            <Area type="monotone" dataKey="participation" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorPart)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
                   </div>
               </div>
           </div>

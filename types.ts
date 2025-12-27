@@ -19,7 +19,7 @@ export interface Reward {
   cost: number;
   icon: string;
   description: string;
-  category: 'PRIVILEGE' | 'TITLE' | 'ITEM';
+  category: 'PRIVILEGE' | 'TITLE' | 'ITEM' | 'AURA';
 }
 
 export interface PurchaseRequest {
@@ -58,6 +58,9 @@ export interface Student {
   badges?: Badge[];
   purchasedRewards?: string[];
   streak?: number;
+  // التخصيصات البصرية المشتراة
+  auraColor?: string;
+  activeTitle?: string;
 }
 
 export interface School { 
