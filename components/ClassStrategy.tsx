@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student } from '../types';
 import { generateClassStrategy } from '../services/geminiService';
 import { getTeacherAssignments } from '../services/storageService';
-import { Lightbulb, Sparkles, Loader2, BookOpen, BrainCircuit, ChevronLeft, Target } from 'lucide-react';
+import { Lightbulb, Sparkles, Loader2, BookOpen, BrainCircuit, Target, Zap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface ClassStrategyProps {
@@ -41,9 +41,14 @@ const ClassStrategy: React.FC<ClassStrategyProps> = ({ students, currentUserId }
     const handleGenerate = async () => {
         if (!topic) return;
         setLoading(true);
-        const res = await generateClassStrategy(varkStats, topic);
-        setStrategy(res);
-        setLoading(false);
+        try {
+            const res = await generateClassStrategy(varkStats, topic);
+            setStrategy(res);
+        } catch (e) {
+            setStrategy("عذراً، فشل توليد الاستراتيجية. يرجى التحقق من الاتصال.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -51,9 +56,9 @@ const ClassStrategy: React.FC<ClassStrategyProps> = ({ students, currentUserId }
             <div className="mb-10">
                 <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3">
                     <BrainCircuit className="text-indigo-600" size={36}/> 
-                    استراتيجية التدريس الذكية
+                    استراتيجية التدريس المخصصة
                 </h2>
-                <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">تخصيص الشرح بناءً على أنماط الفصل</p>
+                <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">تخطيط ذكي بناءً على الأنماط الغالبة في الفصل</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-hidden">
@@ -79,19 +84,19 @@ const ClassStrategy: React.FC<ClassStrategyProps> = ({ students, currentUserId }
                             <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">موضوع الدرس القادم</label>
                             <input 
                                 className="w-full p-4 border rounded-2xl bg-gray-50 font-black text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
-                                placeholder="مثلاً: الكسور الاعتيادية، الخلية النباتية..."
+                                placeholder="مثلاً: الكسور، الخلية، نيوتن..."
                                 value={topic}
                                 onChange={e => setTopic(e.target.value)}
                             />
                         </div>
 
                         <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                            <h4 className="font-black text-indigo-900 mb-2 flex items-center gap-2 text-xs">توزيع الأنماط:</h4>
-                            <div className="grid grid-cols-2 gap-2">
+                            <h4 className="font-black text-indigo-900 mb-4 flex items-center gap-2 text-xs"><Zap size={14}/> تحليل الأنماط:</h4>
+                            <div className="grid grid-cols-2 gap-3">
                                 {Object.entries(varkStats).map(([style, count]) => (
-                                    <div key={style} className="bg-white p-2 rounded-xl text-center border">
-                                        <p className="text-[8px] font-black text-gray-400">{style}</p>
-                                        <p className="text-sm font-black text-indigo-600">{count}</p>
+                                    <div key={style} className="bg-white p-3 rounded-xl border flex flex-col items-center">
+                                        <p className="text-[8px] font-black text-gray-400 uppercase">{style}</p>
+                                        <p className="text-lg font-black text-indigo-600">{count}</p>
                                     </div>
                                 ))}
                             </div>
@@ -109,7 +114,7 @@ const ClassStrategy: React.FC<ClassStrategyProps> = ({ students, currentUserId }
 
                 <div className="lg:col-span-2 bg-white rounded-[3rem] border shadow-sm flex flex-col overflow-hidden relative">
                     {strategy ? (
-                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar prose prose-indigo max-w-none">
+                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar prose prose-indigo max-w-none text-gray-700 leading-relaxed animate-slide-up">
                             <ReactMarkdown>{strategy}</ReactMarkdown>
                         </div>
                     ) : (

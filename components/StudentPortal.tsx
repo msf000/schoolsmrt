@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, Exam, Reward, PurchaseRequest } from '../types';
 import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest } from '../services/storageService';
 import { 
-    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity
+    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity, BookOpen
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import StudentJourney from './StudentJourney';
@@ -18,6 +18,7 @@ import StudentQRScanner from './StudentQRScanner';
 import StudentLearningTest from './StudentLearningTest';
 import StudentQuizPlayer from './StudentQuizPlayer';
 import StudentDigitalID from './StudentDigitalID';
+import SmartStudyPlan from './SmartStudyPlan';
 
 const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], onLogout: () => void }> = ({ currentUser: initialUser, attendance, performance, onLogout }) => {
     const navigate = useNavigate();
@@ -52,6 +53,7 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                     <NavItem path="/id" label="هويتي الرقمية" icon={QrCode} isActive={location.pathname === '/id'} />
                     <NavItem path="/avatar" label="مصنع الأفاتار" icon={UserCircle} isActive={location.pathname === '/avatar'} />
                     <NavItem path="/shop" label="متجر المكافآت" icon={ShoppingBag} isActive={location.pathname === '/shop'} />
+                    <NavItem path="/study-plan" label="خطة المذاكرة" icon={BookOpen} isActive={location.pathname === '/study-plan'} />
                     <NavItem path="/evaluation" label="سجل الدرجات" icon={TrendingUp} isActive={location.pathname === '/evaluation'} />
                     <button onClick={onLogout} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-red-400 hover:bg-red-500/10 mt-10 font-black transition-colors"><LogOut size={22}/> خروج آمن</button>
                 </nav>
@@ -67,6 +69,9 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                                     <div className="relative z-10">
                                         <div className="flex items-center gap-4 mb-4">
                                             <div className="bg-yellow-400 text-slate-900 px-4 py-1 rounded-2xl font-black text-xs shadow-xl">المستوى {stats.level}</div>
+                                            {!currentUser.learningStyle && (
+                                                <button onClick={() => navigate('/test')} className="bg-purple-600 text-white px-4 py-1 rounded-2xl font-black text-xs animate-pulse">اكتشف نمط تعلمك الآن!</button>
+                                            )}
                                         </div>
                                         <h2 className="text-4xl md:text-6xl font-black mb-8">بطلنا المبدع، {currentUser.name.split(' ')[0]}! 🚀</h2>
                                         <div className="w-full max-w-md bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10">
@@ -78,7 +83,7 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <FeatureCard icon={<QrCode/>} title="تحضير QR" sub="سجل حضورك للحصة" onClick={() => setIsQRScannerOpen(true)} color="bg-indigo-600" />
-                                    <FeatureCard icon={<Swords/>} title="معارك العلم" sub="تحديات الفصل المباشرة" onClick={() => navigate('/quizzes')} color="bg-rose-600" />
+                                    <FeatureCard icon={<BrainCircuit/>} title="اختبار الأنماط" sub="كيف تتعلم بشكل أسرع؟" onClick={() => navigate('/test')} color="bg-purple-600" />
                                 </div>
                                 
                                 <StudentJourney xp={stats.xp} level={stats.level} />
@@ -86,8 +91,10 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                             </div>
                         } />
                         <Route path="/id" element={<StudentDigitalID student={currentUser} stats={stats} />} />
+                        <Route path="/test" element={<StudentLearningTest student={currentUser} onComplete={() => navigate('/')} />} />
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
                         <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
+                        <Route path="/study-plan" element={<SmartStudyPlan student={currentUser} />} />
                         <Route path="/shop" element={<StudentShop xp={stats.xp} onPurchase={()=>{}} rewards={[]} />} />
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
