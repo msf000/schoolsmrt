@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Student, Question } from '../types';
 import { Trophy, Swords, Zap, Users, CheckCircle, XCircle, Timer, Sparkles, Star, Target, Crown, ShieldAlert } from 'lucide-react';
-import useSound from 'https://esm.sh/use-sound@4.0.1';
 
 interface QuizBattleProps {
     students: Student[];
@@ -24,7 +23,7 @@ const QuizBattle: React.FC<QuizBattleProps> = ({ students, questions, onClose })
         if (step === 'PLAYING' && timer > 0 && !isPaused) {
             const t = setInterval(() => setTimer(v => v - 1), 1000);
             return () => clearInterval(t);
-        } else if (timer === 0) {
+        } else if (timer === 0 && step === 'PLAYING') {
             handleAnswer(false);
         }
     }, [timer, step, isPaused]);
