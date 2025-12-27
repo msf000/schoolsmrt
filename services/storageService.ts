@@ -602,7 +602,7 @@ export const getExamResults = (examId?: string): ExamResult[] => {
 };
 export const saveExamResult = async (r: ExamResult) => {
     const all = getExamResults();
-    localStorage.setItem('local_exam_results', JSON.stringify([...all.filter(x => x.id !== r.id), r]));
+    localStorage.setItem('local_exam_results', JSON.stringify([...all.filter((x: ExamResult) => x.id !== r.id), r]));
     await supabase.from('exam_results').upsert({ ...r, exam_id: r.examId, student_id: r.studentId, total_score: r.totalScore });
 };
 export const deleteExamResult = async (id: string) => {
@@ -624,7 +624,7 @@ export const getEnvironmentRecords = (classId: string): EnvironmentRecord[] => {
 };
 export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
     const all = JSON.parse(localStorage.getItem('local_environment') || '[]');
-    localStorage.setItem('local_environment', JSON.stringify([...all.filter(x => x.id !== r.id), r]));
+    localStorage.setItem('local_environment', JSON.stringify([...all.filter((x: EnvironmentRecord) => x.id !== r.id), r]));
     await supabase.from('environment_records').upsert({ ...r, teacher_id: r.teacherId, class_id: r.classId, noise_level: r.noiseLevel });
 };
 
@@ -669,7 +669,7 @@ export const saveCurriculumLesson = async (l: CurriculumLesson) => {
 };
 export const deleteCurriculumLesson = async (id: string) => {
     const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
-    localStorage.setItem('local_curriculum_lessons', JSON.stringify(all.filter(l => l.id !== id)));
+    localStorage.setItem('local_curriculum_lessons', JSON.stringify(all.filter((l: CurriculumLesson) => l.id !== id)));
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
