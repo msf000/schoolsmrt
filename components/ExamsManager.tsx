@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { Exam, Question, SystemUser, Subject, ExamResult } from '../types';
-import { getExams, saveExam, deleteExam, getSubjects, getExamResults } from '../services/storageService';
+import { getExams, saveExam, deleteExam, getSubjects, getExamResults, getReportHeaderConfig } from '../services/storageService';
 import { generateStructuredQuiz } from '../services/geminiService';
 import { 
     Plus, Trash2, Edit, FileQuestion, Save, ArrowLeft, Printer, 
     Library, Copy, BarChart2, CheckCircle, XCircle, Sparkles, Loader2, Wand2 
 } from 'lucide-react';
+import ExamPaperGenerator from './ExamPaperGenerator';
 
 const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => {
-    const [view, setView] = useState<'LIST' | 'EDITOR' | 'RESULTS'>('LIST');
+    const [view, setView] = useState<'LIST' | 'EDITOR' | 'RESULTS' | 'PRINT_PREVIEW'>('LIST');
     const [exams, setExams] = useState<Exam[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [editingExam, setEditingExam] = useState<Exam | null>(null);
@@ -82,6 +83,10 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
         }
     };
 
+    if (view === 'PRINT_PREVIEW' && editingExam) {
+        return <ExamPaperGenerator exam={editingExam} headerConfig={getReportHeaderConfig(currentUser.id)} onBack={() => setView('LIST')} />;
+    }
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal overflow-hidden">
             {view === 'LIST' && (
@@ -112,7 +117,7 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                                 <h3 className="font-black text-xl text-slate-800 mb-2 truncate">{exam.title}</h3>
                                 <p className="text-xs text-slate-400 font-bold mb-6">{exam.subject} • {exam.questions.length} سؤال</p>
                                 <div className="flex gap-2">
-                                    <button onClick={()=>{setEditingExam(exam); window.print();}} className="flex-1 py-3 bg-gray-50 text-gray-600 rounded-xl text-xs font-black flex items-center justify-center gap-1 border hover:bg-white transition-all"><Printer size={16}/> طباعة</button>
+                                    <button onClick={()=>{setEditingExam(exam); setView('PRINT_PREVIEW');}} className="flex-1 py-3 bg-gray-50 text-gray-600 rounded-xl text-xs font-black flex items-center justify-center gap-1 border hover:bg-white transition-all"><Printer size={16}/> طباعة</button>
                                     <button onClick={()=>{setSelectedResults(getExamResults(exam.id)); setEditingExam(exam); setView('RESULTS')}} className="flex-1 py-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black flex items-center justify-center gap-1 border border-indigo-100 hover:bg-indigo-100 transition-all"><BarChart2 size={16}/> النتائج</button>
                                 </div>
                             </div>

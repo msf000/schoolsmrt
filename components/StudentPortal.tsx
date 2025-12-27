@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, Exam, Reward, PurchaseRequest } from '../types';
-import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest } from '../services/storageService';
+import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest, getFormsDetailedResults } from '../services/storageService';
 import { 
-    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity, BookOpen, Clock, Newspaper
+    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity, BookOpen, Clock, Newspaper, Map
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import StudentJourney from './StudentJourney';
@@ -21,6 +21,7 @@ import StudentDigitalID from './StudentDigitalID';
 import SmartStudyPlan from './SmartStudyPlan';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
 import SchoolWall from './SchoolWall';
+import KnowledgeTree from './KnowledgeTree';
 
 const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], onLogout: () => void }> = ({ currentUser: initialUser, attendance, performance, onLogout }) => {
     const navigate = useNavigate();
@@ -65,6 +66,7 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                 </div>
                 <nav className="flex-1 p-6 space-y-1 overflow-y-auto custom-scrollbar">
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
+                    <NavItem path="/mastery" label="خريطة المهارات" icon={Map} isActive={location.pathname === '/mastery'} />
                     <NavItem path="/wall" label="جدار المدرسة" icon={Newspaper} isActive={location.pathname === '/wall'} />
                     <NavItem path="/timeline" label="خط النجاح" icon={Clock} isActive={location.pathname === '/timeline'} />
                     <NavItem path="/id" label="هويتي الرقمية" icon={QrCode} isActive={location.pathname === '/id'} />
@@ -100,13 +102,14 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <FeatureCard icon={<QrCode/>} title="تحضير QR" sub="سجل حضورك للحصة" onClick={() => setIsQRScannerOpen(true)} color="bg-indigo-600" />
-                                    <FeatureCard icon={<BrainCircuit/>} title="اختبار الأنماط" sub="كيف تتعلم بشكل أسرع؟" onClick={() => navigate('/test')} color="bg-purple-600" />
+                                    <FeatureCard icon={<Map/>} title="خريطة التمكن" sub="شاهد نمو مهاراتك" onClick={() => navigate('/mastery')} color="bg-emerald-600" />
                                 </div>
                                 
                                 <StudentJourney xp={stats.xp} level={stats.level} />
                                 <StudentQuestSystem student={currentUser} />
                             </div>
                         } />
+                        <Route path="/mastery" element={<KnowledgeTree student={currentUser} performance={performance} formsResults={getFormsDetailedResults(currentUser.createdById)} />} />
                         <Route path="/wall" element={<SchoolWall currentUser={currentUser} students={[]} />} />
                         <Route path="/timeline" element={<StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />} />
                         <Route path="/id" element={<StudentDigitalID student={currentUser} stats={stats} />} />
