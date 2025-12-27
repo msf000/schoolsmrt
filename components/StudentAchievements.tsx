@@ -1,7 +1,6 @@
 
 import React, { useMemo } from 'react';
 import { Student, Badge } from '../types';
-/* Fix: Added FileText to the imported icons */
 import { Trophy, Award, Star, Zap, Crown, Download, Share2, Sparkles, Heart, Medal, ShieldCheck, FileText } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 

@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Exam, ExamResult, Student, Question } from '../types';
 import { saveExamResult } from '../services/storageService';
-/* Fix: Added Zap to the imported icons */
 import { Clock, CheckCircle2, ChevronLeft, BrainCircuit, Star, Trophy, Sparkles, Loader2, AlertCircle, X, ShieldCheck, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -170,7 +169,7 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
                         <button 
                             onClick={() => setCurrentQIndex(currentQIndex + 1)}
                             disabled={!answers[currentQ.id]}
-                            className="px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xl shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
+                            className="px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xl shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                         >
                             السؤال التالي <ChevronLeft size={24}/>
                         </button>

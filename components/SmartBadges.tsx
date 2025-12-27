@@ -139,14 +139,14 @@ const SmartBadges: React.FC<SmartBadgesProps> = ({ students }) => {
 
         <div className="bg-slate-900 rounded-[3rem] flex flex-col items-center justify-center p-10 relative overflow-hidden shadow-2xl">
           {isGenerating ? (
-            <div className="flex flex-col items-center gap-6 animate-pulse z-10">
+            <div className="flex flex-col items-center gap-6 animate-pulse z-10 text-center">
               <div className="w-64 h-64 bg-white/5 rounded-full border-4 border-dashed border-white/20 flex items-center justify-center">
                 <Loader2 className="animate-spin text-indigo-500" size={80}/>
               </div>
               <p className="text-indigo-300 font-black text-xl">جاري التخيل والابتكار...</p>
             </div>
           ) : generatedImageUrl ? (
-            <div className="flex flex-col items-center gap-8 animate-zoom-in z-10">
+            <div className="flex flex-col items-center gap-8 animate-zoom-in z-10 w-full">
               <div className="relative group">
                 <div className="absolute -inset-4 bg-indigo-500 rounded-full blur-3xl opacity-30 group-hover:opacity-60 transition-opacity"></div>
                 <img src={generatedImageUrl} alt="Badge" className="w-80 h-80 rounded-full border-[12px] border-white/10 shadow-2xl relative z-10 hover:scale-105 transition-transform duration-500"/>

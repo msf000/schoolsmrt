@@ -1,44 +1,34 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  AreaChart, Area
-} from 'recharts';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus, BehaviorIncident } from '../types';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, ScheduleItem, AttendanceStatus, BehaviorIncident, Exam } from '../types';
 import { getDailyFocusStudents, getClassPulseData, getUrgentAlerts } from '../services/analysisService';
 import { 
-    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles
+    CheckCircle, Bot, CalendarDays, PlusCircle, Search, Zap, Activity, TrendingUp, Bell, ArrowRight, Shield, Clock, MonitorPlay, Trophy, UserCheck, Flame, Sparkles, Swords, Layout, ShieldAlert
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSchedules, saveAttendance, saveBehaviorIncident } from '../services/storageService';
+import { getSchedules, saveAttendance, saveBehaviorIncident, getExams } from '../services/storageService';
 import { generateClassroomPulse } from '../services/geminiService';
 import LiveAssistant from './LiveAssistant';
 import NarrativeAIInsights from './NarrativeAIInsights';
 import OmniSearch from './OmniSearch';
 import DailyAgenda from './DailyAgenda';
 import RecommendationHub from './RecommendationHub';
+import QuizBattle from './QuizBattle';
 import { useToast } from './ToastProvider';
 
-interface DashboardProps {
-  students: Student[];
-  attendance: AttendanceRecord[];
-  performance: PerformanceRecord[];
-  currentUser?: SystemUser | null;
-  onNavigate: (view: string) => void;
-}
-
-const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance, currentUser }) => {
+const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null, onNavigate: (view: string) => void }> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isOmniOpen, setIsOmniOpen] = useState(false);
-  const [teacherSchedule, setTeacherSchedule] = useState<ScheduleItem[]>([]);
+  const [isBattleOpen, setIsBattleOpen] = useState(false);
+  const [battleExams, setBattleExams] = useState<Exam[]>([]);
   const [classPulse, setClassPulse] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentUser) {
-        setTeacherSchedule(getSchedules().filter(s => s.teacherId === currentUser.id));
-        // توليد نبض الفصل عند الدخول
+        setBattleExams(getExams(currentUser.id).filter(e => e.isActive));
         loadClassPulse();
     }
   }, [currentUser]);
@@ -50,129 +40,109 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
 
   const handleVoiceAction = async (action: string, data: any) => {
       if (action === 'mark_attendance') {
-          const student = students.find(s => s.name.includes(data.studentName) || data.studentName.includes(s.name));
+          const student = students.find(s => s.name.includes(data.studentName));
           if (student) {
-              const record: AttendanceRecord = {
-                  id: `voice_att_${Date.now()}`,
-                  studentId: student.id,
-                  date: new Date().toISOString().split('T')[0],
-                  status: data.status as AttendanceStatus,
-                  createdById: currentUser?.id
-              };
-              await saveAttendance([record]);
-              showToast(`تم تسجيل ${student.name.split(' ')[0]} ${data.status === 'PRESENT' ? 'حاضراً' : 'غائباً'} بالصوت`, 'SUCCESS');
-          }
-      }
-      if (action === 'award_points') {
-          const student = students.find(s => s.name.includes(data.studentName) || data.studentName.includes(s.name));
-          if (student && currentUser) {
-              const incident: BehaviorIncident = {
-                  id: `voice_beh_${Date.now()}`,
-                  studentId: student.id,
-                  teacherId: currentUser.id,
-                  type: data.points > 0 ? 'POSITIVE' : 'NEGATIVE',
-                  category: data.reason || 'مشاركة صوتية',
-                  points: data.points,
-                  date: new Date().toISOString(),
-                  note: 'رصد عبر المساعد الصوتي'
-              };
-              await saveBehaviorIncident(incident);
-              showToast(`تمت إضافة ${data.points} نقطة لـ ${student.name.split(' ')[0]}`, 'SUCCESS');
+              await saveAttendance([{ id: `v_${Date.now()}`, studentId: student.id, date: new Date().toISOString().split('T')[0], status: data.status as AttendanceStatus, createdById: currentUser?.id }]);
+              showToast(`تم رصد حضور ${student.name.split(' ')[0]}`, 'SUCCESS');
           }
       }
   };
 
-  const pulseData = useMemo(() => getClassPulseData(attendance, performance), [attendance, performance]);
-  const dashboardStats = useMemo(() => ({
-      focusCount: getDailyFocusStudents(students, attendance, performance).length,
-      alertCount: getUrgentAlerts(students, attendance, performance).length,
-      totalStudents: students.length,
-      avgGrade: performance.length > 0 ? Math.round(performance.reduce((a,b)=>a+(b.score/b.maxScore),0)/performance.length*100) : 0
-  }), [students, attendance, performance]);
-
   return (
     <div className="p-4 md:p-10 space-y-10 animate-fade-in bg-[#F8FAFC] pb-32 font-tajawal overflow-x-hidden">
       
-      {/* Teacher Command Header */}
+      {isBattleOpen && battleExams.length > 0 && (
+          <QuizBattle students={students} questions={battleExams[0].questions} onClose={() => setIsBattleOpen(false)} />
+      )}
+
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
            <div className="flex items-center gap-5">
                 <div className="relative group cursor-pointer" onClick={() => navigate('/school-mgmt')}>
-                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-[2.5rem] bg-indigo-600 flex items-center justify-center text-white text-4xl font-black shadow-2xl group-hover:scale-105 transition-transform duration-500">
+                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-[2.5rem] bg-indigo-600 flex items-center justify-center text-white text-4xl font-black shadow-2xl group-hover:scale-105 transition-transform">
                         {currentUser?.name.charAt(0)}
                     </div>
                 </div>
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-800">طاب يومك، أ. {currentUser?.name.split(' ')[0]} 🍎</h1>
-                    <div className="flex items-center gap-3 mt-2">
-                        <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black border border-indigo-100 flex items-center gap-1">
-                            <Shield size={12}/> معلم ممارس
-                        </span>
-                        <p className="text-slate-400 font-bold text-xs flex items-center gap-2">
-                            <CalendarDays size={14}/> {new Intl.DateTimeFormat('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
-                        </p>
-                    </div>
+                    <h1 className="text-2xl md:text-4xl font-black text-slate-800">أهلاً بك، أ. {currentUser?.name.split(' ')[0]} 👋</h1>
+                    <p className="text-slate-400 font-bold text-xs mt-2 flex items-center gap-2"><Clock size={14}/> {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • السحابة متصلة وجاهزة</p>
                 </div>
            </div>
            
            <div className="flex items-center gap-3 w-full lg:w-auto">
-               <button 
-                    onClick={() => setIsOmniOpen(true)}
-                    className="flex-1 lg:w-80 flex items-center gap-3 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-xl text-slate-400 hover:border-indigo-300 transition-all group"
-                >
-                    <Search size={20} className="group-hover:text-indigo-500 transition-colors"/>
-                    <span className="text-sm font-bold">البحث والتحكم السريع...</span>
-                </button>
-                <button onClick={() => navigate('/inbox')} className="p-4 bg-white rounded-full border border-slate-100 shadow-xl relative text-slate-600 hover:text-indigo-600 transition-all group">
-                    <Bell size={24}/>
-                    <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-bounce"></span>
+                <button onClick={() => setIsOmniOpen(true)} className="flex-1 lg:w-80 flex items-center gap-3 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-xl text-slate-400 hover:border-indigo-300 transition-all group">
+                    <Search size={20} className="group-hover:text-indigo-500"/>
+                    <span className="text-sm font-bold">البحث الذكي (Cmd+K)</span>
                 </button>
            </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-8">
-              <DailyAgenda schedule={teacherSchedule} onAction={(cls) => navigate('/attendance', { state: { className: cls } })} />
-              
-              {/* Class Pulse Widget */}
-              <div className="bg-gradient-to-r from-purple-600 to-indigo-700 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none"><Activity size={180}/></div>
-                  <div className="relative z-10">
-                      <h3 className="text-xl font-black mb-4 flex items-center gap-3"><Sparkles className="text-yellow-400"/> نبض الفصل الحالي (AI)</h3>
-                      <p className="text-indigo-100 font-medium leading-relaxed italic">"{classPulse || 'جاري استشعار طاقة الفصل...'}"</p>
+              {/* AI Pulse Banner */}
+              <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-800 p-10 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-700"><Sparkles size={250}/></div>
+                  <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                      <div className="flex-1 text-center md:text-right">
+                          <div className="bg-white/10 w-fit p-3 rounded-2xl mb-4 backdrop-blur-md border border-white/10 flex items-center gap-2 mx-auto md:mx-0">
+                            <Bot className="text-yellow-400" size={20}/>
+                            <span className="text-[10px] font-black uppercase tracking-widest">تحليل النبض المباشر</span>
+                          </div>
+                          <h3 className="text-2xl md:text-3xl font-black mb-4">"{classPulse || 'جاري استشعار طاقة الفصل...'}"</h3>
+                          <button onClick={() => setIsBattleOpen(true)} className="bg-yellow-400 text-slate-900 px-8 py-3 rounded-2xl font-black text-sm shadow-xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all mx-auto md:mx-0">
+                            <Swords size={18}/> بدء معركة العلم (Battle Mode)
+                          </button>
+                      </div>
+                      <div className="hidden lg:flex items-center gap-4">
+                          <div className="p-6 bg-white/5 rounded-full border-4 border-white/10 flex items-center justify-center backdrop-blur-md"><Zap size={48} className="text-yellow-400 animate-pulse"/></div>
+                      </div>
                   </div>
               </div>
 
-              <RecommendationHub students={students} attendance={attendance} performance={performance} />
-              <NarrativeAIInsights stats={dashboardStats} />
-
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <CommandCard icon={<UserCheck/>} label="تحضير الحصة" sub="رصد مباشر" onClick={()=>navigate('/attendance')} color="bg-indigo-600"/>
-                  <TrophyCard icon={<Trophy/>} label="الأبطال" sub="لوحة الشرف" onClick={()=>navigate('/leaderboard')} color="bg-yellow-500"/>
-                  <CommandCard icon={<MonitorPlay/>} label="شاشة الفصل" sub="أدوات العرض" onClick={()=>navigate('/screen')} color="bg-purple-600"/>
-                  <CommandCard icon={<PlusCircle/>} label="رصد الأعمال" sub="تقييم سريع" onClick={()=>navigate('/works')} color="bg-emerald-600"/>
+                  <QuickAccessCard icon={<UserCheck/>} label="التحضير" color="bg-indigo-600" onClick={()=>navigate('/attendance')}/>
+                  <QuickAccessCard icon={<Trophy/>} label="الأبطال" color="bg-yellow-500" onClick={()=>navigate('/leaderboard')}/>
+                  <QuickAccessCard icon={<Layout/>} label="سجل الرصد" color="bg-emerald-600" onClick={()=>navigate('/works')}/>
+                  <QuickAccessCard icon={<ShieldAlert/>} label="السلوك" color="bg-rose-600" onClick={()=>navigate('/behavior')}/>
               </div>
+
+              <DailyAgenda schedule={getSchedules().filter(s=>s.teacherId===currentUser?.id)} onAction={(cls)=>navigate('/attendance', {state:{className:cls}})} />
+              <RecommendationHub students={students} attendance={attendance} performance={performance} />
           </div>
 
           <div className="space-y-8">
-              <div className="bg-slate-900 rounded-[3.5rem] p-8 text-white relative overflow-hidden shadow-2xl group min-h-[420px]">
-                  <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-700"><Bot size={200}/></div>
-                  <div className="relative z-10">
-                      <div className="bg-white/10 w-fit p-3 rounded-2xl mb-4 backdrop-blur-md border border-white/10 flex items-center gap-2">
-                        <Zap className="text-yellow-400" fill="currentColor" size={16}/>
-                        <span className="text-[10px] font-black uppercase tracking-widest">Early Intervention</span>
-                      </div>
-                      <h3 className="text-2xl font-black mb-1">طلاب تحت الملاحظة</h3>
-                      <p className="text-indigo-200 text-xs font-bold leading-relaxed mb-8 opacity-60">النظام اكتشف تذبذباً في أدائهم الأخير</p>
+              <NarrativeAIInsights stats={{ total: students.length, avg: 85 }} />
+              
+              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
+                  <div className="absolute -bottom-10 -left-10 opacity-[0.03] group-hover:scale-110 transition-all duration-700"><TrendingUp size={200}/></div>
+                  <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <Activity className="text-indigo-600" size={20}/> نبض الحضور الأسبوعي
+                  </h3>
+                  <div className="h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={getClassPulseData(attendance, performance)}>
+                            <defs>
+                                <linearGradient id="dashPulse" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient>
+                            </defs>
+                            <Area type="monotone" dataKey="participation" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#dashPulse)" />
+                            <Tooltip contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)'}} />
+                        </AreaChart>
+                    </ResponsiveContainer>
                   </div>
-                  
-                  <div className="space-y-4 relative z-10">
+              </div>
+
+              <div className="bg-slate-900 rounded-[3rem] p-8 text-white relative overflow-hidden shadow-2xl">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-black">طلاب بحاجة لدعم</h3>
+                      <Bot size={20} className="text-indigo-400"/>
+                  </div>
+                  <div className="space-y-4">
                       {getDailyFocusStudents(students, attendance, performance).map(s => (
-                          <div key={s!.student.id} onClick={()=>navigate('/followup', {state:{studentId: s!.student.id}})} className="flex justify-between items-center bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 cursor-pointer transition-all">
+                          <div key={s!.student.id} onClick={()=>navigate('/followup', {state:{studentId: s!.student.id}})} className="flex items-center justify-between bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 cursor-pointer transition-all">
                               <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-sm">{s!.student.name.charAt(0)}</div>
+                                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black">{s!.student.name.charAt(0)}</div>
                                   <div className="text-right">
                                       <p className="text-sm font-black">{s!.student.name}</p>
-                                      <p className="text-[10px] text-indigo-300 font-bold opacity-60">{s!.student.className}</p>
+                                      <p className="text-[10px] text-indigo-300 opacity-60">{s!.student.className}</p>
                                   </div>
                               </div>
                               <ArrowRight size={14} className="text-white/40"/>
@@ -180,36 +150,13 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
                       ))}
                   </div>
               </div>
-
-              <div className="bg-white rounded-[3.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
-                  <div className="absolute -bottom-10 -left-10 opacity-[0.03] group-hover:scale-110 transition-transform duration-700"><TrendingUp size={200}/></div>
-                  <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-                    <Activity className="text-indigo-600" size={20}/> نبض الحضور الأسبوعي
-                  </h3>
-                  <div className="h-48 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={pulseData}>
-                            <defs>
-                                <linearGradient id="colorPulse" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient>
-                            </defs>
-                            <Area type="monotone" dataKey="participation" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorPulse)" />
-                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-bold text-center mt-4 uppercase tracking-widest">توقعات الحضور للأيام الـ 7 القادمة</p>
-              </div>
           </div>
       </div>
 
-      {/* Action Buttons Overlay */}
       <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] flex gap-4">
-           <button 
-                onClick={() => setIsAssistantOpen(true)}
-                className="bg-indigo-600 text-white px-10 py-5 rounded-[2.5rem] font-black shadow-[0_20px_50px_rgba(79,70,229,0.4)] hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3"
-            >
+           <button onClick={() => setIsAssistantOpen(true)} className="bg-indigo-600 text-white px-12 py-5 rounded-full font-black shadow-[0_20px_50px_rgba(79,70,229,0.4)] hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3">
                 <Bot size={24} className="animate-pulse"/>
-                تحدث مع Gemini
+                المساعد الصوتي المباشر
            </button>
       </div>
 
@@ -219,27 +166,10 @@ const Dashboard: React.FC<DashboardProps> = ({ students, attendance, performance
   );
 };
 
-const CommandCard = ({ icon, label, sub, onClick, color }: any) => (
-    <button onClick={onClick} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:border-indigo-400 hover:shadow-xl transition-all group text-right flex flex-col gap-4 active:scale-95">
-        <div className={`w-12 h-12 rounded-2xl ${color} text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
-            {React.cloneElement(icon, { size: 24 })}
-        </div>
-        <div>
-            <h4 className="font-black text-slate-800 text-sm">{label}</h4>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{sub}</p>
-        </div>
-    </button>
-);
-
-const TrophyCard = ({ icon, label, sub, onClick, color }: any) => (
-    <button onClick={onClick} className="bg-gradient-to-br from-yellow-400 to-amber-500 p-6 rounded-[2.5rem] shadow-xl hover:shadow-yellow-500/20 transition-all group text-right flex flex-col gap-4 active:scale-95">
-        <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-            {React.cloneElement(icon, { size: 24 })}
-        </div>
-        <div>
-            <h4 className="font-black text-white text-sm">{label}</h4>
-            <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mt-1">{sub}</p>
-        </div>
+const QuickAccessCard = ({ icon, label, color, onClick }: any) => (
+    <button onClick={onClick} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:border-indigo-400 hover:shadow-xl transition-all group flex flex-col items-center gap-4 active:scale-95">
+        <div className={`w-14 h-14 rounded-2xl ${color} text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>{React.cloneElement(icon, { size: 28 })}</div>
+        <span className="font-black text-slate-700 text-sm">{label}</span>
     </button>
 );
 
