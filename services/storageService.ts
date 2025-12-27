@@ -539,18 +539,18 @@ export const deleteLessonLink = async (id: string) => {
     await supabase.from('lesson_links').delete().eq('id', id);
 };
 
-/* --- Added missing functions for custom tables, rewards, exams, curriculum, lesson plans, remedial plans, and forms results --- */
+/* --- Added missing functions with explicit types to fix TS7006 errors --- */
 
 export const getCustomTables = (tid?: string): CustomTable[] => JSON.parse(localStorage.getItem(`local_custom_tables_${tid || 'global'}`) || '[]');
 export const addCustomTable = async (t: CustomTable) => {
     const cur = getCustomTables(t.teacherId);
-    localStorage.setItem(`local_custom_tables_${t.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== t.id), t]));
+    localStorage.setItem(`local_custom_tables_${t.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: CustomTable) => x.id !== t.id), t]));
     await supabase.from('custom_tables').upsert({ ...t, teacher_id: t.teacherId, created_at: t.createdAt, last_updated: t.lastUpdated });
 };
 export const deleteCustomTable = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_custom_tables_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: CustomTable[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((t: CustomTable) => t.id !== id)));
     });
     await supabase.from('custom_tables').delete().eq('id', id);
@@ -559,25 +559,25 @@ export const deleteCustomTable = async (id: string) => {
 export const getRewards = (tid?: string): Reward[] => JSON.parse(localStorage.getItem(`local_rewards_${tid || 'global'}`) || '[]');
 export const saveReward = async (r: Reward, tid: string) => {
     const cur = getRewards(tid);
-    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify([...cur.filter(x => x.id !== r.id), r]));
+    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify([...cur.filter((x: Reward) => x.id !== r.id), r]));
     await supabase.from('rewards').upsert({ ...r, teacher_id: tid });
 };
 export const deleteReward = async (id: string, tid: string) => {
     const cur = getRewards(tid);
-    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify(cur.filter(r => r.id !== id)));
+    localStorage.setItem(`local_rewards_${tid}`, JSON.stringify(cur.filter((r: Reward) => r.id !== id)));
     await supabase.from('rewards').delete().eq('id', id);
 };
 
 export const getExams = (tid?: string): Exam[] => JSON.parse(localStorage.getItem(`local_exams_${tid || 'global'}`) || '[]');
 export const saveExam = async (e: Exam) => {
     const cur = getExams(e.teacherId);
-    localStorage.setItem(`local_exams_${e.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== e.id), e]));
+    localStorage.setItem(`local_exams_${e.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: Exam) => x.id !== e.id), e]));
     await supabase.from('exams').upsert({ ...e, teacher_id: e.teacherId, created_at: e.createdAt, is_active: e.isActive, duration_minutes: e.durationMinutes });
 };
 export const deleteExam = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_exams_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: Exam[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((e: Exam) => e.id !== id)));
     });
     await supabase.from('exams').delete().eq('id', id);
@@ -586,18 +586,18 @@ export const deleteExam = async (id: string) => {
 export const getQuestionBank = (tid?: string): Question[] => JSON.parse(localStorage.getItem(`local_questions_${tid || 'global'}`) || '[]');
 export const saveQuestionToBank = async (q: Question) => {
     const cur = getQuestionBank(q.teacherId);
-    localStorage.setItem(`local_questions_${q.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== q.id), q]));
+    localStorage.setItem(`local_questions_${q.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: Question) => x.id !== q.id), q]));
 };
 export const deleteQuestionFromBank = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_questions_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: Question[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((q: Question) => q.id !== id)));
     });
 };
 
 export const getExamResults = (examId?: string): ExamResult[] => {
-    const all = JSON.parse(localStorage.getItem('local_exam_results') || '[]');
+    const all: ExamResult[] = JSON.parse(localStorage.getItem('local_exam_results') || '[]');
     return examId ? all.filter((r: ExamResult) => r.examId === examId) : all;
 };
 export const saveExamResult = async (r: ExamResult) => {
@@ -607,23 +607,23 @@ export const saveExamResult = async (r: ExamResult) => {
 };
 export const deleteExamResult = async (id: string) => {
     const all = getExamResults();
-    localStorage.setItem('local_exam_results', JSON.stringify(all.filter(r => r.id !== id)));
+    localStorage.setItem('local_exam_results', JSON.stringify(all.filter((r: ExamResult) => r.id !== id)));
     await supabase.from('exam_results').delete().eq('id', id);
 };
 
 export const getRemedialPlans = (tid?: string): RemedialPlan[] => JSON.parse(localStorage.getItem(`local_remedial_${tid || 'global'}`) || '[]');
 export const saveRemedialPlan = async (p: RemedialPlan) => {
     const cur = getRemedialPlans(p.teacherId);
-    localStorage.setItem(`local_remedial_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== p.id), p]));
+    localStorage.setItem(`local_remedial_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: RemedialPlan) => x.id !== p.id), p]));
     await supabase.from('remedial_plans').upsert({ ...p, student_id: p.studentId, teacher_id: p.teacherId });
 };
 
 export const getEnvironmentRecords = (classId: string): EnvironmentRecord[] => {
-    const all = JSON.parse(localStorage.getItem('local_environment') || '[]');
+    const all: EnvironmentRecord[] = JSON.parse(localStorage.getItem('local_environment') || '[]');
     return all.filter((r: EnvironmentRecord) => r.classId === classId);
 };
 export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
-    const all = JSON.parse(localStorage.getItem('local_environment') || '[]');
+    const all: EnvironmentRecord[] = JSON.parse(localStorage.getItem('local_environment') || '[]');
     localStorage.setItem('local_environment', JSON.stringify([...all.filter((x: EnvironmentRecord) => x.id !== r.id), r]));
     await supabase.from('environment_records').upsert({ ...r, teacher_id: r.teacherId, class_id: r.classId, noise_level: r.noiseLevel });
 };
@@ -631,13 +631,13 @@ export const saveEnvironmentRecord = async (r: EnvironmentRecord) => {
 export const getLessonPlans = (tid?: string): StoredLessonPlan[] => JSON.parse(localStorage.getItem(`local_lesson_plans_${tid || 'global'}`) || '[]');
 export const saveLessonPlan = async (p: StoredLessonPlan) => {
     const cur = getLessonPlans(p.teacherId);
-    localStorage.setItem(`local_lesson_plans_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== p.id), p]));
+    localStorage.setItem(`local_lesson_plans_${p.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: StoredLessonPlan) => x.id !== p.id), p]));
     await supabase.from('lesson_plans').upsert({ ...p, teacher_id: p.teacherId, content_json: p.contentJson, created_at: p.createdAt });
 };
 export const deleteLessonPlan = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_lesson_plans_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: StoredLessonPlan[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((p: StoredLessonPlan) => p.id !== id)));
     });
     await supabase.from('lesson_plans').delete().eq('id', id);
@@ -646,34 +646,34 @@ export const deleteLessonPlan = async (id: string) => {
 export const getCurriculumUnits = (tid?: string): CurriculumUnit[] => JSON.parse(localStorage.getItem(`local_curriculum_units_${tid || 'global'}`) || '[]');
 export const saveCurriculumUnit = async (u: CurriculumUnit) => {
     const cur = getCurriculumUnits(u.teacherId);
-    localStorage.setItem(`local_curriculum_units_${u.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== u.id), u]));
+    localStorage.setItem(`local_curriculum_units_${u.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: CurriculumUnit) => x.id !== u.id), u]));
     await supabase.from('curriculum_units').upsert({ ...u, teacher_id: u.teacherId, grade_level: u.gradeLevel, order_index: u.orderIndex });
 };
 export const deleteCurriculumUnit = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_curriculum_units_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: CurriculumUnit[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((u: CurriculumUnit) => u.id !== id)));
     });
     await supabase.from('curriculum_units').delete().eq('id', id);
 };
 
 export const getCurriculumLessons = (unitId: string): CurriculumLesson[] => {
-    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     return all.filter((l: CurriculumLesson) => l.unitId === unitId);
 };
 export const saveCurriculumLesson = async (l: CurriculumLesson) => {
-    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
-    localStorage.setItem('local_curriculum_lessons', JSON.stringify([...all.filter(x => x.id !== l.id), l]));
+    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    localStorage.setItem('local_curriculum_lessons', JSON.stringify([...all.filter((x: CurriculumLesson) => x.id !== l.id), l]));
     await supabase.from('curriculum_lessons').upsert({ ...l, unit_id: l.unitId, order_index: l.orderIndex, is_completed: l.isCompleted, completed_at: l.completedAt });
 };
 export const deleteCurriculumLesson = async (id: string) => {
-    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     localStorage.setItem('local_curriculum_lessons', JSON.stringify(all.filter((l: CurriculumLesson) => l.id !== id)));
     await supabase.from('curriculum_lessons').delete().eq('id', id);
 };
 export const toggleCurriculumLesson = async (id: string, completed: boolean) => {
-    const all = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
+    const all: CurriculumLesson[] = JSON.parse(localStorage.getItem('local_curriculum_lessons') || '[]');
     const updated = all.map((l: CurriculumLesson) => l.id === id ? { ...l, isCompleted: completed, completedAt: completed ? new Date().toISOString() : null } : l);
     localStorage.setItem('local_curriculum_lessons', JSON.stringify(updated));
     await supabase.from('curriculum_lessons').update({ is_completed: completed, completed_at: completed ? new Date().toISOString() : null }).eq('id', id);
@@ -682,12 +682,12 @@ export const toggleCurriculumLesson = async (id: string, completed: boolean) => 
 export const getFormsDetailedResults = (tid?: string): FormsDetailedResult[] => JSON.parse(localStorage.getItem(`local_forms_results_${tid || 'global'}`) || '[]');
 export const saveFormsDetailedResult = async (r: FormsDetailedResult) => {
     const cur = getFormsDetailedResults(r.teacherId);
-    localStorage.setItem(`local_forms_results_${r.teacherId || 'global'}`, JSON.stringify([...cur.filter(x => x.id !== r.id), r]));
+    localStorage.setItem(`local_forms_results_${r.teacherId || 'global'}`, JSON.stringify([...cur.filter((x: FormsDetailedResult) => x.id !== r.id), r]));
 };
 export const deleteFormsDetailedResult = async (id: string) => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('local_forms_results_'));
     keys.forEach(k => {
-        const cur = JSON.parse(localStorage.getItem(k) || '[]');
+        const cur: FormsDetailedResult[] = JSON.parse(localStorage.getItem(k) || '[]');
         localStorage.setItem(k, JSON.stringify(cur.filter((r: FormsDetailedResult) => r.id !== id)));
     });
 };
