@@ -1,21 +1,23 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, MessageLog, AttendanceStatus, BehaviorStatus, Assignment, TermPeriod, Badge, Reward, WeeklyChallenge, PurchaseRequest, ScheduleItem, Exam } from '../types';
-import { downloadFromSupabase, getAcademicTerms, getAssignments, getMessages, updateStudent, getChallenges, savePurchaseRequest, getSchedules, getRewards, getExams, getExamResults } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, Exam, Reward, PurchaseRequest } from '../types';
+import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest } from '../services/storageService';
+// Added Star to the imports
 import { 
-    LogOut, LayoutGrid, Bell, Zap, Star, Radar as RadarIcon, TrendingUp, BookOpen, ClipboardList, CheckCircle, BrainCircuit, Medal, Globe, Info, Sparkles, Trophy, Target, ShieldCheck, Flame, ChevronRight, Crown, ShoppingBag, ShoppingCart, Heart, Share2, Download, X, ListChecks, Clock, QrCode, CreditCard, CalendarDays, FileQuestion, Activity, UserCircle, Wand2, Bot, Camera, MessageSquare
+    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { ResponsiveContainer, Radar as RechartsRadar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
-import { formatDualDate } from '../services/dateService';
-import BottomNavigation from './BottomNavigation';
-import StudentLearningTest from './StudentLearningTest';
-import StudentAchievements from './StudentAchievements';
-import StudentQuizPlayer from './StudentQuizPlayer';
-import StudentDigitalID from './StudentDigitalID';
+import StudentJourney from './StudentJourney';
 import StudentQuestSystem from './StudentQuestSystem';
 import StudentAvatarGen from './StudentAvatarGen';
+import StudentAchievements from './StudentAchievements';
+import StudentShop from './StudentShop'; // Assume standard shop component
+import StudentEvaluationView from './StudentEvaluationView'; // Assume standard evaluation component
+import StudentMessages from './StudentMessages'; // Assume standard messages component
 import StudentAITutor from './StudentAITutor';
 import StudentQRScanner from './StudentQRScanner';
+import StudentLearningTest from './StudentLearningTest';
+import StudentQuizPlayer from './StudentQuizPlayer';
 
 interface StudentPortalProps {
     currentUser: Student;
@@ -37,8 +39,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
     useEffect(() => {
         const loadData = async () => {
             if (navigator.onLine) await downloadFromSupabase();
-            const allMsgs = getMessages();
-            setMessages(allMsgs.filter((m: MessageLog) => m.studentId === currentUser.id).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setMessages(getMessages().filter(m => m.studentId === currentUser.id).sort((a,b) => b.date.localeCompare(a.date)));
             setRewards(getRewards(currentUser.createdById));
             setAvailableExams(getExams(currentUser.createdById).filter(e => e.isActive));
         };
@@ -49,10 +50,11 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
         const myAtt = attendance.filter(a => a.studentId === currentUser.id);
         const myPerf = performance.filter(p => p.studentId === currentUser.id);
         let xp = currentUser.xp || 0;
+        const level = Math.floor(xp / 500) + 1;
         const progressToNext = ((xp % 500) / 500) * 100;
         const attRate = myAtt.length > 0 ? Math.round((myAtt.filter(a => a.status === AttendanceStatus.PRESENT).length / myAtt.length) * 100) : 100;
         const avg = myPerf.length > 0 ? Math.round(myPerf.reduce((a,c)=>a+(c.score/c.maxScore),0)/myPerf.length*100) : 0;
-        return { xp, level: Math.floor(xp / 500) + 1, progressToNext, attRate, avg };
+        return { xp, level, progressToNext, attRate, avg };
     }, [currentUser, attendance, performance]);
 
     const handlePurchase = async (reward: Reward) => {
@@ -84,7 +86,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
                 <div className="p-10 border-b border-white/5 flex flex-col items-center bg-gradient-to-b from-indigo-950/40 to-transparent">
                     <div className="relative mb-6 group cursor-pointer" onClick={() => navigate('/avatar')}>
                         <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden ring-4 ring-white/5">
-                            {currentUser.email?.startsWith('data:image') ? <img src={currentUser.email} className="w-full h-full object-cover"/> : currentUser.name.charAt(0)}
+                            {currentUser.email?.startsWith('data:image') ? <img src={currentUser.email} className="w-full h-full object-cover" alt="Avatar"/> : currentUser.name.charAt(0)}
                         </div>
                         <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-900 w-10 h-10 rounded-2xl flex items-center justify-center font-black border-4 border-slate-950 shadow-xl">{stats.level}</div>
                     </div>
@@ -98,7 +100,6 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
                     <NavItem path="/" label="قاعدة العمليات" icon={LayoutGrid} isActive={location.pathname === '/'} />
                     <NavItem path="/avatar" label="مصنع الأفاتار" icon={UserCircle} isActive={location.pathname === '/avatar'} />
                     <NavItem path="/quests" label="المهام (Quests)" icon={Target} isActive={location.pathname === '/quests'} />
-                    <NavItem path="/quizzes" label="الاختبارات" icon={FileQuestion} isActive={location.pathname === '/quizzes'} />
                     <NavItem path="/shop" label="متجر المكافآت" icon={ShoppingBag} isActive={location.pathname === '/shop'} />
                     <NavItem path="/evaluation" label="سجل الإنجازات" icon={TrendingUp} isActive={location.pathname === '/evaluation'} />
                     <NavItem path="/messages" label="مركز الرسائل" icon={Bell} isActive={location.pathname === '/messages'} />
@@ -109,19 +110,83 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ currentUser: initialUser,
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-[#020617] pb-24 lg:pb-10">
                     <Routes>
-                        <Route path="/" element={<StudentDashboard stats={stats} student={currentUser} onStartTest={() => navigate('/lab')} onOpenQR={() => setIsQRScannerOpen(true)} />} />
+                        <Route path="/" element={
+                            <div className="space-y-8 animate-fade-in">
+                                <div className="bg-gradient-to-br from-indigo-900 via-slate-950 to-indigo-950 rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-16 text-white relative overflow-hidden shadow-2xl border border-white/5">
+                                    <div className="absolute top-0 right-0 p-10 opacity-10 pointer-events-none rotate-12"><Trophy size={300}/></div>
+                                    <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-8">
+                                        <div className="text-center lg:text-right">
+                                            <div className="flex items-center justify-center lg:justify-start gap-4 mb-4">
+                                                <div className="bg-yellow-400 text-slate-900 px-4 py-1.5 rounded-2xl font-black text-sm shadow-xl">المستوى {stats.level}</div>
+                                                <span className="text-indigo-400 text-sm font-bold uppercase tracking-widest">{currentUser.className}</span>
+                                            </div>
+                                            <h2 className="text-4xl md:text-6xl font-black mb-8 tracking-tight">بطلنا المبدع، {currentUser.name.split(' ')[0]}! 🚀</h2>
+                                            <div className="w-full max-w-md bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10 mx-auto lg:mx-0">
+                                                <div className="flex justify-between mb-3 text-xs font-black uppercase text-indigo-300">
+                                                    <span>التقدم للمستوى التالي</span>
+                                                    <span>{Math.round(stats.progressToNext)}%</span>
+                                                </div>
+                                                <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1">
+                                                    <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(79,70,229,0.5)]" style={{ width: `${stats.progressToNext}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 w-full lg:w-auto">
+                                            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10 flex flex-col items-center justify-center gap-2">
+                                                <Flame className="text-orange-500" fill="currentColor" size={32}/>
+                                                <p className="text-2xl font-black">{stats.attRate}%</p>
+                                                <p className="text-[10px] font-black text-indigo-300 uppercase">المواظبة</p>
+                                            </div>
+                                            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10 flex flex-col items-center justify-center gap-2">
+                                                <Target className="text-indigo-400" size={32}/>
+                                                <p className="text-2xl font-black">{stats.avg}%</p>
+                                                <p className="text-[10px] font-black text-indigo-300 uppercase">الدقة</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <StudentJourney xp={stats.xp} level={stats.level} />
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <button onClick={() => setIsQRScannerOpen(true)} className="p-8 bg-indigo-600 rounded-[2.5rem] shadow-xl flex items-center justify-between group hover:scale-[1.02] transition-all">
+                                        <div className="flex items-center gap-6">
+                                            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20 text-white">
+                                                <Camera size={32}/>
+                                            </div>
+                                            <div className="text-right text-white">
+                                                <h3 className="text-xl font-black">تحضير QR</h3>
+                                                <p className="text-indigo-100 text-xs font-bold opacity-60">امسح الكود لتسجيل حضورك</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className="text-white opacity-40"/>
+                                    </button>
+                                    <button onClick={() => navigate('/quests')} className="p-8 bg-slate-900 rounded-[2.5rem] border border-white/10 shadow-xl flex items-center justify-between group hover:scale-[1.02] transition-all">
+                                        <div className="flex items-center gap-6">
+                                            <div className="w-16 h-16 bg-purple-50/20 rounded-2xl flex items-center justify-center border border-purple-500/20 text-purple-400">
+                                                <Star size={32}/>
+                                            </div>
+                                            <div className="text-right text-white">
+                                                <h3 className="text-xl font-black">تحديات نشطة</h3>
+                                                <p className="text-slate-400 text-xs font-bold">مهام أسبوعية بانتظارك</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className="text-white opacity-40"/>
+                                    </button>
+                                </div>
+                            </div>
+                        } />
                         <Route path="/quests" element={<StudentQuestSystem student={currentUser} />} />
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />
                         <Route path="/achievements" element={<StudentAchievements student={currentUser} />} />
                         <Route path="/quizzes" element={selectedExam ? <StudentQuizPlayer exam={selectedExam} student={currentUser} onComplete={() => {setSelectedExam(null); navigate('/achievements');}} /> : <StudentQuizzesList exams={availableExams} onStart={setSelectedExam} />} />
-                        <Route path="/shop" element={<StudentShop stats={stats} onPurchase={handlePurchase} rewards={rewards} />} />
+                        <Route path="/shop" element={<StudentShop xp={stats.xp} onPurchase={handlePurchase} rewards={rewards} />} />
                         <Route path="/evaluation" element={<StudentEvaluationView student={currentUser} performance={performance} />} />
                         <Route path="/messages" element={<StudentMessages messages={messages} />} />
-                        <Route path="/lab" element={<div className="bg-white rounded-3xl p-6 h-full"><StudentLearningTest student={currentUser} onComplete={() => navigate('/')} /></div>} />
+                        <Route path="/lab" element={<StudentLearningTest student={currentUser} onComplete={() => navigate('/')} />} />
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                 </main>
-                <BottomNavigation role="STUDENT" onMenuClick={() => {}} />
             </div>
         </div>
     );
@@ -137,7 +202,7 @@ const NavItem = ({ path, label, icon: Icon, isActive }: any) => {
 };
 
 const StudentQuizzesList = ({ exams, onStart }: { exams: Exam[], onStart: (e: Exam) => void }) => (
-    <div className="space-y-10 animate-fade-in">
+    <div className="space-y-10 animate-fade-in font-tajawal">
         <h2 className="text-3xl font-black text-white flex items-center gap-4"><FileQuestion className="text-indigo-400" size={32}/> الاختبارات المتاحة</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {exams.map(exam => (
@@ -147,195 +212,9 @@ const StudentQuizzesList = ({ exams, onStart }: { exams: Exam[], onStart: (e: Ex
                     <button onClick={() => onStart(exam)} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all">ابدأ التحدي</button>
                 </div>
             ))}
+            {exams.length === 0 && <p className="text-slate-500 text-center col-span-full">لا توجد اختبارات نشطة حالياً.</p>}
         </div>
     </div>
 );
-
-const StudentShop = ({ stats, onPurchase, rewards }: any) => (
-    <div className="space-y-10 animate-fade-in">
-        <div className="flex justify-between items-center">
-            <h2 className="text-3xl font-black text-white flex items-center gap-3"><ShoppingBag className="text-indigo-400"/> متجر الأبطال</h2>
-            <div className="bg-white/5 px-6 py-3 rounded-2xl border border-indigo-500/30 flex items-center gap-3 backdrop-blur-xl">
-                <Zap size={20} className="text-yellow-400" fill="currentColor"/>
-                <span className="text-xl font-black text-white">{stats.xp} XP</span>
-            </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {rewards.map((r: any) => (
-                <div key={r.id} className="bg-slate-900/50 p-8 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
-                    <div className="text-5xl mb-4">{r.icon}</div>
-                    <h3 className="text-xl font-black text-white mb-2">{r.title}</h3>
-                    <p className="text-slate-400 text-sm font-medium mb-8">{r.description}</p>
-                    <button 
-                        onClick={() => onPurchase(r)}
-                        className={`w-full py-4 rounded-2xl font-black transition-all ${stats.xp >= r.cost ? 'bg-indigo-600 text-white' : 'bg-white/5 text-gray-600 cursor-not-allowed'}`}
-                    >
-                        {stats.xp >= r.cost ? `استبدال بـ ${r.cost} XP` : 'نقاط غير كافية'}
-                    </button>
-                </div>
-            ))}
-        </div>
-    </div>
-);
-
-// Fix: Added missing StatBox component
-const StatBox = ({ label, value, icon }: any) => (
-    <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10 flex flex-col items-center justify-center gap-2">
-        <div className="p-3 bg-white/10 rounded-2xl mb-1">{icon}</div>
-        <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{label}</p>
-        <p className="text-2xl font-black text-white">{value}</p>
-    </div>
-);
-
-// Fix: Added missing QuickAction component
-const QuickAction = ({ path, label, icon }: any) => {
-    const navigate = useNavigate();
-    return (
-        <button onClick={() => navigate(path)} className="w-full flex items-center gap-4 p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all text-right group">
-            <div className="text-indigo-400 group-hover:scale-110 transition-transform">{icon}</div>
-            <span className="text-sm font-black text-slate-200">{label}</span>
-            <ChevronRight className="mr-auto text-white/20 group-hover:text-white transition-colors" size={16}/>
-        </button>
-    );
-};
-
-const StudentDashboard = ({ stats, student, onStartTest, onOpenQR }: any) => {
-    const navigate = useNavigate();
-    return (
-        <div className="space-y-6 md:space-y-8 animate-fade-in">
-            <div className="bg-gradient-to-br from-indigo-950 via-slate-950 to-indigo-950 rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-16 text-white relative overflow-hidden shadow-2xl border border-white/5">
-                <div className="absolute top-0 right-0 p-10 opacity-10 pointer-events-none rotate-12"><Trophy size={300}/></div>
-                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                    <div>
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="bg-yellow-400 text-slate-900 px-4 py-1.5 rounded-2xl font-black text-sm shadow-xl">المستوى {stats.level}</div>
-                            <span className="text-indigo-400 text-sm font-bold uppercase tracking-widest">{student.className}</span>
-                        </div>
-                        <h2 className="text-4xl md:text-6xl font-black mb-8 tracking-tight">بطلنا المبدع، {student.name.split(' ')[0]}! 🚀</h2>
-                        <div className="w-full max-w-md bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10">
-                            <div className="flex justify-between mb-3 text-xs font-black uppercase text-indigo-300">
-                                <span>التقدم للمستوى التالي</span>
-                                <span>{Math.round(stats.progressToNext)}%</span>
-                            </div>
-                            <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1">
-                                <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(79,70,229,0.5)]" style={{ width: `${stats.progressToNext}%` }}></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                        <StatBox label="المواظبة" value={`${stats.attRate}%`} icon={<Flame className="text-orange-500" fill="currentColor"/>}/>
-                        <StatBox label="الدقة" value={`${stats.avg}%`} icon={<Target className="text-indigo-400"/>}/>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    {/* QR Attendance Button Mobile Focus */}
-                    <button 
-                        onClick={onOpenQR}
-                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 p-8 rounded-[2.5rem] shadow-2xl flex items-center justify-between group hover:scale-[1.02] transition-all"
-                    >
-                        <div className="flex items-center gap-6">
-                            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
-                                <QrCode size={32} className="text-white"/>
-                            </div>
-                            <div className="text-right">
-                                <h3 className="text-xl font-black text-white">تسجيل حضور الحصة</h3>
-                                <p className="text-indigo-100 text-xs font-bold opacity-60">امسح كود QR من سبورة المعلم</p>
-                            </div>
-                        </div>
-                        <ChevronRight className="text-white opacity-40 group-hover:translate-x-[-8px] transition-transform"/>
-                    </button>
-
-                    <div className="bg-slate-900/50 rounded-[2.5rem] p-10 border border-white/5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
-                        <div className="flex items-center gap-6">
-                            <div className="w-20 h-20 bg-indigo-600/20 text-indigo-400 rounded-[2rem] flex items-center justify-center border border-indigo-500/30"><BrainCircuit size={40}/></div>
-                            <div>
-                                <h3 className="text-xl font-black text-white">تحليل شخصية الطالب (VARK)</h3>
-                                <p className="text-slate-400 text-sm font-bold">اكتشف أفضل طريقة تذاكر بها دروسك!</p>
-                            </div>
-                        </div>
-                        <button onClick={onStartTest} className="px-10 py-4 bg-indigo-600 text-white rounded-3xl font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-3">ابدأ الاختبار <ChevronRight/></button>
-                    </div>
-                </div>
-
-                <div className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex flex-col gap-4">
-                    <h3 className="text-lg font-black text-white flex items-center gap-3 mb-2"><Zap className="text-indigo-400"/> أفعال سريعة</h3>
-                    <QuickAction path="/avatar" label="تحديث الأفاتار" icon={<Wand2 size={24}/>}/>
-                    <QuickAction path="/quizzes" label="تحديات نشطة" icon={<FileQuestion size={24}/>}/>
-                    <QuickAction path="/quests" label="مهماتي" icon={<Target size={24}/>}/>
-                    <button onClick={onOpenQR} className="w-full flex items-center gap-4 p-5 bg-indigo-600/20 hover:bg-indigo-600/30 rounded-2xl border border-indigo-500/20 transition-all text-right group">
-                        <div className="text-indigo-400 group-hover:scale-110 transition-transform"><Camera size={24}/></div>
-                        <span className="text-sm font-black text-slate-200">مسح كود الحضور</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Fix: Added missing StudentEvaluationView component
-const StudentEvaluationView = ({ student, performance }: { student: Student, performance: PerformanceRecord[] }) => {
-    const myPerf = performance.filter(p => p.studentId === student.id).sort((a,b) => b.date.localeCompare(a.date));
-    return (
-        <div className="space-y-8 animate-fade-in">
-            <h2 className="text-3xl font-black text-white flex items-center gap-4"><Activity className="text-emerald-400" size={32}/> سجل التحصيل الدراسي</h2>
-            <div className="bg-slate-900/50 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
-                <table className="w-full text-right">
-                    <thead className="bg-white/5 text-indigo-300 font-black text-[10px] uppercase tracking-widest border-b border-white/5">
-                        <tr><th className="p-6">التاريخ</th><th className="p-6">المادة / التقييم</th><th className="p-6 text-center">الدرجة</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {myPerf.map(p => (
-                            <tr key={p.id} className="hover:bg-white/5 transition-colors">
-                                <td className="p-6 text-slate-400 text-xs font-mono">{p.date}</td>
-                                <td className="p-6">
-                                    <p className="font-black text-white">{p.title}</p>
-                                    <p className="text-[10px] text-slate-500 uppercase">{p.subject}</p>
-                                </td>
-                                <td className="p-6 text-center">
-                                    <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-400 px-4 py-2 rounded-2xl font-black">
-                                        <span className="text-lg">{p.score}</span>
-                                        <span className="text-[10px] opacity-40">/ {p.maxScore}</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-// Fix: Added missing StudentMessages component
-const StudentMessages = ({ messages }: { messages: MessageLog[] }) => {
-    return (
-        <div className="space-y-8 animate-fade-in">
-            <h2 className="text-3xl font-black text-white flex items-center gap-4"><Bell className="text-indigo-400" size={32}/> التنبيهات والرسائل</h2>
-            <div className="space-y-4">
-                {messages.map(msg => (
-                    <div key={msg.id} className="bg-slate-900/50 p-6 rounded-[2rem] border border-white/5 shadow-xl flex gap-6 items-start">
-                        <div className="p-4 bg-indigo-600/20 text-indigo-400 rounded-2xl"><MessageSquare size={24}/></div>
-                        <div className="flex-1">
-                            <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-black text-white text-lg">{msg.sentBy}</h4>
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">{formatDualDate(msg.date)}</span>
-                            </div>
-                            <p className="text-slate-300 leading-relaxed">{msg.content}</p>
-                        </div>
-                    </div>
-                ))}
-                {messages.length === 0 && (
-                    <div className="py-20 text-center text-slate-500 font-bold border-4 border-dashed border-white/5 rounded-[3rem]">
-                        <p className="text-xl">لا توجد رسائل جديدة.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
 
 export default StudentPortal;

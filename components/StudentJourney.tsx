@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Trophy, Star, Target, Flag, Rocket, ChevronLeft } from 'lucide-react';
+import { Trophy, Star, Target, Flag, Rocket, Check, TrendingUp } from 'lucide-react';
 
 interface Props {
     xp: number;
@@ -17,15 +17,17 @@ const StudentJourney: React.FC<Props> = ({ xp, level }) => {
     ];
 
     return (
-        <div className="bg-slate-900/50 p-10 rounded-[3.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
+        <div className="bg-slate-900/50 p-10 rounded-[3.5rem] border border-white/5 shadow-2xl relative overflow-hidden font-tajawal">
             <div className="flex justify-between items-center mb-12">
-                <h3 className="text-2xl font-black text-white flex items-center gap-3"><TrendingUp className="text-indigo-400"/> مسار القمة</h3>
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                    <TrendingUp className="text-indigo-400" size={24}/> مسار القمة
+                </h3>
                 <span className="text-[10px] font-black text-indigo-300 bg-indigo-500/20 px-4 py-1.5 rounded-full border border-indigo-500/30">المستوى الحالي: {level}</span>
             </div>
 
-            <div className="relative flex justify-between items-center px-10">
+            <div className="relative flex justify-between items-center px-4 md:px-10">
                 {/* Connecting Line */}
-                <div className="absolute top-1/2 left-20 right-20 h-2 bg-white/5 -translate-y-1/2 rounded-full overflow-hidden">
+                <div className="absolute top-1/2 left-10 right-10 h-2 bg-white/5 -translate-y-1/2 rounded-full overflow-hidden">
                     <div 
                         className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_15px_rgba(79,70,229,0.5)] transition-all duration-1000"
                         style={{ width: `${Math.min(100, (xp / 5000) * 100)}%` }}
@@ -36,7 +38,7 @@ const StudentJourney: React.FC<Props> = ({ xp, level }) => {
                     const isReached = xp >= m.minXp;
                     return (
                         <div key={i} className="relative z-10 flex flex-col items-center">
-                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500 ${isReached ? 'bg-indigo-600 text-white shadow-2xl scale-110' : 'bg-slate-800 text-white/20 border-2 border-white/5'}`}>
+                            <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center transition-all duration-500 ${isReached ? 'bg-indigo-600 text-white shadow-2xl scale-110' : 'bg-slate-800 text-white/20 border-2 border-white/5'}`}>
                                 {React.cloneElement(m.icon as React.ReactElement, { size: 24 })}
                                 {isReached && (
                                     <div className="absolute -top-1 -right-1 bg-yellow-400 text-slate-950 p-1 rounded-lg animate-bounce">
@@ -44,7 +46,7 @@ const StudentJourney: React.FC<Props> = ({ xp, level }) => {
                                     </div>
                                 )}
                             </div>
-                            <p className={`mt-4 text-[10px] font-black uppercase tracking-widest ${isReached ? 'text-indigo-300' : 'text-white/20'}`}>{m.label}</p>
+                            <p className={`mt-4 text-[10px] font-black uppercase tracking-widest hidden md:block ${isReached ? 'text-indigo-300' : 'text-white/20'}`}>{m.label}</p>
                         </div>
                     );
                 })}
@@ -52,15 +54,5 @@ const StudentJourney: React.FC<Props> = ({ xp, level }) => {
         </div>
     );
 };
-
-const TrendingUp = ({ size, className }: any) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
-    </svg>
-);
-
-const Check = ({ size, strokeWidth }: any) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-);
 
 export default StudentJourney;
