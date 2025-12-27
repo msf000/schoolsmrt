@@ -87,7 +87,6 @@ const SmartBadges: React.FC<SmartBadgesProps> = ({ students }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 flex-1 overflow-hidden">
-        {/* Creation Controls */}
         <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm flex flex-col gap-8 overflow-y-auto custom-scrollbar">
           <div className="space-y-4">
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">موضوع الوسام</label>
@@ -138,7 +137,6 @@ const SmartBadges: React.FC<SmartBadgesProps> = ({ students }) => {
           )}
         </div>
 
-        {/* Preview Area */}
         <div className="bg-slate-900 rounded-[3rem] flex flex-col items-center justify-center p-10 relative overflow-hidden shadow-2xl">
           {isGenerating ? (
             <div className="flex flex-col items-center gap-6 animate-pulse z-10">
