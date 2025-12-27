@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { InteractiveGame, Student, PerformanceRecord } from '../types';
 import GamePlayer from './GamePlayer';
@@ -28,7 +27,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
     const loadPerf = async () => {
         const res = await fetchPerformance();
-        setPerformance(res.filter(p => p.studentId === currentUser.id));
+        setPerformance(res.filter((p: PerformanceRecord) => p.studentId === currentUser.id));
     };
 
     const studentStats = {

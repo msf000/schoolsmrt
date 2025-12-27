@@ -279,7 +279,7 @@ export const saveTeacherPeriodTimings = (tid: string, timings: string[]) => setL
 
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => (getLocal('teacher_assignments') || []).filter((a: any) => !tid || a.teacherId === tid);
 export const addTeacherAssignment = (a: TeacherAssignment) => setLocal('teacher_assignments', [...getLocal('teacher_assignments'), a]);
-export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getLocal('teacher_assignments').filter((a: any) => a.id !== id));
+export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getTeacherAssignments(getLocal('teacher_assignments')).filter((a: any) => a.id !== id));
 
 // --- الاختبارات والمهام (Exams and Tasks) ---
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
@@ -452,7 +452,7 @@ export const toggleResourceShare = async (id: string, isShared: boolean) => {
 export const fetchParentRequests = async (tid: string) => {
     const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
     return (data || []).map(r => ({
-        id: r.id, parentId: r.parent_id, studentId: r.student_id, teacher_id: r.teacher_id,
+        id: r.id, parentId: r.parent_id, studentId: r.student_id, teacherId: r.teacher_id,
         type: r.type, content: r.content, status: r.status, date: r.date
     }));
 };
