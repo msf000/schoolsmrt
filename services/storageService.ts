@@ -54,7 +54,8 @@ export const updateStudent = async (student: Student) => {
         learning_style: student.learningStyle,
         seat_index: student.seatIndex,
         aura_color: student.auraColor,
-        active_title: student.active_title
+        // Fix: student.active_title corrected to student.activeTitle
+        active_title: student.activeTitle
     }).eq('id', student.id);
 };
 
