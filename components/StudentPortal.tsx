@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, MessageLog, AttendanceStatus, Exam, Reward, PurchaseRequest } from '../types';
 import { downloadFromSupabase, getMessages, updateStudent, getRewards, getExams, savePurchaseRequest } from '../services/storageService';
 import { 
-    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity, BookOpen
+    LogOut, LayoutGrid, Bell, Zap, TrendingUp, Target, UserCircle, ShoppingBag, Crown, ChevronRight, Trophy, BrainCircuit, FileQuestion, Flame, Camera, Star, QrCode, Swords, Activity, BookOpen, Clock
 } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import StudentJourney from './StudentJourney';
@@ -19,6 +19,7 @@ import StudentLearningTest from './StudentLearningTest';
 import StudentQuizPlayer from './StudentQuizPlayer';
 import StudentDigitalID from './StudentDigitalID';
 import SmartStudyPlan from './SmartStudyPlan';
+import StudentAchievementTimeline from './StudentAchievementTimeline';
 
 const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceRecord[], performance: PerformanceRecord[], onLogout: () => void }> = ({ currentUser: initialUser, attendance, performance, onLogout }) => {
     const navigate = useNavigate();
@@ -48,8 +49,9 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                     </div>
                     <h1 className="text-xl font-black text-white text-center">{currentUser.name}</h1>
                 </div>
-                <nav className="flex-1 p-6 space-y-1">
+                <nav className="flex-1 p-6 space-y-1 overflow-y-auto custom-scrollbar">
                     <NavItem path="/" label="الرئيسية" icon={LayoutGrid} isActive={location.pathname === '/'} />
+                    <NavItem path="/timeline" label="خط النجاح" icon={Clock} isActive={location.pathname === '/timeline'} />
                     <NavItem path="/id" label="هويتي الرقمية" icon={QrCode} isActive={location.pathname === '/id'} />
                     <NavItem path="/avatar" label="مصنع الأفاتار" icon={UserCircle} isActive={location.pathname === '/avatar'} />
                     <NavItem path="/shop" label="متجر المكافآت" icon={ShoppingBag} isActive={location.pathname === '/shop'} />
@@ -90,6 +92,7 @@ const StudentPortal: React.FC<{ currentUser: Student, attendance: AttendanceReco
                                 <StudentQuestSystem student={currentUser} />
                             </div>
                         } />
+                        <Route path="/timeline" element={<StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />} />
                         <Route path="/id" element={<StudentDigitalID student={currentUser} stats={stats} />} />
                         <Route path="/test" element={<StudentLearningTest student={currentUser} onComplete={() => navigate('/')} />} />
                         <Route path="/avatar" element={<StudentAvatarGen student={currentUser} onUpdate={(s) => { updateStudent(s); setCurrentUser(s); }} />} />

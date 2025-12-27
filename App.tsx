@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
     fetchStudents, fetchAttendance, fetchPerformance, saveAttendance, 
     addPerformance, deletePerformance, getUserTheme,
-    addStudent, updateStudent, deleteStudent, downloadFromSupabase
+    addStudent, updateStudent, deleteStudent, downloadFromSupabase,
+    getTeachers
 } from './services/storageService';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord, UserTheme } from './types';
 
@@ -22,7 +22,6 @@ import StudentFollowUp from './components/StudentFollowUp';
 import Leaderboard from './components/Leaderboard';
 import ExamsManager from './components/ExamsManager';
 import MessageCenter from './components/MessageCenter';
-import CertificatesCenter from './components/CertificatesCenter';
 import ClassroomManager from './components/ClassroomManager';
 import ClassroomScreen from './components/ClassroomScreen';
 import WorksTracking from './components/WorksTracking';
@@ -45,6 +44,10 @@ import FlexibleTrackingSheet from './components/FlexibleTrackingSheet';
 import TeacherAIConfig from './components/TeacherAIConfig';
 import ScheduleView from './components/ScheduleView';
 import LessonPlanning from './components/LessonPlanning';
+import PrincipalDashboard from './components/PrincipalDashboard';
+import StudentAchievementTimeline from './components/StudentAchievementTimeline';
+// Add missing import for CertificatesCenter
+import CertificatesCenter from './components/CertificatesCenter';
 import { RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -70,7 +73,7 @@ const App: React.FC = () => {
         try {
             const userId = currentUser.id;
             const role = (currentUser as any).role;
-            await downloadFromSupabase(role === 'SUPER_ADMIN' ? undefined : userId);
+            await downloadFromSupabase(role === 'SUPER_ADMIN' || role === 'SCHOOL_MANAGER' ? undefined : userId);
             setStudents(JSON.parse(localStorage.getItem('local_students') || '[]'));
             setAttendance(JSON.parse(localStorage.getItem('local_attendance') || '[]'));
             setPerformance(JSON.parse(localStorage.getItem('local_performance') || '[]'));
@@ -152,6 +155,7 @@ const App: React.FC = () => {
                 {/* الإعدادات والمدير */}
                 <Route path="/school-mgmt" element={<SchoolManagementComponent students={students} onImportStudents={()=>{}} onImportPerformance={()=>{}} onImportAttendance={()=>{}} currentUser={currentUser as SystemUser} onUpdateTheme={()=>{}}/>} />
                 <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/principal" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={getTeachers()} />} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
