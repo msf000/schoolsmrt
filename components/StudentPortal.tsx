@@ -21,12 +21,13 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'SHOP' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
-        setAvailableGames(getGames().filter(g => g.targetClass === currentUser.className));
+        const allGames = getGames();
+        setAvailableGames(allGames.filter((g: InteractiveGame) => g.targetClass === currentUser.className));
         loadPerf();
     }, [currentUser]);
 
     const loadPerf = async () => {
-        const res = await fetchPerformance();
+        const res: PerformanceRecord[] = await fetchPerformance();
         setPerformance(res.filter((p: PerformanceRecord) => p.studentId === currentUser.id));
     };
 

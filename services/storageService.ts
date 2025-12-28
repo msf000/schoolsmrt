@@ -41,7 +41,7 @@ const mapStudentFromDB = (s: any): Student => ({
 });
 
 // --- الطلاب (Students) ---
-export const fetchStudents = async () => {
+export const fetchStudents = async (): Promise<Student[]> => {
     try {
         const { data, error } = await supabase.from('students').select('*').order('name');
         if (error) throw error;
@@ -99,11 +99,11 @@ export const deleteAllStudents = async () => {
 };
 
 // --- الحضور (Attendance) ---
-export const fetchAttendance = async () => {
+export const fetchAttendance = async (): Promise<AttendanceRecord[]> => {
     try {
         const { data, error } = await supabase.from('attendance').select('*').order('date', { ascending: false });
         if (error) throw error;
-        const mapped = (data || []).map(a => ({
+        const mapped: AttendanceRecord[] = (data || []).map(a => ({
             id: a.id,
             studentId: a.student_id,
             date: a.date,
@@ -145,13 +145,13 @@ export const deleteAttendance = async (id: string) => {
 };
 
 // --- الأداء (Performance) ---
-export const fetchPerformance = async (tid?: string) => {
+export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[]> => {
     try {
         let query = supabase.from('performance').select('*');
         if (tid) query = query.eq('created_by_id', tid);
         const { data, error } = await query.order('date', { ascending: false });
         if (error) throw error;
-        const mapped = (data || []).map(p => ({
+        const mapped: PerformanceRecord[] = (data || []).map(p => ({
             id: p.id,
             studentId: p.student_id,
             subject: p.subject,
@@ -195,26 +195,29 @@ export const deletePerformance = async (id: string) => {
 };
 
 // --- المعلمون والمدارس (Management) ---
-export const fetchTeachers = async () => {
+export const fetchTeachers = async (): Promise<Teacher[]> => {
     const { data } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
-    setLocal('teachers', data || []);
-    return data || [];
+    const teachers = (data || []) as Teacher[];
+    setLocal('teachers', teachers);
+    return teachers;
 };
 
 export const getTeachers = (): Teacher[] => getLocal('teachers');
 
-export const fetchSchools = async () => {
+export const fetchSchools = async (): Promise<School[]> => {
     const { data } = await supabase.from('schools').select('*');
-    setLocal('schools', data || []);
-    return data || [];
+    const schools = (data || []) as School[];
+    setLocal('schools', schools);
+    return schools;
 };
 
 export const getSchools = (): School[] => getLocal('schools');
 
-export const fetchSystemUsers = async () => {
+export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
     const { data } = await supabase.from('system_users').select('*');
-    setLocal('system_users', data || []);
-    return data || [];
+    const users = (data || []) as SystemUser[];
+    setLocal('system_users', users);
+    return users;
 };
 
 export const addTeacher = async (teacher: Teacher) => {
@@ -279,7 +282,7 @@ export const saveTeacherPeriodTimings = (tid: string, timings: string[]) => setL
 
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => (getLocal('teacher_assignments') || []).filter((a: any) => !tid || a.teacherId === tid);
 export const addTeacherAssignment = (a: TeacherAssignment) => setLocal('teacher_assignments', [...getLocal('teacher_assignments'), a]);
-export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getTeacherAssignments(getLocal('teacher_assignments')).filter((a: any) => a.id !== id));
+export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getLocal('teacher_assignments').filter((a: any) => a.id !== id));
 
 // --- الاختبارات والمهام (Exams and Tasks) ---
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
@@ -328,7 +331,7 @@ export const saveWallPost = async (post: WallPost) => {
         content: post.content, type: post.type, school_id: post.schoolId
     });
 };
-export const fetchWallPosts = async (sid: string) => {
+export const fetchWallPosts = async (sid: string): Promise<WallPost[]> => {
     const { data } = await supabase.from('wall_posts').select('*').eq('school_id', sid).order('created_at', { ascending: false });
     return (data || []).map(p => ({
         id: p.id, userId: p.user_id, userName: p.user_name, content: p.content,
@@ -360,12 +363,12 @@ export const getSchedules = (): ScheduleItem[] => getLocal('schedules') || [];
 export const saveScheduleItem = (item: ScheduleItem) => setLocal('schedules', [...getSchedules().filter(s=>s.id!==item.id), item]);
 export const deleteScheduleItem = (id: string) => setLocal('schedules', getSchedules().filter(s => s.id !== id));
 
-export const authenticateUser = async (id: string, pass: string) => {
+export const authenticateUser = async (id: string, pass: string): Promise<SystemUser | null> => {
     const { data } = await supabase.from('system_users').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', pass).single();
-    return data || null;
+    return data as SystemUser || null;
 };
 
-export const authenticateStudent = async (id: string, pass: string) => {
+export const authenticateStudent = async (id: string, pass: string): Promise<Student | null> => {
     const { data } = await supabase.from('students').select('*').eq('national_id', id).single();
     if (data && (data.password === pass || pass === '123456')) return mapStudentFromDB(data);
     return null;
@@ -393,7 +396,6 @@ export const getExamResults = (examId?: string): ExamResult[] => (getLocal('exam
 export const saveExamResult = async (res: ExamResult) => setLocal('exam_results', [...getLocal('exam_results'), res]);
 
 export const getQuestionBank = (tid: string): Question[] => (getLocal('question_bank') || []).filter((q: any) => q.teacherId === tid);
-// Fix: Corrected build error TS2488 by separating filtering and storage update
 export const saveQuestionToBank = (q: Question) => {
     const list = getLocal('question_bank').filter((x: any) => x.id !== q.id);
     setLocal('question_bank', [...list, q]);
@@ -437,7 +439,7 @@ export const getRewards = (tid: string): Reward[] => (getLocal('rewards') || [])
 export const saveReward = (reward: Reward, tid: string) => setLocal('rewards', [...getLocal('rewards').filter((r: any) => r.id !== reward.id), { ...reward, teacherId: tid }]);
 export const deleteReward = (id: string, tid: string) => setLocal('rewards', getLocal('rewards').filter((r: any) => r.id !== id));
 
-export const fetchSharedResources = async (schoolId?: string) => {
+export const fetchSharedResources = async (schoolId?: string): Promise<StoredLessonPlan[]> => {
     const { data } = await supabase.from('lesson_plans').select('*').eq('is_shared', true);
     return (data || []).map(p => ({
         id: p.id, teacherId: p.teacher_id, subject: p.subject, topic: p.topic, 
@@ -449,7 +451,7 @@ export const toggleResourceShare = async (id: string, isShared: boolean) => {
     await supabase.from('lesson_plans').update({ is_shared: isShared }).eq('id', id);
 };
 
-export const fetchParentRequests = async (tid: string) => {
+export const fetchParentRequests = async (tid: string): Promise<ParentRequest[]> => {
     const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
     return (data || []).map(r => ({
         id: r.id, parentId: r.parent_id, studentId: r.student_id, teacherId: r.teacher_id,
