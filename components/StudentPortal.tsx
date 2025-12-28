@@ -84,7 +84,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {availableGames.map(game => (
+                                {availableGames.map((game: InteractiveGame) => (
                                     <button 
                                         key={game.id} 
                                         onClick={() => setSelectedGame(game)} 

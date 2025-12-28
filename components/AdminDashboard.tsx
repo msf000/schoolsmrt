@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-    fetchSchools, fetchSystemUsers, fetchTeachers, fetchAttendance, fetchPerformance, fetchStudents,
-    getDatabaseSchemaSQL, getCloudSystemStatus
+    fetchSchools, fetchSystemUsers, fetchTeachers, fetchAttendance, fetchPerformance, fetchStudents
 } from '../services/storageService';
 import { 
     Shield, Building, Users, Database, RefreshCw, CheckCircle, AlertTriangle, 

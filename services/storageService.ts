@@ -16,7 +16,6 @@ const setLocal = (key: string, val: any) => localStorage.setItem(key, JSON.strin
 
 /**
  * محول البيانات من Supabase (snake_case) إلى التطبيق (camelCase)
- * لضمان سحب الأعمدة بشكل صحيح من قاعدة البيانات السحابية
  */
 const mapStudentFromDB = (s: any): Student => ({
     id: s.id,
@@ -40,7 +39,7 @@ const mapStudentFromDB = (s: any): Student => ({
     seatIndex: s.seat_index || 0
 });
 
-// --- الطلاب (Students) ---
+// --- الطلاب ---
 export const fetchStudents = async (): Promise<Student[]> => {
     try {
         const { data, error } = await supabase.from('students').select('*').order('name');
@@ -98,7 +97,7 @@ export const deleteAllStudents = async () => {
     setLocal('students', []);
 };
 
-// --- الحضور (Attendance) ---
+// --- الحضور ---
 export const fetchAttendance = async (): Promise<AttendanceRecord[]> => {
     try {
         const { data, error } = await supabase.from('attendance').select('*').order('date', { ascending: false });
@@ -144,7 +143,7 @@ export const deleteAttendance = async (id: string) => {
     await fetchAttendance();
 };
 
-// --- الأداء (Performance) ---
+// --- الأداء ---
 export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[]> => {
     try {
         let query = supabase.from('performance').select('*');
@@ -194,7 +193,7 @@ export const deletePerformance = async (id: string) => {
     await fetchPerformance();
 };
 
-// --- المعلمون والمدارس (Management) ---
+// --- المعلمون والمدارس ---
 export const fetchTeachers = async (): Promise<Teacher[]> => {
     const { data } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
     const teachers = (data || []) as Teacher[];
@@ -257,7 +256,7 @@ export const updateSystemUser = async (user: SystemUser) => {
     await supabase.from('system_users').update(user).eq('id', user.id);
 };
 
-// --- الإعدادات والمواد (Settings) ---
+// --- الإعدادات والمواد ---
 export const getSubjects = (tid: string): Subject[] => (getLocal('subjects') || []).filter((s: Subject) => s.teacherId === tid);
 export const addSubject = (subject: Subject) => setLocal('subjects', [...getLocal('subjects'), subject]);
 export const deleteSubject = (id: string) => setLocal('subjects', getLocal('subjects').filter((s: Subject) => s.id !== id));
@@ -282,9 +281,12 @@ export const saveTeacherPeriodTimings = (tid: string, timings: string[]) => setL
 
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => (getLocal('teacher_assignments') || []).filter((a: any) => !tid || a.teacherId === tid);
 export const addTeacherAssignment = (a: TeacherAssignment) => setLocal('teacher_assignments', [...getLocal('teacher_assignments'), a]);
-export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getLocal('teacher_assignments').filter((a: any) => a.id !== id));
+export const deleteTeacherAssignment = (id: string) => {
+    const list = getLocal('teacher_assignments').filter((a: any) => a.id !== id);
+    setLocal('teacher_assignments', list);
+};
 
-// --- الاختبارات والمهام (Exams and Tasks) ---
+// --- الاختبارات والمهام ---
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
 export const saveExam = (exam: Exam) => setLocal('exams', [...getLocal('exams').filter((e: any) => e.id !== exam.id), exam]);
 export const deleteExam = (id: string) => setLocal('exams', getLocal('exams').filter((e: any) => e.id !== id));
@@ -302,7 +304,7 @@ export const deleteAssignment = (id: string) => setLocal('assignments', getLocal
 export const getTasks = (tid?: string): Task[] => (getLocal('tasks') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const saveTask = (task: Task) => setLocal('tasks', [...getLocal('tasks').filter((t: any) => t.id !== task.id), task]);
 
-// --- التحليلات والجداول الخاصة (Analytics and Custom Tables) ---
+// --- التحليلات والجداول الخاصة ---
 export const getCustomTables = (tid?: string): CustomTable[] => (getLocal('custom_tables') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const addCustomTable = async (table: CustomTable) => setLocal('custom_tables', [...getLocal('custom_tables'), table]);
 export const deleteCustomTable = async (id: string) => setLocal('custom_tables', getLocal('custom_tables').filter((t: any) => t.id !== id));
@@ -324,7 +326,7 @@ export const saveBehaviorIncident = async (incident: BehaviorIncident) => {
     });
 };
 
-// --- الحائط والمراسلات (Communication) ---
+// --- الحائط والمراسلات ---
 export const saveWallPost = async (post: WallPost) => {
     await supabase.from('wall_posts').insert({
         id: post.id, user_id: post.userId, user_name: post.userName,
@@ -342,7 +344,7 @@ export const fetchWallPosts = async (sid: string): Promise<WallPost[]> => {
 export const saveMessage = async (msg: MessageLog) => setLocal('messages', [msg, ...(getLocal('messages') || [])]);
 export const getMessages = (tid?: string): MessageLog[] => (getLocal('messages') || []).filter((m: any) => !tid || m.teacherId === tid);
 
-// --- دوال متنوعة (Utility) ---
+// --- دوال متنوعة ---
 export const getAISettings = () => JSON.parse(localStorage.getItem('ai_settings') || '{"systemInstruction": "أنت مساعد تعليمي محترف.", "temperature": 0.7}');
 export const saveAISettings = (config: any) => localStorage.setItem('ai_settings', JSON.stringify(config));
 
@@ -365,7 +367,7 @@ export const deleteScheduleItem = (id: string) => setLocal('schedules', getSched
 
 export const authenticateUser = async (id: string, pass: string): Promise<SystemUser | null> => {
     const { data } = await supabase.from('system_users').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', pass).single();
-    return data as SystemUser || null;
+    return (data as SystemUser) || null;
 };
 
 export const authenticateStudent = async (id: string, pass: string): Promise<Student | null> => {
@@ -373,10 +375,6 @@ export const authenticateStudent = async (id: string, pass: string): Promise<Stu
     if (data && (data.password === pass || pass === '123456')) return mapStudentFromDB(data);
     return null;
 };
-
-export const getDatabaseSchemaSQL = () => `-- SQL Schema Placeholder`;
-
-export const getCloudSystemStatus = () => ({ status: 'CONNECTED', latency: '24ms', region: 'eu-central-1' });
 
 export const getWorksMasterUrl = (): string => localStorage.getItem('works_master_url') || '';
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem('works_master_url', url);
