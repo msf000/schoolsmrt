@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, addPerformance, fetchPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, CloudSync, X } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
 interface WorksTrackingProps {
@@ -47,7 +47,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         performance.forEach(p => {
             if (p.category === activeTab && p.notes) {
                 if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
-                newGrid[p.notes] = newGrid[p.notes] || {}; // ensure sub-object
                 newGrid[p.studentId][p.notes] = p.score.toString();
             }
         });
@@ -70,17 +69,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setStatusMsg('جاري سحب البيانات من السحابة...');
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
-            const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
             const records: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
 
             data.forEach(row => {
-                // محاولة البحث عن الطالب عبر الهوية في أي من الأعمدة المحتملة
                 const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || row['هوية الطالب'] || '').trim();
                 const student = students.find(s => s.nationalId === nid);
                 
                 if (student) {
-                    // البحث عن أعمدة تطابق أسماء المهام الحالية
                     assignments.forEach(assign => {
                         const scoreVal = row[assign.title];
                         const score = parseFloat(scoreVal);

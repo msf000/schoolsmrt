@@ -39,7 +39,7 @@ const mapStudentFromDB = (s: any): Student => ({
     seatIndex: s.seat_index || 0
 });
 
-// --- الطلاب ---
+// --- الطلاب (Students) ---
 export const fetchStudents = async (): Promise<Student[]> => {
     try {
         const { data, error } = await supabase.from('students').select('*').order('name');
@@ -92,12 +92,7 @@ export const deleteStudent = async (id: string) => {
     await fetchStudents();
 };
 
-export const deleteAllStudents = async () => {
-    await supabase.from('students').delete().neq('id', '0');
-    setLocal('students', []);
-};
-
-// --- الحضور ---
+// --- الحضور (Attendance) ---
 export const fetchAttendance = async (): Promise<AttendanceRecord[]> => {
     try {
         const { data, error } = await supabase.from('attendance').select('*').order('date', { ascending: false });
@@ -143,7 +138,7 @@ export const deleteAttendance = async (id: string) => {
     await fetchAttendance();
 };
 
-// --- الأداء ---
+// --- الأداء (Performance) ---
 export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[]> => {
     try {
         let query = supabase.from('performance').select('*');
@@ -193,7 +188,66 @@ export const deletePerformance = async (id: string) => {
     await fetchPerformance();
 };
 
-// --- المعلمون والمدارس ---
+// --- السلوك (Behavior) ---
+export const fetchBehaviorIncidents = async (tid?: string): Promise<BehaviorIncident[]> => {
+    try {
+        let query = supabase.from('behavior_incidents').select('*');
+        if (tid) query = query.eq('teacher_id', tid);
+        const { data, error } = await query.order('created_at', { ascending: false });
+        if (error) throw error;
+        const mapped: BehaviorIncident[] = (data || []).map(i => ({
+            id: i.id,
+            studentId: i.student_id,
+            teacherId: i.teacher_id,
+            type: i.type,
+            category: i.category,
+            points: i.points,
+            date: i.created_at,
+            note: i.note,
+            actionTaken: i.action_taken
+        }));
+        setLocal('behavior_incidents', mapped);
+        return mapped;
+    } catch (e) {
+        return getLocal('behavior_incidents');
+    }
+};
+
+export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => getLocal('behavior_incidents').filter((i: any) => !tid || i.teacherId === tid);
+
+export const saveBehaviorIncident = async (incident: BehaviorIncident) => {
+    const { error } = await supabase.from('behavior_incidents').insert({
+        id: incident.id, student_id: incident.studentId, teacher_id: incident.teacherId,
+        type: incident.type, category: incident.category, points: incident.points,
+        note: incident.note, action_taken: incident.actionTaken
+    });
+    if (error) throw error;
+    await fetchBehaviorIncidents();
+};
+
+// --- طلبات أولياء الأمور (Parent Requests) ---
+export const fetchParentRequests = async (tid: string): Promise<ParentRequest[]> => {
+    try {
+        const { data, error } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
+        if (error) throw error;
+        return (data || []).map(r => ({
+            id: r.id, parentId: r.parent_id, studentId: r.student_id, teacherId: r.teacher_id,
+            type: r.type, content: r.content, status: r.status, date: r.date
+        }));
+    } catch (e) {
+        return [];
+    }
+};
+
+export const saveParentRequest = async (req: ParentRequest) => {
+    await supabase.from('parent_requests').upsert({
+        id: req.id, parent_id: req.parentId, student_id: req.studentId, teacher_id: req.teacherId,
+        type: req.type, content: req.content, status: req.status, date: req.date
+    });
+    await fetchParentRequests(req.teacherId);
+};
+
+// --- دوال أخرى للنظام ---
 export const fetchTeachers = async (): Promise<Teacher[]> => {
     const { data } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
     const teachers = (data || []) as Teacher[];
@@ -256,7 +310,6 @@ export const updateSystemUser = async (user: SystemUser) => {
     await supabase.from('system_users').update(user).eq('id', user.id);
 };
 
-// --- الإعدادات والمواد ---
 export const getSubjects = (tid: string): Subject[] => (getLocal('subjects') || []).filter((s: Subject) => s.teacherId === tid);
 export const addSubject = (subject: Subject) => setLocal('subjects', [...getLocal('subjects'), subject]);
 export const deleteSubject = (id: string) => setLocal('subjects', getLocal('subjects').filter((s: Subject) => s.id !== id));
@@ -286,7 +339,6 @@ export const deleteTeacherAssignment = (id: string) => {
     setLocal('teacher_assignments', list);
 };
 
-// --- الاختبارات والمهام ---
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
 export const saveExam = (exam: Exam) => setLocal('exams', [...getLocal('exams').filter((e: any) => e.id !== exam.id), exam]);
 export const deleteExam = (id: string) => setLocal('exams', getLocal('exams').filter((e: any) => e.id !== id));
@@ -304,7 +356,6 @@ export const deleteAssignment = (id: string) => setLocal('assignments', getLocal
 export const getTasks = (tid?: string): Task[] => (getLocal('tasks') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const saveTask = (task: Task) => setLocal('tasks', [...getLocal('tasks').filter((t: any) => t.id !== task.id), task]);
 
-// --- التحليلات والجداول الخاصة ---
 export const getCustomTables = (tid?: string): CustomTable[] => (getLocal('custom_tables') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const addCustomTable = async (table: CustomTable) => setLocal('custom_tables', [...getLocal('custom_tables'), table]);
 export const deleteCustomTable = async (id: string) => setLocal('custom_tables', getLocal('custom_tables').filter((t: any) => t.id !== id));
@@ -316,17 +367,6 @@ export const deleteFormsDetailedResult = (id: string) => setLocal('forms_detaile
 export const getEnvironmentRecords = (cid: string): EnvironmentRecord[] => (getLocal('env_records') || []).filter((r: any) => r.classId === cid);
 export const saveEnvironmentRecord = (rec: EnvironmentRecord) => setLocal('env_records', [...(getLocal('env_records') || []), rec]);
 
-export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => (getLocal('behavior_incidents') || []).filter((i: any) => !tid || i.teacherId === tid);
-export const saveBehaviorIncident = async (incident: BehaviorIncident) => {
-    setLocal('behavior_incidents', [incident, ...(getLocal('behavior_incidents') || [])]);
-    await supabase.from('behavior_incidents').insert({
-        id: incident.id, student_id: incident.studentId, teacher_id: incident.teacherId,
-        type: incident.type, category: incident.category, points: incident.points,
-        note: incident.note, action_taken: incident.actionTaken
-    });
-};
-
-// --- الحائط والمراسلات ---
 export const saveWallPost = async (post: WallPost) => {
     await supabase.from('wall_posts').insert({
         id: post.id, user_id: post.userId, user_name: post.userName,
@@ -344,7 +384,6 @@ export const fetchWallPosts = async (sid: string): Promise<WallPost[]> => {
 export const saveMessage = async (msg: MessageLog) => setLocal('messages', [msg, ...(getLocal('messages') || [])]);
 export const getMessages = (tid?: string): MessageLog[] => (getLocal('messages') || []).filter((m: any) => !tid || m.teacherId === tid);
 
-// --- دوال متنوعة ---
 export const getAISettings = () => JSON.parse(localStorage.getItem('ai_settings') || '{"systemInstruction": "أنت مساعد تعليمي محترف.", "temperature": 0.7}');
 export const saveAISettings = (config: any) => localStorage.setItem('ai_settings', JSON.stringify(config));
 
@@ -447,18 +486,4 @@ export const fetchSharedResources = async (schoolId?: string): Promise<StoredLes
 };
 export const toggleResourceShare = async (id: string, isShared: boolean) => {
     await supabase.from('lesson_plans').update({ is_shared: isShared }).eq('id', id);
-};
-
-export const fetchParentRequests = async (tid: string): Promise<ParentRequest[]> => {
-    const { data } = await supabase.from('parent_requests').select('*').eq('teacher_id', tid);
-    return (data || []).map(r => ({
-        id: r.id, parentId: r.parent_id, studentId: r.student_id, teacherId: r.teacher_id,
-        type: r.type, content: r.content, status: r.status, date: r.date
-    }));
-};
-export const saveParentRequest = async (req: ParentRequest) => {
-    await supabase.from('parent_requests').upsert({
-        id: req.id, parent_id: req.parentId, student_id: req.studentId, teacher_id: req.teacherId,
-        type: req.type, content: req.content, status: req.status, date: req.date
-    });
 };

@@ -51,7 +51,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
             <header className="p-6 border-b border-white/5 flex justify-between items-center bg-black/20 backdrop-blur-md sticky top-0 z-40">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center font-black shadow-lg shadow-indigo-900/20">
-                        <Sparkles size={24}/>
+                        <span className="text-white font-black text-xl">S</span>
                     </div>
                     <div>
                         <h1 className="font-black text-lg">بوابة الطالب الذكية</h1>
@@ -88,7 +88,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                     <button 
                                         key={game.id} 
                                         onClick={() => setSelectedGame(game)} 
-                                        className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl hover:border-indigo-500 transition-all text-right group relative overflow-hidden text-right"
+                                        className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl hover:border-indigo-500 transition-all text-right group relative overflow-hidden"
                                     >
                                         <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-500 group-hover:w-3 transition-all duration-500"></div>
                                         <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">

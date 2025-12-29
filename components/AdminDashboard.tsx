@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
     fetchSchools, fetchSystemUsers, fetchTeachers, fetchAttendance, fetchPerformance, fetchStudents
@@ -116,10 +115,10 @@ const CloudTableInspector = () => {
     const tables = [
         { name: 'students', label: 'الطلاب', columns: ['id', 'name', 'national_id', 'class_name', 'xp', 'seat_index'] },
         { name: 'attendance', label: 'الحضور', columns: ['id', 'student_id', 'date', 'status', 'period', 'subject'] },
-        { name: 'performance', label: 'الدرجات', columns: ['id', 'student_id', 'score', 'max_score', 'category'] },
-        { name: 'system_users', label: 'المستخدمين', columns: ['id', 'name', 'role', 'email', 'school_id'] },
-        { name: 'wall_posts', label: 'الحائط', columns: ['id', 'content', 'userName', 'school_id'] },
-        { name: 'behavior_incidents', label: 'السلوك', columns: ['id', 'student_id', 'points', 'category'] }
+        { name: 'performance', label: 'الدرجات', columns: ['id', 'student_id', 'score', 'max_score', 'category', 'notes'] },
+        { name: 'behavior_incidents', label: 'السلوك', columns: ['id', 'student_id', 'teacher_id', 'points', 'category'] },
+        { name: 'parent_requests', label: 'اللقاءات', columns: ['id', 'parent_id', 'student_id', 'teacher_id', 'status'] },
+        { name: 'system_users', label: 'المستخدمين', columns: ['id', 'name', 'role', 'email', 'school_id'] }
     ];
 
     return (
@@ -198,6 +197,32 @@ CREATE TABLE IF NOT EXISTS performance (
     category TEXT,
     notes TEXT,
     created_by_id TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. Behavior Incidents
+CREATE TABLE IF NOT EXISTS behavior_incidents (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id TEXT,
+    type TEXT,
+    category TEXT,
+    points INTEGER,
+    note TEXT,
+    action_taken TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. Parent Requests
+CREATE TABLE IF NOT EXISTS parent_requests (
+    id TEXT PRIMARY KEY,
+    parent_id TEXT,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id TEXT,
+    type TEXT,
+    content TEXT,
+    status TEXT,
+    date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 `;
