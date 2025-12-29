@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, addPerformance, fetchPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, X, ChevronDown, FileSpreadsheet, Filter, Calendar, BookOpen } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, X, ChevronDown, FileSpreadsheet, Filter, Calendar, BookOpen, AlertCircle, ArrowRightLeft } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
 interface WorksTrackingProps {
@@ -39,10 +39,15 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
     
+    // Cloud Sync States
     const [showCloudSettings, setShowCloudSettings] = useState(false);
     const [showSheetSelector, setShowSheetSelector] = useState(false);
+    const [showMappingUI, setShowMappingUI] = useState(false);
     const [availableSheets, setAvailableSheets] = useState<string[]>([]);
     const [fullWorkbook, setFullWorkbook] = useState<any>(null);
+    const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
+    const [sheetRawData, setSheetRawData] = useState<any[]>([]);
+    const [columnMap, setColumnMap] = useState<Record<string, string>>({}); // { assignmentId: sheetHeaderName }
     const [statusMsg, setStatusMsg] = useState('');
 
     useEffect(() => {
@@ -77,19 +82,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         });
     }, [assignments, filterSubject, filterPeriod]);
 
-    // نظام الألوان الذكي للمواد
-    const getSubjectColor = (subjName: string) => {
-        const colors: Record<string, string> = {
-            'رياضيات': 'indigo', 'لغتي': 'emerald', 'علوم': 'amber', 'إنجليزي': 'purple', 'دين': 'rose', 'اجتماعيات': 'teal'
-        };
-        const base = colors[subjName] || 'indigo';
-        return {
-            bg: `bg-${base}-50`, text: `text-${base}-600`, border: `border-${base}-100`, accent: `bg-${base}-600`, ring: `focus:ring-${base}-500/10`, focusBorder: `focus:border-${base}-500`
-        };
-    };
-
-    const currentColors = getSubjectColor(filterSubject);
-
     const handleSaveCloudUrl = () => {
         saveWorksMasterUrl(masterUrl);
         showToast('تم حفظ رابط المزامنة السحابي', 'SUCCESS');
@@ -102,7 +94,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             return showToast('الرجاء إدخال رابط Google Sheet أولاً', 'INFO');
         }
         setIsGenerating(true);
-        setStatusMsg('جاري استكشاف أوراق الملف...');
+        setStatusMsg('جاري استكشاف الملف...');
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
             setFullWorkbook(workbook);
@@ -110,7 +102,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             if (sheetNames.length > 1) {
                 setShowSheetSelector(true);
             } else if (sheetNames.length === 1) {
-                await performActualSync(workbook, sheetNames[0]);
+                prepareMapping(workbook, sheetNames[0]);
             }
         } catch (e) {
             showToast('فشل الوصول للملف. تأكد أن الرابط عام.', 'ERROR');
@@ -120,23 +112,40 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         }
     };
 
-    const performActualSync = async (workbook: any, sheetName: string) => {
+    const prepareMapping = (workbook: any, sheetName: string) => {
+        const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
+        setSheetHeaders(headers);
+        setSheetRawData(data);
+        
+        // محاولة مطابقة تلقائية أولية بناءً على الأسماء
+        const initialMap: Record<string, string> = {};
+        filteredAssignments.forEach(assign => {
+            const match = headers.find(h => h.trim().toLowerCase() === assign.title.trim().toLowerCase());
+            if (match) initialMap[assign.id] = match;
+        });
+        
+        setColumnMap(initialMap);
+        setShowSheetSelector(false);
+        setShowMappingUI(true);
+    };
+
+    const executeFinalSync = async () => {
         setIsGenerating(true);
-        setStatusMsg(`جاري مزامنة بيانات ورقة ${sheetName}...`);
+        setStatusMsg('جاري استيراد البيانات وتحديث السجل...');
         try {
-            const { data } = getSheetHeadersAndData(workbook, sheetName);
             const records: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
 
-            data.forEach(row => {
-                const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || row['هوية الطالب'] || '').trim();
+            sheetRawData.forEach(row => {
+                // البحث عن هوية الطالب (ندعم عدة مسميات للأعمدة)
+                const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || row['هوية الطالب'] || row['رقم السجل'] || '').trim();
                 const student = students.find(s => s.nationalId === nid);
                 
                 if (student) {
                     filteredAssignments.forEach(assign => {
-                        const scoreVal = row[assign.title];
-                        if (scoreVal !== undefined) {
-                            const score = parseFloat(scoreVal);
+                        const mappedHeader = columnMap[assign.id];
+                        if (mappedHeader && row[mappedHeader] !== undefined) {
+                            const score = parseFloat(row[mappedHeader]);
                             if (!isNaN(score)) {
                                 records.push({
                                     id: `${student.id}_${assign.id}_cloud`,
@@ -158,16 +167,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (records.length > 0) {
                 await onAddPerformance(records);
-                showToast(`تمت مزامنة ${records.length} درجة بنجاح.`, 'SUCCESS');
+                showToast(`تم استيراد ${records.length} درجة بنجاح.`, 'SUCCESS');
+                setShowMappingUI(false);
             } else {
-                showToast('لم يتم العثور على أعمدة مطابقة للمهام الحالية.', 'INFO');
+                showToast('لم يتم العثور على درجات مطابقة للطلاب المحددين.', 'INFO');
             }
         } catch (e) {
-            showToast('حدث خطأ أثناء القراءة.', 'ERROR');
+            showToast('حدث خطأ أثناء المزامنة.', 'ERROR');
         } finally {
             setIsGenerating(false);
             setStatusMsg('');
-            setShowSheetSelector(false);
         }
     };
 
@@ -270,12 +279,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             {/* Sub-Bento Filter Bar */}
             <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-50 mb-8 flex flex-wrap gap-6 items-center shrink-0">
                 <div className="flex items-center gap-4 border-l pl-6">
-                    <div className={`p-3 rounded-2xl ${currentColors.bg} ${currentColors.text}`}>
+                    <div className={`p-3 rounded-2xl ${activeTab === 'ACTIVITY' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
                         <Filter size={20}/>
                     </div>
                     <div>
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">تصفية العرض</p>
-                        <h4 className="text-sm font-black text-slate-800">ماتراه الآن في الجدول</h4>
+                        <h4 className="text-sm font-black text-slate-800">تحكم بمصفوفة الرصد</h4>
                     </div>
                 </div>
                 
@@ -287,7 +296,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             onChange={e => setFilterSubject(e.target.value)}
                             className="pr-12 pl-6 py-3 border rounded-2xl bg-slate-50 font-black text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all min-w-[180px] shadow-inner"
                         >
-                            <option value="ALL">كل المواد المسجلة</option>
+                            <option value="ALL">كل المواد</option>
                             {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                         </select>
                     </div>
@@ -323,7 +332,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                         <div className="flex justify-between items-center mb-10 border-b border-slate-200 pb-8">
                             <div>
                                 <h3 className="text-2xl font-black text-slate-800">إدارة مصفوفة الرصد</h3>
-                                <p className="text-sm text-slate-400 font-bold mt-2">تخصيص الأعمدة لمادة: <span className={currentColors.text}>{filterSubject}</span></p>
+                                <p className="text-sm text-slate-400 font-bold mt-2">تخصيص الأعمدة لمادة: <span className="text-indigo-600">{filterSubject}</span></p>
                             </div>
                             <button onClick={handleAddColumn} className="bg-slate-900 text-white px-8 py-3.5 rounded-[1.5rem] font-black text-xs hover:bg-black transition-all flex items-center gap-2 shadow-2xl active:scale-95"><Plus size={18}/> إضافة عمود جديد</button>
                         </div>
@@ -395,7 +404,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                             <td key={a.id} className="p-0 border-l border-slate-100 text-center h-full">
                                                 <input 
                                                     type="number" 
-                                                    className={`w-full h-full p-6 bg-transparent text-center font-black text-lg outline-none transition-all ${currentColors.focusBorder} ${currentColors.ring}`}
+                                                    className="w-full h-full p-6 bg-transparent text-center font-black text-lg outline-none transition-all focus:ring-4 focus:ring-indigo-500/5"
                                                     value={gridData[s.id]?.[a.id] || ''}
                                                     placeholder="-"
                                                     onChange={e => setGridData({...gridData, [s.id]: { ...gridData[s.id], [a.id]: e.target.value }})}
@@ -421,7 +430,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 )}
             </div>
 
-            {/* Floating Modals System */}
+            {/* Modal for Sheet Tab Selection */}
             {showSheetSelector && (
                 <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6 font-tajawal animate-fade-in">
                     <div className="bg-white w-full max-w-xl rounded-[3.5rem] shadow-2xl overflow-hidden animate-zoom-in">
@@ -429,7 +438,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <div className="absolute top-0 right-0 p-4 opacity-10"><FileSpreadsheet size={150}/></div>
                             <div className="relative z-10">
                                 <h3 className="text-3xl font-black flex items-center gap-4">اختر ورقة العمل</h3>
-                                <p className="text-indigo-300 font-bold mt-2 uppercase tracking-widest text-[10px]">مادة: {filterSubject}</p>
+                                <p className="text-indigo-300 font-bold mt-2 uppercase tracking-widest text-[10px]">الملف يحتوي على أوراق متعددة</p>
                             </div>
                             <button onClick={() => setShowSheetSelector(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors relative z-10"><X size={24}/></button>
                         </div>
@@ -437,7 +446,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             {availableSheets.map(sheet => (
                                 <button 
                                     key={sheet}
-                                    onClick={() => performActualSync(fullWorkbook, sheet)}
+                                    onClick={() => prepareMapping(fullWorkbook, sheet)}
                                     className="w-full p-6 bg-white border border-slate-100 rounded-[2rem] text-right font-black text-slate-700 hover:bg-indigo-600 hover:text-white hover:shadow-2xl hover:scale-[1.02] transition-all flex items-center justify-between group"
                                 >
                                     <div className="flex items-center gap-4">
@@ -447,6 +456,73 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                     <ChevronLeft className="text-slate-300 group-hover:text-white transition-colors" size={24}/>
                                 </button>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal for Column Mapping Interface */}
+            {showMappingUI && (
+                <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 font-tajawal animate-fade-in">
+                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[4rem] shadow-2xl overflow-hidden flex flex-col animate-zoom-in border border-white/20">
+                        <div className="p-10 bg-indigo-600 text-white flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-3xl font-black flex items-center gap-4"><ArrowRightLeft size={32}/> مطابقة أعمدة البيانات</h3>
+                                <p className="text-indigo-200 font-bold mt-2">اربط كل عمود في Google Sheets بمهمة في النظام</p>
+                            </div>
+                            <button onClick={() => setShowMappingUI(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors"><X size={24}/></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-slate-50/50">
+                            <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 flex gap-4 mb-10">
+                                <Sparkles className="text-indigo-600 shrink-0"/>
+                                <p className="text-xs text-indigo-800 leading-relaxed font-bold">
+                                    لقد قمنا بقراءة جميع الأعمدة المتاحة في ورقة العمل. اختر العمود الذي يحتوي على الدرجات لكل مهمة من المهام الظاهرة أدناه. سيتم تجاهل المهام غير المربوطة.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {filteredAssignments.map(assign => (
+                                    <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h4 className="font-black text-slate-800">{assign.title}</h4>
+                                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{assign.category}</span>
+                                            </div>
+                                            {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase">عمود الدرجات في قوقل شيت:</label>
+                                            <select 
+                                                className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                                value={columnMap[assign.id] || ''}
+                                                onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
+                                            >
+                                                <option value="">-- تجاهل هذه المهمة --</option>
+                                                {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-10 border-t bg-white flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3 text-slate-400">
+                                <FileSpreadsheet size={20}/>
+                                <span className="text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود و {sheetRawData.length} سجل طالب</span>
+                            </div>
+                            <div className="flex gap-4">
+                                <button onClick={() => setShowMappingUI(false)} className="px-8 py-4 text-slate-400 font-black hover:text-slate-600 transition-colors">إلغاء</button>
+                                <button 
+                                    onClick={executeFinalSync} 
+                                    disabled={isGenerating || Object.keys(columnMap).length === 0}
+                                    className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50"
+                                >
+                                    {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>}
+                                    بدء استيراد الدرجات ({Object.keys(columnMap).length})
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -472,7 +548,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100 flex gap-4">
                                     <Sparkles className="text-blue-600 shrink-0"/>
                                     <p className="text-xs text-blue-700 leading-relaxed font-bold">
-                                        تأكد من جعل الرابط "عاماً". سيقوم النظام بمطابقة الطلاب عبر عمود الهوية واستيراد الدرجات للمادة والفترة المختارة حالياً.
+                                        تأكد من جعل الرابط "عاماً". سيقوم النظام بمطابقة الطلاب عبر عمود الهوية تلقائياً، وسيسمح لك باختيار أعمدة الدرجات يدوياً.
                                     </p>
                                 </div>
                             </div>
