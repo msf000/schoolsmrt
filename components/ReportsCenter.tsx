@@ -25,12 +25,14 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
         if (activeTab === 'HEATMAP') setAllAssignments(getAssignments('ALL'));
     }, [activeTab]);
 
-    const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
+    const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter((c): c is string => !!c))).sort(), [students]);
     const atRiskStudents = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
 
     useEffect(() => {
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
-    }, [uniqueClasses]);
+        if (uniqueClasses.length > 0 && !selectedClass) {
+            setSelectedClass(uniqueClasses[0] || '');
+        }
+    }, [uniqueClasses, selectedClass]);
 
     const correlationData = useMemo(() => {
         if (!selectedClass) return [];
