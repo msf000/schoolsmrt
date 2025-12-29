@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, addPerformance, fetchPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, X } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, X, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
 interface WorksTrackingProps {
@@ -31,7 +31,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); 
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
+    
+    // Cloud Sheet Selector States
     const [showCloudSettings, setShowCloudSettings] = useState(false);
+    const [showSheetSelector, setShowSheetSelector] = useState(false);
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [fullWorkbook, setFullWorkbook] = useState<any>(null);
+    const [selectedSheetName, setSelectedSheetName] = useState('');
+    const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
     const [statusMsg, setStatusMsg] = useState('');
 
     useEffect(() => {
@@ -59,17 +66,38 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         setShowCloudSettings(false);
     };
 
-    const handleAutoSync = async () => {
+    // المرحلة الأولى: جلب بنية الملف وأسماء الأوراق
+    const handleStartSyncFlow = async () => {
         if (!masterUrl) {
             setShowCloudSettings(true);
             return showToast('الرجاء إدخال رابط Google Sheet أولاً', 'INFO');
         }
         
         setIsGenerating(true);
-        setStatusMsg('جاري سحب البيانات من السحابة...');
+        setStatusMsg('جاري استكشاف أوراق الملف...');
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
-            const { data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            setFullWorkbook(workbook);
+            setAvailableSheets(sheetNames);
+            if (sheetNames.length > 1) {
+                setShowSheetSelector(true);
+            } else if (sheetNames.length === 1) {
+                await performActualSync(workbook, sheetNames[0]);
+            }
+        } catch (e) {
+            showToast('فشل الوصول للملف. تأكد أن الرابط عام.', 'ERROR');
+        } finally {
+            setIsGenerating(false);
+            setStatusMsg('');
+        }
+    };
+
+    // المرحلة الثانية: تنفيذ المزامنة بعد اختيار الورقة
+    const performActualSync = async (workbook: any, sheetName: string) => {
+        setIsGenerating(true);
+        setStatusMsg(`جاري مزامنة بيانات ورقة ${sheetName}...`);
+        try {
+            const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
             const records: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
 
@@ -80,20 +108,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 if (student) {
                     assignments.forEach(assign => {
                         const scoreVal = row[assign.title];
-                        const score = parseFloat(scoreVal);
-                        if (!isNaN(score)) {
-                            records.push({
-                                id: `${student.id}_${assign.id}_cloud`,
-                                studentId: student.id,
-                                subject: selectedSubject || 'عام',
-                                title: assign.title,
-                                category: activeTab,
-                                score: score,
-                                maxScore: assign.maxScore,
-                                date: today,
-                                notes: assign.id,
-                                createdById: currentUser?.id
-                            });
+                        if (scoreVal !== undefined) {
+                            const score = parseFloat(scoreVal);
+                            if (!isNaN(score)) {
+                                records.push({
+                                    id: `${student.id}_${assign.id}_cloud`,
+                                    studentId: student.id,
+                                    subject: selectedSubject || 'عام',
+                                    title: assign.title,
+                                    category: activeTab,
+                                    score: score,
+                                    maxScore: assign.maxScore,
+                                    date: today,
+                                    notes: assign.id,
+                                    createdById: currentUser?.id
+                                });
+                            }
                         }
                     });
                 }
@@ -101,16 +131,16 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
             if (records.length > 0) {
                 await onAddPerformance(records);
-                showToast(`تمت مزامنة ${records.length} درجة بنجاح من Google Sheets`, 'SUCCESS');
+                showToast(`تمت مزامنة ${records.length} درجة من ورقة "${sheetName}"`, 'SUCCESS');
             } else {
-                showToast('لم يتم العثور على درجات مطابقة للطلاب في الملف', 'INFO');
+                showToast('لم يتم العثور على أعمدة مطابقة لأسماء المهام في هذه الورقة', 'INFO');
             }
         } catch (e) {
-            console.error(e);
-            showToast('فشل الاتصال بـ Google Sheets. تأكد أن الرابط عام.', 'ERROR');
+            showToast('حدث خطأ أثناء قراءة بيانات الورقة', 'ERROR');
         } finally {
             setIsGenerating(false);
             setStatusMsg('');
+            setShowSheetSelector(false);
         }
     };
 
@@ -141,9 +171,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
 
         try {
             await onAddPerformance(records);
-            showToast('تم حفظ سجل الرصد وتحديث البيانات السحابية', 'SUCCESS');
+            showToast('تم حفظ سجل الرصد بنجاح', 'SUCCESS');
         } catch (e) {
-            showToast('حدث خطأ أثناء الحفظ السحابي', 'ERROR');
+            showToast('حدث خطأ أثناء الحفظ', 'ERROR');
         } finally {
             setIsGenerating(false);
         }
@@ -180,20 +210,47 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                     <button 
                         onClick={() => setShowCloudSettings(true)} 
                         className={`p-3 rounded-2xl border transition-all ${masterUrl ? 'bg-green-50 text-green-600 border-green-200' : 'bg-white text-slate-400 border-slate-200'}`}
-                        title="إعدادات الربط السحابي (Google Sheets)"
+                        title="إعدادات الربط السحابي"
                     >
                         <LinkIcon size={20}/>
                     </button>
-                    <button onClick={handleAutoSync} disabled={isGenerating} className="px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 font-black text-xs flex items-center gap-2 hover:bg-indigo-600 hover:text-white transition-all">
+                    <button onClick={handleStartSyncFlow} disabled={isGenerating} className="px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 font-black text-xs flex items-center gap-2 hover:bg-indigo-600 hover:text-white transition-all">
                         {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>}
                         مزامنة Google Sheets
                     </button>
                     <button onClick={handleSaveGrid} disabled={isGenerating} className="px-8 py-3 bg-emerald-600 text-white rounded-2xl font-black text-xs flex items-center gap-2 shadow-xl hover:bg-emerald-700 transition-all">
                         {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
-                        حفظ السجل النهائي
+                        حفظ السجل
                     </button>
                 </div>
             </div>
+
+            {/* نافذة اختيار الورقة (Sheet Selector) */}
+            {showSheetSelector && (
+                <div className="fixed inset-0 z-[200] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-zoom-in">
+                        <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black flex items-center gap-3"><FileSpreadsheet/> اختر ورقة العمل</h3>
+                                <p className="text-indigo-200 text-xs mt-1">تم العثور على أوراق متعددة في هذا الرابط</p>
+                            </div>
+                            <button onClick={() => setShowSheetSelector(false)} className="p-2 hover:bg-white/10 rounded-full"><X/></button>
+                        </div>
+                        <div className="p-8 space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar">
+                            {availableSheets.map(sheet => (
+                                <button 
+                                    key={sheet}
+                                    onClick={() => performActualSync(fullWorkbook, sheet)}
+                                    className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-right font-black text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all flex items-center justify-between group"
+                                >
+                                    <span>{sheet}</span>
+                                    <ChevronLeft className="text-slate-300 group-hover:text-indigo-500 transition-all" size={20}/>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showCloudSettings && (
                 <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -224,13 +281,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
             )}
 
-            {isGenerating && statusMsg && (
-                <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-8 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce">
-                    <Loader2 size={18} className="animate-spin"/>
-                    <span className="font-black text-sm">{statusMsg}</span>
-                </div>
-            )}
-
             <div className="flex bg-white rounded-2xl p-1 mb-6 shadow-sm border border-slate-100 overflow-x-auto no-scrollbar shrink-0">
                 {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => (
                     <button key={cat} onClick={() => setActiveTab(cat)} className={`flex-1 py-3 px-6 rounded-xl font-black text-xs transition-all whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === cat ? 'bg-indigo-600 text-white shadow-xl scale-[1.02]' : 'text-gray-400 hover:bg-slate-50'}`}>
@@ -243,7 +293,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 {activeMode === 'MANAGEMENT' ? (
                     <div className="p-10 overflow-y-auto custom-scrollbar flex-1">
                         <div className="flex justify-between items-center mb-8 border-b pb-6">
-                            <h3 className="text-xl font-black text-slate-800">إدارة أعمدة الرصد</h3>
+                            <h3 className="text-xl font-black text-slate-800">إدارة أعمدة الرصد للفئة: {activeTab}</h3>
                             <button onClick={handleAddColumn} className="bg-indigo-50 text-indigo-700 px-6 py-2 rounded-2xl font-black text-xs hover:bg-indigo-100 border border-indigo-100 flex items-center gap-2"><Plus size={16}/> إضافة عمود</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -251,7 +301,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                                 <div key={a.id} className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] relative group hover:border-indigo-200 transition-all">
                                     <button onClick={()=>{deleteAssignment(a.id); setAssignments(assignments.filter(x=>x.id!==a.id))}} className="absolute top-4 left-4 text-red-100 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={18}/></button>
                                     <div className="space-y-4">
-                                        <input className="w-full p-3 border rounded-2xl font-black bg-white" value={a.title} onChange={e=>saveAssignment({...a, title: e.target.value})}/>
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase mr-2">اسم المهمة (يجب أن يطابق قوقل شيت)</p>
+                                            <input className="w-full p-3 border rounded-2xl font-black bg-white focus:border-indigo-500 outline-none" value={a.title} onChange={e=>saveAssignment({...a, title: e.target.value})}/>
+                                        </div>
                                         <div className="flex items-center justify-between text-xs">
                                             <span className="font-bold text-slate-400">الدرجة العظمى:</span>
                                             <input type="number" className="w-16 p-2 border rounded-xl font-black text-center" value={a.maxScore} onChange={e=>saveAssignment({...a, maxScore: Number(e.target.value)})}/>
