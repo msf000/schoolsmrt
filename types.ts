@@ -169,6 +169,8 @@ export interface Assignment {
     teacherId: string;
     sortOrder?: number;
     classId?: string;
+    subject?: string;
+    periodTag?: 'P1' | 'P2' | 'ALL';
 }
 
 export type PerformanceCategory = 'ACTIVITY' | 'HOMEWORK' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER' | 'ALL';
