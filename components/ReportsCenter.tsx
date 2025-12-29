@@ -6,14 +6,15 @@ import { detectAtRiskStudents, calculateStudentConsistency, predictNextScore } f
 import { generateSmartRemedialPlan } from '../services/geminiService';
 import { 
     FileText, AlertTriangle, Printer, Sparkles, Loader2, 
-    Save, X, BookOpen, History, BrainCircuit, Calendar, Grid3X3, ArrowRight, TrendingUp, ShieldCheck, Zap, Activity, Target
+    Save, X, BookOpen, History, BrainCircuit, Calendar, Grid3X3, ArrowRight, TrendingUp, ShieldCheck, Zap, Activity, Target, Clock
 } from 'lucide-react';
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Cell, LineChart, Line } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import MonthlyReport from './MonthlyReport';
+import AttendanceTrends from './AttendanceTrends';
 
 const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
-    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'MONTHLY' | 'HEATMAP' | 'PROJECTION'>('COMPREHENSIVE');
+    const [activeTab, setActiveTab] = useState<'COMPREHENSIVE' | 'AT_RISK' | 'REMEDIAL' | 'MONTHLY' | 'HEATMAP' | 'PROJECTION' | 'ATT_TRENDS'>('COMPREHENSIVE');
     const [selectedClass, setSelectedClass] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
@@ -26,6 +27,10 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
 
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
     const atRiskStudents = useMemo(() => detectAtRiskStudents(students, attendance, performance), [students, attendance, performance]);
+
+    useEffect(() => {
+        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+    }, [uniqueClasses]);
 
     const correlationData = useMemo(() => {
         if (!selectedClass) return [];
@@ -48,6 +53,7 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
                 <div className="flex bg-white p-1.5 rounded-[1.5rem] border shadow-xl overflow-x-auto no-scrollbar max-w-full">
                     <TabBtn label="الرئيسية" icon={FileText} active={activeTab==='COMPREHENSIVE'} onClick={()=>setActiveTab('COMPREHENSIVE')} />
                     <TabBtn label="المتتبع الحراري" icon={Grid3X3} active={activeTab==='HEATMAP'} onClick={()=>setActiveTab('HEATMAP')} />
+                    <TabBtn label="أنماط الحضور" icon={Clock} active={activeTab==='ATT_TRENDS'} onClick={()=>setActiveTab('ATT_TRENDS')} />
                     <TabBtn label="نمو الطلاب" icon={TrendingUp} active={activeTab==='PROJECTION'} onClick={()=>setActiveTab('PROJECTION')} />
                     <TabBtn label="المتعثرين" icon={AlertTriangle} active={activeTab==='AT_RISK'} onClick={()=>setActiveTab('AT_RISK')} />
                     <TabBtn label="سجل الحضور" icon={Calendar} active={activeTab==='MONTHLY'} onClick={()=>setActiveTab('MONTHLY')} />
@@ -60,7 +66,7 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <StatCard label="صحة الفصل" value="92%" icon={<ShieldCheck/>} color="text-emerald-500" />
                             <StatCard label="معدل الإتقان" value="84%" icon={<Target/>} color="text-indigo-500" />
-                            <StatCard label="نسبة التعثر" value={`${Math.round((atRiskStudents.length/students.length)*100)}%`} icon={<AlertTriangle/>} color="text-rose-500" />
+                            <StatCard label="نسبة التعثر" value={`${Math.round((atRiskStudents.length/(students.length||1))*100)}%`} icon={<AlertTriangle/>} color="text-rose-500" />
                             <StatCard label="النشاط الطلابي" value="+15%" icon={<Zap/>} color="text-amber-500" />
                         </div>
 
@@ -105,12 +111,16 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
                     </div>
                 )}
 
+                {activeTab === 'ATT_TRENDS' && (
+                    <AttendanceTrends attendance={attendance} students={students} selectedClass={selectedClass} />
+                )}
+
                 {activeTab === 'PROJECTION' && (
                     <div className="space-y-8 animate-fade-in">
                         <div className="bg-white p-8 rounded-[3rem] border shadow-sm">
                             <h3 className="text-xl font-black mb-8 flex items-center gap-3"><TrendingUp className="text-emerald-500"/> منحنى النمو التنبؤي (Growth Projection)</h3>
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {students.slice(0, 6).map(s => {
+                                {students.filter(s=>s.className===selectedClass).slice(0, 6).map(s => {
                                     const sPerf = performance.filter(p => p.studentId === s.id);
                                     const prediction = predictNextScore(s.id, sPerf);
                                     const currentAvg = sPerf.length > 0 ? Math.round(sPerf.reduce((a,b)=>a+(b.score/b.maxScore),0)/sPerf.length*100) : 0;
@@ -164,7 +174,7 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
                                             <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="p-3 text-right sticky right-0 bg-white border-l font-bold text-sm">{s.name}</td>
                                                 {allAssignments.slice(0, 6).map(a => {
-                                                    const rec = performance.find(p=>p.studentId===s.id && p.notes===a.id);
+                                                    const rec = performance.find(p=>p.studentId===s.id && (p.notes===a.id || p.title===a.title));
                                                     const val = rec ? Math.round((rec.score/rec.maxScore)*100) : null;
                                                     const color = val === null ? 'bg-white' : val >= 90 ? 'bg-emerald-500 text-white' : val >= 70 ? 'bg-emerald-100' : 'bg-rose-500 text-white';
                                                     return <td key={a.id} className={`p-3 border-l font-black text-xs ${color}`}>{val !== null ? `${val}%` : '-'}</td>;

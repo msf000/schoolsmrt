@@ -16,6 +16,17 @@ export enum BehaviorStatus {
 
 export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC' | 'UNKNOWN';
 
+export interface StudentGoal {
+    id: string;
+    studentId: string;
+    title: string;
+    targetValue: number;
+    category: 'GRADE' | 'ATTENDANCE' | 'XP';
+    deadline: string;
+    status: 'ACTIVE' | 'ACHIEVED' | 'FAILED';
+    createdAt: string;
+}
+
 export interface SystemUser {
     id: string;
     name: string;

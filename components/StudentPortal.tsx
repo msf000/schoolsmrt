@@ -19,13 +19,14 @@ import DailyQuestTrigger from './DailyQuestTrigger';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
 import SmartStudyPlan from './SmartStudyPlan';
 import KnowledgeTree from './KnowledgeTree';
+import StudentGoalSystem from './StudentGoalSystem';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
     const [selectedGame, setSelectedGame] = useState<InteractiveGame | null>(null);
     const [availableGames, setAvailableGames] = useState<InteractiveGame[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'SHOP' | 'ID' | 'TIMELINE' | 'STUDY' | 'TREE'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'SHOP' | 'ID' | 'TIMELINE' | 'STUDY' | 'TREE' | 'GOALS'>('DASHBOARD');
 
     useEffect(() => {
         const allGames = getGames();
@@ -95,9 +96,10 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                     <div className="space-y-16 animate-fade-in">
                         <StudentJourney xp={currentUser.xp || 0} level={currentUser.level || 1} />
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                             <QuickActionCard icon={Calendar} label="خطة المذاكرة الشخصية" sub="ولد جدولاً زمنياً بذكاء AI" color="from-orange-600 to-rose-600" onClick={()=>setActiveTab('STUDY')}/>
-                             <QuickActionCard icon={BrainCircuit} label="شجرة التمكن المعرفي" sub="تتبع مهاراتك المكتسبة" color="from-indigo-600 to-purple-600" onClick={()=>setActiveTab('TREE')}/>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                             <QuickActionCard icon={Calendar} label="خطة المذاكرة" sub="جدول زمنياً بذكاء AI" color="from-orange-600 to-rose-600" onClick={()=>setActiveTab('STUDY')}/>
+                             <QuickActionCard icon={Target} label="أهدافي" sub="حدد طموحك وتابعه" color="from-rose-600 to-pink-600" onClick={()=>setActiveTab('GOALS')}/>
+                             <QuickActionCard icon={BrainCircuit} label="شجرة المعرفة" sub="تتبع مهاراتك المكتسبة" color="from-indigo-600 to-purple-600" onClick={()=>setActiveTab('TREE')}/>
                         </div>
 
                         <section className="animate-slide-up">
@@ -147,12 +149,13 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 {activeTab === 'TIMELINE' && <StudentAchievementTimeline student={currentUser} attendance={[]} performance={performance} />}
                 {activeTab === 'STUDY' && <SmartStudyPlan student={currentUser} />}
                 {activeTab === 'TREE' && <KnowledgeTree student={currentUser} performance={performance} formsResults={formsResults} />}
+                {activeTab === 'GOALS' && <StudentGoalSystem student={currentUser} performance={performance} />}
             </main>
             
             <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl bg-black/60 backdrop-blur-3xl border border-white/10 h-24 flex justify-around items-center px-6 z-[60] shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[2.5rem]">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
-                <NavBtn icon={<Target/>} label="درجاتي" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
-                <NavBtn icon={<Map/>} label="الخريطة" active={activeTab==='TIMELINE'} onClick={()=>setActiveTab('TIMELINE')}/>
+                <NavBtn icon={<Target/>} label="أهدافي" active={activeTab==='GOALS'} onClick={()=>setActiveTab('GOALS')}/>
+                <NavBtn icon={<Activity/>} label="درجاتي" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
                 <NavBtn icon={<Star/>} label="المتجر" active={activeTab==='SHOP'} onClick={()=>setActiveTab('SHOP')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
@@ -163,13 +166,13 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 };
 
 const QuickActionCard = ({ icon: Icon, label, sub, color, onClick }: any) => (
-    <button onClick={onClick} className={`p-8 bg-gradient-to-br ${color} rounded-[3rem] shadow-2xl flex items-center justify-between group hover:scale-[1.02] transition-all text-right`}>
-        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10 shadow-lg group-hover:rotate-12 transition-transform">
-            <Icon size={32}/>
+    <button onClick={onClick} className={`p-8 bg-gradient-to-br ${color} rounded-[3rem] shadow-2xl flex flex-col justify-between group hover:scale-[1.02] transition-all text-right h-48`}>
+        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10 shadow-lg group-hover:rotate-12 transition-transform">
+            <Icon size={28}/>
         </div>
         <div>
             <h4 className="text-xl font-black">{label}</h4>
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{sub}</p>
+            <p className="text-[9px] font-bold text-white/60 uppercase tracking-widest">{sub}</p>
         </div>
     </button>
 );
