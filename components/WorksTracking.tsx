@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, AttendanceStatus, SystemUser } from '../types';
 import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSchools, getSubjects, addPerformance, fetchPerformance } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
-import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles } from 'lucide-react';
+import { Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Edit2, Activity, Target, Settings, Plus, Trash2, Eye, EyeOff, List, Layout, PenTool, RefreshCw, TrendingUp, ChevronLeft, Database, Globe, Sparkles, CloudSync, X } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
 interface WorksTrackingProps {
@@ -30,10 +29,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
     const [selectedSubject, setSelectedSubject] = useState('');
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); 
-    const [activityTarget, setActivityTarget] = useState<number>(13); 
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
-    const [isEditingUrl, setIsEditingUrl] = useState(false);
+    const [showCloudSettings, setShowCloudSettings] = useState(false);
     const [statusMsg, setStatusMsg] = useState('');
 
     useEffect(() => {
@@ -49,14 +47,25 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
         performance.forEach(p => {
             if (p.category === activeTab && p.notes) {
                 if (!newGrid[p.studentId]) newGrid[p.studentId] = {};
+                newGrid[p.notes] = newGrid[p.notes] || {}; // ensure sub-object
                 newGrid[p.studentId][p.notes] = p.score.toString();
             }
         });
         setGridData(newGrid);
     }, [performance, activeTab]);
 
+    const handleSaveCloudUrl = () => {
+        saveWorksMasterUrl(masterUrl);
+        showToast('تم حفظ رابط المزامنة السحابي', 'SUCCESS');
+        setShowCloudSettings(false);
+    };
+
     const handleAutoSync = async () => {
-        if (!masterUrl) return;
+        if (!masterUrl) {
+            setShowCloudSettings(true);
+            return showToast('الرجاء إدخال رابط Google Sheet أولاً', 'INFO');
+        }
+        
         setIsGenerating(true);
         setStatusMsg('جاري سحب البيانات من السحابة...');
         try {
@@ -66,22 +75,26 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             const today = new Date().toISOString().split('T')[0];
 
             data.forEach(row => {
-                const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || '').trim();
+                // محاولة البحث عن الطالب عبر الهوية في أي من الأعمدة المحتملة
+                const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || row['هوية الطالب'] || '').trim();
                 const student = students.find(s => s.nationalId === nid);
+                
                 if (student) {
-                    headers.forEach(h => {
-                        const score = parseFloat(row[h]);
+                    // البحث عن أعمدة تطابق أسماء المهام الحالية
+                    assignments.forEach(assign => {
+                        const scoreVal = row[assign.title];
+                        const score = parseFloat(scoreVal);
                         if (!isNaN(score)) {
                             records.push({
-                                id: `${student.id}_${h}_${today}`,
+                                id: `${student.id}_${assign.id}_cloud`,
                                 studentId: student.id,
                                 subject: selectedSubject || 'عام',
-                                title: h,
+                                title: assign.title,
                                 category: activeTab,
                                 score: score,
-                                maxScore: 10,
+                                maxScore: assign.maxScore,
                                 date: today,
-                                notes: 'cloud_sync',
+                                notes: assign.id,
                                 createdById: currentUser?.id
                             });
                         }
@@ -90,11 +103,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
             });
 
             if (records.length > 0) {
-                onAddPerformance(records);
-                showToast(`تمت مزامنة ${records.length} درجة بنجاح`, 'SUCCESS');
+                await onAddPerformance(records);
+                showToast(`تمت مزامنة ${records.length} درجة بنجاح من Google Sheets`, 'SUCCESS');
+            } else {
+                showToast('لم يتم العثور على درجات مطابقة للطلاب في الملف', 'INFO');
             }
         } catch (e) {
-            showToast('فشل المزامنة مع ملف Excel السحابي', 'ERROR');
+            console.error(e);
+            showToast('فشل الاتصال بـ Google Sheets. تأكد أن الرابط عام.', 'ERROR');
         } finally {
             setIsGenerating(false);
             setStatusMsg('');
@@ -164,13 +180,59 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                 </div>
                 
                 <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setShowCloudSettings(true)} 
+                        className={`p-3 rounded-2xl border transition-all ${masterUrl ? 'bg-green-50 text-green-600 border-green-200' : 'bg-white text-slate-400 border-slate-200'}`}
+                        title="إعدادات الربط السحابي (Google Sheets)"
+                    >
+                        <LinkIcon size={20}/>
+                    </button>
+                    <button onClick={handleAutoSync} disabled={isGenerating} className="px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 font-black text-xs flex items-center gap-2 hover:bg-indigo-600 hover:text-white transition-all">
+                        {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <RefreshCw size={16}/>}
+                        مزامنة Google Sheets
+                    </button>
                     <button onClick={handleSaveGrid} disabled={isGenerating} className="px-8 py-3 bg-emerald-600 text-white rounded-2xl font-black text-xs flex items-center gap-2 shadow-xl hover:bg-emerald-700 transition-all">
                         {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
-                        حفظ السجل
+                        حفظ السجل النهائي
                     </button>
-                    <button onClick={handleAutoSync} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 hover:bg-indigo-100"><RefreshCw size={18}/></button>
                 </div>
             </div>
+
+            {showCloudSettings && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-zoom-in">
+                        <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
+                            <h3 className="text-xl font-black flex items-center gap-3"><Globe/> ربط Google Sheets</h3>
+                            <button onClick={() => setShowCloudSettings(false)} className="p-2 hover:bg-white/10 rounded-full"><X/></button>
+                        </div>
+                        <div className="p-10 space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-3">رابط جدول البيانات (Shareable Link)</label>
+                                <input 
+                                    className="w-full p-4 border rounded-2xl bg-slate-50 font-bold text-sm dir-ltr text-left outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                    value={masterUrl}
+                                    onChange={e => setMasterUrl(e.target.value)}
+                                />
+                                <p className="mt-3 text-[10px] text-slate-400 leading-relaxed font-medium">
+                                    تأكد من أن الرابط "عام" أو متاح لمن يملك الرابط. سيقوم النظام بمطابقة الطلاب عبر عمود الهوية واستيراد الدرجات بناءً على عناوين الأعمدة التي تطابق أسماء المهام لديك.
+                                </p>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button onClick={handleSaveCloudUrl} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">تفعيل الربط السحابي</button>
+                                <button onClick={() => setMasterUrl('')} className="p-4 bg-red-50 text-red-500 rounded-2xl border border-red-100"><Trash2 size={20}/></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isGenerating && statusMsg && (
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-8 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce">
+                    <Loader2 size={18} className="animate-spin"/>
+                    <span className="font-black text-sm">{statusMsg}</span>
+                </div>
+            )}
 
             <div className="flex bg-white rounded-2xl p-1 mb-6 shadow-sm border border-slate-100 overflow-x-auto no-scrollbar shrink-0">
                 {(['ACTIVITY', 'HOMEWORK', 'PLATFORM_EXAM', 'YEAR_WORK'] as PerformanceCategory[]).map(cat => (
@@ -188,7 +250,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, at
                             <button onClick={handleAddColumn} className="bg-indigo-50 text-indigo-700 px-6 py-2 rounded-2xl font-black text-xs hover:bg-indigo-100 border border-indigo-100 flex items-center gap-2"><Plus size={16}/> إضافة عمود</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {assignments.map((a, idx) => (
+                            {assignments.map((a) => (
                                 <div key={a.id} className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] relative group hover:border-indigo-200 transition-all">
                                     <button onClick={()=>{deleteAssignment(a.id); setAssignments(assignments.filter(x=>x.id!==a.id))}} className="absolute top-4 left-4 text-red-100 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={18}/></button>
                                     <div className="space-y-4">
