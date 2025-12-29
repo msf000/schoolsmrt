@@ -44,12 +44,13 @@ export const generateClassroomPulse = async (context: any) => {
     } catch { return "طاقة الفصل ممتازة!"; }
 };
 
+// Updated: Changed model from gemini-2.5-flash-image to gemini-3-flash-preview for image understanding
 export const analyzeAttendancePhoto = async (base64: string, students: any[]) => {
     const ai = getAIClient();
     const prompt = `حلل صورة الحضور هذه وقارنها بقائمة الطلاب: ${students.map(s => s.name).join(', ')}. حدد من الحاضر ومن الغائب. أرجع JSON: {"attendance": [{"name": "...", "status": "PRESENT/ABSENT"}]}`;
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
+            model: 'gemini-3-flash-preview',
             contents: { parts: [{ inlineData: { data: base64.split(',')[1], mimeType: 'image/jpeg' } }, { text: prompt }] }
         });
         // Find JSON part
@@ -132,7 +133,7 @@ export const generateQuiz = async (subject: string, topic: string, grade: string
 
 export const suggestQuickActivity = async (topic: string) => {
     const ai = getAIClient();
-    const prompt = `اقترح نشاطاً صفياً سريعاً (5 دقائق) لموضوع "${topic}". بالعربية.`;
+    const prompt = `اقترح نشاطاً صفياً سريعاً (5 دقائق) لم موضوع "${topic}". بالعربية.`;
     try {
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || "";
@@ -157,6 +158,7 @@ export const generateBrainstormingIdea = async (topic: string) => {
     } catch { return ""; }
 };
 
+// Updated: Changed model from gemini-2.5-flash-image to gemini-3-flash-preview for multimodal data parsing
 export const parseRawDataWithAI = async (text: string, type: string, imageBase64?: string) => {
     const ai = getAIClient();
     let contents: any = `استخرج البيانات من النص/الصورة وصنفها كـ ${type}. أرجع JSON array من الأشياء المستخرجة فقط.`;
@@ -167,7 +169,7 @@ export const parseRawDataWithAI = async (text: string, type: string, imageBase64
     }
     try {
         const response = await ai.models.generateContent({
-            model: imageBase64 ? 'gemini-2.5-flash-image' : 'gemini-3-flash-preview',
+            model: 'gemini-3-flash-preview',
             contents,
             config: { responseMimeType: "application/json" }
         });
@@ -203,12 +205,13 @@ export const generateStructuredQuiz = async (subject: string, topic: string, gra
     } catch { return []; }
 };
 
+// Updated: Changed model from gemini-2.5-flash-image to gemini-3-flash-preview for exam paper understanding
 export const gradeExamPaper = async (imageBase64: string, exam: any) => {
     const ai = getAIClient();
     const prompt = `أنت مصحح ذكي. قارن صورة ورقة الإجابة مع نموذج الاختبار هذا: ${JSON.stringify(exam)}. حدد الدرجة الكلية وصحح كل سؤال. أرجع JSON: {"totalScore": 0, "maxTotalScore": 10, "studentNameDetected": "...", "questions": [{"index": 1, "isCorrect": true, "studentAnswer": "...", "feedback": "..."}], "aiRecommendation": "..."}`;
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
+            model: 'gemini-3-flash-preview',
             contents: { parts: [{ inlineData: { data: imageBase64.split(',')[1], mimeType: 'image/jpeg' } }, { text: prompt }] },
             config: { responseMimeType: "application/json" }
         });
