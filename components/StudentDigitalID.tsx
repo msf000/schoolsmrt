@@ -9,25 +9,16 @@ interface StudentDigitalIDProps {
 }
 
 const StudentDigitalID: React.FC<StudentDigitalIDProps> = ({ student, stats }) => {
-    // تحديد لون الهالة بناءً على التخصيص المشتراى
-    const auraColor = student.auraColor || 'indigo';
-    const auraClasses: Record<string, string> = {
-        'indigo': 'from-indigo-600 via-purple-600 to-indigo-800',
-        'gold': 'from-yellow-400 via-amber-500 to-yellow-600 shadow-[0_0_50px_rgba(251,191,36,0.3)]',
-        'emerald': 'from-emerald-400 via-green-500 to-teal-600 shadow-[0_0_50px_rgba(16,185,129,0.3)]',
-        'ruby': 'from-rose-500 via-red-600 to-orange-600 shadow-[0_0_50px_rgba(244,63,94,0.3)]'
-    };
-
     return (
         <div className="flex flex-col items-center justify-center min-h-full py-10 animate-zoom-in font-tajawal">
-             <div className={`w-full max-w-sm bg-gradient-to-br ${auraClasses[auraColor] || auraClasses.indigo} rounded-[3.5rem] p-1 shadow-2xl relative overflow-hidden group transition-all duration-700`}>
+             <div className="w-full max-w-sm bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 rounded-[3.5rem] p-1 shadow-2xl relative overflow-hidden group">
                  <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                  
                  <div className="bg-[#020617] rounded-[3.4rem] p-10 flex flex-col items-center text-center relative z-10 border border-white/10">
                     <div className="w-full flex justify-between items-center mb-10">
                         <div className="text-right">
                             <p className="text-[10px] font-black text-indigo-400 tracking-widest uppercase">هوية الطالب الرقمية</p>
-                            <p className="text-white font-black text-xs">{student.activeTitle || 'بطل المتابع الذكي'}</p>
+                            <p className="text-white font-black text-xs">حساب موثق سحابياً</p>
                         </div>
                         <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
                             <Sparkles className="text-yellow-400" size={20}/>
@@ -35,18 +26,13 @@ const StudentDigitalID: React.FC<StudentDigitalIDProps> = ({ student, stats }) =
                     </div>
 
                     <div className="relative mb-8">
-                        {/* الهالة البصرية المتحركة */}
-                        {student.auraColor && (
-                            <div className={`absolute inset-[-15px] rounded-full blur-xl opacity-40 animate-pulse bg-gradient-to-tr ${auraClasses[auraColor]}`}></div>
-                        )}
-                        
-                        <div className="w-32 h-32 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-[2.5rem] flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ring-white/5 transition-transform group-hover:scale-110 duration-500 relative z-10">
-                            {student.email?.startsWith('data:image') ? <img src={student.email} className="w-full h-full object-cover rounded-[2.5rem]" alt="Avatar"/> : student.name.charAt(0)}
+                        <div className="w-32 h-32 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-[2.5rem] flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ring-white/5 transition-transform group-hover:scale-110 duration-500">
+                            {student.name.charAt(0)}
                         </div>
-                        <div className="absolute -bottom-3 -right-3 bg-yellow-400 text-slate-900 w-12 h-12 rounded-2xl flex items-center justify-center font-black border-4 border-[#020617] shadow-xl text-lg z-20">
+                        <div className="absolute -bottom-3 -right-3 bg-yellow-400 text-slate-900 w-12 h-12 rounded-2xl flex items-center justify-center font-black border-4 border-[#020617] shadow-xl text-lg">
                             Lv{stats.level}
                         </div>
-                        <div className="absolute -top-3 -left-3 bg-emerald-500 text-white w-10 h-10 rounded-full flex items-center justify-center border-4 border-[#020617] shadow-lg z-20">
+                        <div className="absolute -top-3 -left-3 bg-emerald-500 text-white w-10 h-10 rounded-full flex items-center justify-center border-4 border-[#020617] shadow-lg">
                             <ShieldCheck size={20}/>
                         </div>
                     </div>

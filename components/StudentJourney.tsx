@@ -39,8 +39,7 @@ const StudentJourney: React.FC<Props> = ({ xp, level }) => {
                     return (
                         <div key={i} className="relative z-10 flex flex-col items-center">
                             <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center transition-all duration-500 ${isReached ? 'bg-indigo-600 text-white shadow-2xl scale-110' : 'bg-slate-800 text-white/20 border-2 border-white/5'}`}>
-                                {/* Fix: Cast icon to ReactElement<any> to avoid size property error */}
-                                {React.cloneElement(m.icon as React.ReactElement<any>, { size: 24 })}
+                                {React.cloneElement(m.icon as React.ReactElement, { size: 24 })}
                                 {isReached && (
                                     <div className="absolute -top-1 -right-1 bg-yellow-400 text-slate-950 p-1 rounded-lg animate-bounce">
                                         <Check size={12} strokeWidth={4}/>

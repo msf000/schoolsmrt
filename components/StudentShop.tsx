@@ -21,7 +21,6 @@ const StudentShop: React.FC<Props> = ({ xp, rewards, student, onPurchaseComplete
     
     setPurchasingId(reward.id);
     try {
-        // Tentative deduction of XP
         const newXp = xp - reward.cost;
         const updatedStudent: Student = {
             ...student,
@@ -29,7 +28,6 @@ const StudentShop: React.FC<Props> = ({ xp, rewards, student, onPurchaseComplete
             purchasedRewards: [...(student.purchasedRewards || []), reward.id]
         };
 
-        // Create Purchase Request for Teacher Approval
         await savePurchaseRequest({
             id: `req_${Date.now()}`,
             studentId: student.id,
@@ -42,7 +40,6 @@ const StudentShop: React.FC<Props> = ({ xp, rewards, student, onPurchaseComplete
             teacherId: student.createdById || ''
         });
 
-        // Update student record locally and on cloud
         await updateStudent(updatedStudent);
         onPurchaseComplete(updatedStudent);
         
