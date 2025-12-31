@@ -1,13 +1,17 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, SystemUser, Subject, ScheduleItem } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, SystemUser, Subject } from '../types';
 import { 
     CheckCircle, XCircle, Search, History, Trash2, RefreshCw, 
     UserCheck, BookOpen, Clock, Calendar as CalendarIcon, Filter, 
-    User, ChevronLeft, ChevronRight, UserMinus, UserPlus, Sparkles, Layout
+    User, ChevronLeft, ChevronRight, UserMinus, UserPlus, Sparkles, Layout,
+    Camera, QrCode
 } from 'lucide-react';
-import { saveAttendance, fetchAttendance, deleteAttendance, getSubjects, getSchedules } from '../services/storageService';
+import { saveAttendance, fetchAttendance, deleteAttendance, getSubjects } from '../services/storageService';
 import { useToast } from './ToastProvider';
 import { formatDualDate } from '../services/dateService';
+import AIAttendanceScanner from './AIAttendanceScanner';
+import StudentQRScanner from './StudentQRScanner';
 
 interface AttendanceProps {
   students: Student[];
@@ -25,6 +29,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY'>('RECORD');
+  
+  // Modals
+  const [isAIScannerOpen, setIsAIScannerOpen] = useState(false);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   const subjects = useMemo(() => currentUser ? getSubjects(currentUser.id) : [], [currentUser]);
 
@@ -65,8 +73,32 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     }
   };
 
+  const handleAIDetection = async (records: AttendanceRecord[]) => {
+      setIsSyncing(true);
+      try {
+          await saveAttendance(records);
+          onSaveAttendance(records);
+          showToast(`تم رصد حضور ${records.length} طالب عبر الذكاء الاصطناعي`, 'SUCCESS');
+      } catch (e) {
+          showToast('فشل الحفظ السحابي للرصد البصري', 'ERROR');
+      } finally {
+          setIsSyncing(false);
+      }
+  };
+
   return (
     <div className="p-4 md:p-8 h-full flex flex-col bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden">
+      
+      {isAIScannerOpen && (
+          <AIAttendanceScanner 
+            students={filteredStudents} 
+            subject={selectedSubject} 
+            currentUserId={currentUser?.id} 
+            onDetected={handleAIDetection} 
+            onClose={() => setIsAIScannerOpen(false)} 
+          />
+      )}
+
       <div className="flex flex-col xl:flex-row justify-between items-center mb-8 gap-6 shrink-0">
           <div className="flex bg-white p-1.5 rounded-2xl shadow-xl border border-slate-100">
               <button onClick={() => setActiveTab('RECORD')} className={`px-10 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'RECORD' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-slate-600'}`}>
@@ -82,6 +114,9 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300"/>
                 <input className="pr-12 pl-4 py-3 bg-white border border-slate-100 rounded-2xl text-xs font-bold outline-none shadow-sm focus:ring-4 focus:ring-indigo-500/5 transition-all w-64" placeholder="بحث باسم الطالب..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
              </div>
+             <button onClick={() => setIsAIScannerOpen(true)} disabled={!selectedClass} className="p-3 bg-white text-indigo-600 rounded-2xl border border-indigo-100 shadow-sm hover:bg-indigo-600 hover:text-white transition-all group" title="تحضير بصري (AI)">
+                 <Camera size={20} className="group-hover:scale-110 transition-transform"/>
+             </button>
              {isSyncing && <RefreshCw size={18} className="animate-spin text-indigo-600"/>}
              <div className="h-10 w-px bg-slate-200"></div>
              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">

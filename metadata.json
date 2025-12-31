@@ -3,6 +3,7 @@
   "description": "تطبيق شامل لتسجيل الحضور، متابعة الأداء الأكاديمي، وتحليل بيانات الطلاب باستخدام الذكاء الاصطناعي.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ]
 }
