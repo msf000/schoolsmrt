@@ -6,7 +6,7 @@ import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/e
 import { 
     Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Activity, Settings, 
     Plus, Trash2, Layout, RefreshCw, ChevronLeft, Globe, Sparkles, X, 
-    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle, Sheet
+    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle, Sheet, UserCheck
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -49,6 +49,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
     const [sheetRawData, setSheetRawData] = useState<any[]>([]);
     const [columnMap, setColumnMap] = useState<Record<string, string>>({}); 
+    const [identityCol, setIdentityCol] = useState<string>(''); // العمود المستخدم للتعريف (هوية أو اسم)
 
     useEffect(() => {
         if (!currentUser) return;
@@ -101,6 +102,11 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         setSheetHeaders(headers);
         setSheetRawData(data);
         
+        // محاولة تخمين عمود الهوية أو الاسم
+        const idCol = headers.find(h => h.includes('هوية') || h.includes('سجل') || h.includes('Id') || h.includes('ID'));
+        const nameCol = headers.find(h => h.includes('اسم') || h.includes('Name') || h.includes('الطالب'));
+        setIdentityCol(idCol || nameCol || '');
+
         const initialMap: Record<string, string> = {};
         filteredAssignments.forEach(assign => {
             const match = headers.find(h => h.trim() === assign.title.trim());
@@ -112,16 +118,24 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     };
 
     const executeFinalSync = async () => {
+        if (!identityCol) return showToast('الرجاء اختيار عمود (الهوية أو الاسم) للمطابقة', 'ERROR');
         setIsGenerating(true);
         try {
             const records: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
+            let matchCount = 0;
 
             sheetRawData.forEach(row => {
-                const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || row['رقم السجل'] || '').trim();
-                const student = students.find(s => s.nationalId === nid);
+                const val = String(row[identityCol] || '').trim();
+                if (!val) return;
+
+                // محاولة المطابقة بالهوية أولاً ثم بالاسم
+                const student = students.find(s => s.nationalId === val) || 
+                                students.find(s => s.name.trim() === val) ||
+                                students.find(s => s.name.includes(val) && val.length > 5);
                 
                 if (student) {
+                    matchCount++;
                     filteredAssignments.forEach(assign => {
                         const mappedHeader = columnMap[assign.id];
                         if (mappedHeader && row[mappedHeader] !== undefined) {
@@ -144,10 +158,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
 
             if (records.length > 0) {
                 await onAddPerformance(records);
-                showToast(`تمت مزامنة ${records.length} درجة بنجاح!`, 'SUCCESS');
+                showToast(`تمت مطابقة ${matchCount} طالب ومزامنة درجاتهم بنجاح!`, 'SUCCESS');
                 setSyncStep('IDLE');
             } else {
-                showToast('لم نجد تطابق لأرقام هوية الطلاب في الورقة المختارة.', 'ERROR');
+                showToast('لم نجد تطابق للطلاب. تأكد من صحة عمود المطابقة.', 'ERROR');
             }
         } catch (e) {
             showToast('خطأ في معالجة البيانات.', 'ERROR');
@@ -380,7 +394,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                 <input className="w-full p-5 border-2 border-slate-50 rounded-[1.5rem] bg-slate-50 font-black text-sm dir-ltr outline-none focus:border-indigo-600 transition-all" placeholder="https://docs.google.com/spreadsheets/d/..." value={masterUrl} onChange={e => setMasterUrl(e.target.value)}/>
                                 <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100 flex gap-4">
                                     <Info className="text-blue-600 shrink-0"/>
-                                    <p className="text-xs text-blue-700 leading-relaxed font-bold">تأكد من وجود عمود باسم "رقم الهوية" في ملفك لمطابقة الدرجات مع الطلاب تلقائياً.</p>
+                                    <p className="text-xs text-blue-700 leading-relaxed font-bold">تأكد من وجود عمود باسم "رقم الهوية" أو "اسم الطالب" في ملفك للمطابقة.</p>
                                 </div>
                             </div>
                             <button onClick={() => { saveWorksMasterUrl(masterUrl); showToast('تم حفظ الرابط!', 'SUCCESS'); setShowCloudSettings(false); }} className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black shadow-2xl hover:bg-indigo-700 transition-all">تفعيل الربط السحابي</button>
@@ -426,26 +440,48 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                     ))}
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {filteredAssignments.map(assign => (
-                                        <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-black text-slate-800">{assign.title}</h4>
-                                                    <span className="text-[10px] font-black text-indigo-400 uppercase">{assign.category}</span>
-                                                </div>
-                                                {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
+                                <div className="space-y-10">
+                                    {/* Identity Selection Section */}
+                                    <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 shadow-sm">
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><UserCheck size={24}/></div>
+                                            <div>
+                                                <h4 className="font-black text-indigo-900 text-lg">عمود مطابقة الطلاب</h4>
+                                                <p className="text-indigo-400 text-xs font-bold">حدد أي عمود في ملفك يحتوي على (رقم الهوية) أو (اسم الطالب)</p>
                                             </div>
-                                            <select 
-                                                className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                                                value={columnMap[assign.id] || ''}
-                                                onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
-                                            >
-                                                <option value="">-- تجاهل هذه المهمة --</option>
-                                                {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                                            </select>
                                         </div>
-                                    ))}
+                                        <select 
+                                            className="w-full p-4 border rounded-2xl bg-white font-black text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                                            value={identityCol}
+                                            onChange={e => setIdentityCol(e.target.value)}
+                                        >
+                                            <option value="">-- اختر عمود المطابقة (هوية أو اسم) --</option>
+                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                        </select>
+                                    </div>
+
+                                    {/* Assignments Mapping Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {filteredAssignments.map(assign => (
+                                            <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-black text-slate-800">{assign.title}</h4>
+                                                        <span className="text-[10px] font-black text-indigo-400 uppercase">{assign.category}</span>
+                                                    </div>
+                                                    {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
+                                                </div>
+                                                <select 
+                                                    className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                                    value={columnMap[assign.id] || ''}
+                                                    onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
+                                                >
+                                                    <option value="">-- تجاهل هذه المهمة --</option>
+                                                    {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -455,7 +491,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                 <div className="text-slate-400 text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود في الورقة المختارة.</div>
                                 <div className="flex gap-4">
                                     <button onClick={() => setSyncStep('SELECT_SHEET')} className="px-8 py-4 text-slate-400 font-black hover:text-slate-600">رجوع للأوراق</button>
-                                    <button onClick={executeFinalSync} disabled={isGenerating || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
+                                    <button onClick={executeFinalSync} disabled={isGenerating || !identityCol || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
                                         {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} إتمام المزامنة
                                     </button>
                                 </div>
