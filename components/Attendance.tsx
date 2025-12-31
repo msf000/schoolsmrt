@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, AttendanceRecord, AttendanceStatus, SystemUser, Subject } from '../types';
+import { saveAttendance, fetchAttendance, deleteAttendance, getSubjects, adjustStudentXP } from '../services/storageService';
+// Added Zap to the imported icons from lucide-react
 import { 
     CheckCircle, XCircle, Search, History, Trash2, RefreshCw, 
     UserCheck, BookOpen, Clock, Calendar as CalendarIcon, Filter, 
     User, ChevronLeft, ChevronRight, UserMinus, UserPlus, Sparkles, Layout,
-    Camera, QrCode
+    Camera, QrCode, Zap
 } from 'lucide-react';
-import { saveAttendance, fetchAttendance, deleteAttendance, getSubjects } from '../services/storageService';
 import { useToast } from './ToastProvider';
 import { formatDualDate } from '../services/dateService';
 import AIAttendanceScanner from './AIAttendanceScanner';
@@ -66,6 +67,11 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     try {
         await saveAttendance([record]);
         onSaveAttendance([record]);
+        
+        // التغذية الراجعة البصرية للنقاط
+        if (status === AttendanceStatus.PRESENT) {
+            showToast('تم التحضير: +10 XP لبطلنا!', 'SUCCESS');
+        }
     } catch (e) {
         showToast('فشل التزامن السحابي', 'ERROR');
     } finally {
@@ -78,7 +84,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
       try {
           await saveAttendance(records);
           onSaveAttendance(records);
-          showToast(`تم رصد حضور ${records.length} طالب عبر الذكاء الاصطناعي`, 'SUCCESS');
+          showToast(`تم رصد حضور ${records.length} طالب عبر الذكاء الاصطناعي بنجاح.`, 'SUCCESS');
       } catch (e) {
           showToast('فشل الحفظ السحابي للرصد البصري', 'ERROR');
       } finally {
@@ -175,7 +181,10 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                                         </div>
                                         <div className="flex-1 overflow-hidden">
                                             <h4 className="text-sm font-black text-slate-800 line-clamp-2 leading-relaxed">{student.name}</h4>
-                                            <p className="text-[9px] text-slate-400 font-black uppercase mt-1">مقعد رقم: {student.seatIndex || '--'}</p>
+                                            <div className="flex gap-2 mt-1">
+                                                <span className="text-[9px] text-slate-400 font-black uppercase">مقعد: {student.seatIndex || '--'}</span>
+                                                <span className="text-[9px] text-indigo-400 font-black flex items-center gap-1"><Zap size={10} fill="currentColor"/> {student.xp} XP</span>
+                                            </div>
                                         </div>
                                     </div>
 

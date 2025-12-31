@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, BehaviorIncident, FormsDetailedResult } from '../types';
-import { getBehaviorIncidents, getFormsDetailedResults, updateStudent } from '../services/storageService';
-import { generateStudentAnalysis, generateStudentPersona } from '../services/geminiService';
+import { getBehaviorIncidents, getFormsDetailedResults, updateStudent, saveRemedialPlan } from '../services/storageService';
+import { generateStudentAnalysis, generateSmartRemedialPlan } from '../services/geminiService';
 import { 
     Search, TrendingUp, Loader2, Bot, ArrowRight, Star, Radar as RadarIcon, 
-    BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle
+    BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle, FileText
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, AreaChart, Area } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -25,7 +25,9 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
 
     const [activeTab, setActiveTab] = useState<'SUMMARY' | 'AI' | 'SKILLS'>('SUMMARY');
     const [reportContent, setReportContent] = useState('');
+    const [remedialPlan, setRemedialPlan] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [isReportOpen, setIsReportOpen] = useState(false);
 
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
@@ -58,6 +60,31 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
         setIsLoading(false);
     };
 
+    const handleGenerateRemedialPlan = async () => {
+        if (!student) return;
+        setIsGeneratingPlan(true);
+        try {
+            const gaps = performance.filter(p => p.studentId === student.id && (p.score/p.maxScore) < 0.6);
+            const res = await generateSmartRemedialPlan(student, gaps);
+            setRemedialPlan(res);
+            
+            // حفظ الخطة تلقائياً في السجل
+            await saveRemedialPlan({
+                id: `plan_${Date.now()}`,
+                studentId: student.id,
+                teacherId: currentUser?.id || '',
+                subject: gaps[0]?.subject || 'عام',
+                topic: 'خطة تدخل ذكية',
+                content: res,
+                date: new Date().toISOString()
+            });
+        } catch (e) {
+            alert('فشل توليد الخطة العلاجية.');
+        } finally {
+            setIsGeneratingPlan(false);
+        }
+    };
+
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal overflow-hidden">
             {isReportOpen && student && <ReportCard student={student} performance={performance} attendance={attendance} onClose={() => setIsReportOpen(false)} />}
@@ -86,14 +113,14 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
                                     <h2 className="text-4xl font-black mb-4">{student.name}</h2>
                                     <div className="flex gap-4">
                                         <span className="bg-white/10 px-6 py-2 rounded-full text-xs font-black border border-white/10">{student.className}</span>
-                                        <span className="bg-yellow-400 text-indigo-900 px-6 py-2 rounded-full text-xs font-black shadow-xl flex items-center gap-2"><Zap size={16} fill="currentColor"/> {student.behaviorPoints || 0} XP</span>
+                                        <span className="bg-yellow-400 text-indigo-900 px-6 py-2 rounded-full text-xs font-black shadow-xl flex items-center gap-2"><Zap size={16} fill="currentColor"/> {student.xp || 0} XP</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex gap-16 text-center">
                                 <div><p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">معدل الإتقان</p><p className="text-5xl font-black text-white">{stats.gradeAvg}%</p></div>
                                 <div className="w-px h-16 bg-white/10"></div>
-                                <div><p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">الانضباط</p><p className="text-5xl font-black text-emerald-400">{stats.attRate}%</p></div>
+                                <div><p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">المستوى الرقمي</p><p className="text-5xl font-black text-emerald-400">{student.level || 1}</p></div>
                             </div>
                         </div>
                     </div>
@@ -101,7 +128,7 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
                     <div className="flex bg-white rounded-2xl p-1 mb-8 shadow-sm border border-slate-100 shrink-0">
                         <button onClick={()=>setActiveTab('SUMMARY')} className={`flex-1 py-4 rounded-xl font-black text-xs transition-all ${activeTab==='SUMMARY'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>نظرة عامة</button>
                         <button onClick={()=>setActiveTab('SKILLS')} className={`flex-1 py-4 rounded-xl font-black text-xs transition-all ${activeTab==='SKILLS'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>المهارات</button>
-                        <button onClick={()=>setActiveTab('AI')} className={`flex-1 py-4 rounded-xl font-black text-xs transition-all ${activeTab==='AI'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>تحليل AI</button>
+                        <button onClick={()=>setActiveTab('AI')} className={`flex-1 py-4 rounded-xl font-black text-xs transition-all ${activeTab==='AI'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>تحليل وخطط AI</button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-20">
@@ -119,7 +146,7 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
                                     </ResponsiveContainer>
                                 </div>
                                 <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm overflow-y-auto">
-                                    <h3 className="font-black text-slate-800 mb-8 flex items-center gap-3"><Star className="text-yellow-500"/> آخر الملاحظات السلوكية</h3>
+                                    <h3 className="font-black text-slate-800 mb-8 flex items-center gap-3"><Star className="text-yellow-500"/> سجل التميز والسلوك</h3>
                                     <div className="space-y-4">
                                         {incidents.slice(0, 5).map(i => (
                                             <div key={i.id} className="p-5 bg-slate-50 rounded-3xl border border-slate-100 flex justify-between items-center">
@@ -138,23 +165,38 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
                         )}
 
                         {activeTab === 'AI' && (
-                            <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm animate-fade-in">
-                                <div className="flex justify-between items-center mb-10">
-                                    <h3 className="text-2xl font-black text-indigo-900">التشخيص التربوي الذكي</h3>
-                                    <button onClick={handleAiAnalysis} disabled={isLoading} className="bg-purple-600 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 shadow-xl hover:bg-purple-700 transition-all">
-                                        {isLoading ? <Loader2 className="animate-spin"/> : <Bot/>} بدء التحليل (Gemini AI)
-                                    </button>
+                            <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                                <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm">
+                                    <div className="flex justify-between items-center mb-10">
+                                        <h3 className="text-2xl font-black text-indigo-900 flex items-center gap-3"><Bot/> تحليل الأداء الشامل</h3>
+                                        <button onClick={handleAiAnalysis} disabled={isLoading} className="bg-purple-600 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 shadow-xl hover:bg-purple-700 transition-all">
+                                            {isLoading ? <Loader2 className="animate-spin"/> : <Sparkles/>} توليد تحليل الأداء
+                                        </button>
+                                    </div>
+                                    {reportContent && (
+                                        <div className="prose prose-indigo max-w-none text-slate-700 leading-relaxed font-medium bg-indigo-50/50 p-10 rounded-[2.5rem] border border-indigo-100">
+                                            <ReactMarkdown>{reportContent}</ReactMarkdown>
+                                        </div>
+                                    )}
                                 </div>
-                                {reportContent ? (
-                                    <div className="prose prose-indigo max-w-none text-slate-700 leading-relaxed font-medium bg-indigo-50/50 p-10 rounded-[2.5rem] border border-indigo-100">
-                                        <ReactMarkdown>{reportContent}</ReactMarkdown>
+
+                                <div className="bg-slate-900 p-10 rounded-[3.5rem] border border-white/10 shadow-2xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><FileText size={150}/></div>
+                                    <div className="relative z-10 flex justify-between items-center mb-10">
+                                        <div>
+                                            <h3 className="text-2xl font-black text-white">خطة التدخل العلاجي (Remedial Plan)</h3>
+                                            <p className="text-indigo-400 text-sm font-bold">بناءً على فجوات التعلم المكتشفة في سجل الرصد</p>
+                                        </div>
+                                        <button onClick={handleGenerateRemedialPlan} disabled={isGeneratingPlan} className="bg-white text-indigo-900 px-8 py-3 rounded-2xl font-black flex items-center gap-2 shadow-xl hover:scale-105 transition-all">
+                                            {isGeneratingPlan ? <Loader2 className="animate-spin"/> : <BrainCircuit/>} توليد خطة التدخل
+                                        </button>
                                     </div>
-                                ) : (
-                                    <div className="py-20 text-center text-slate-300 opacity-20">
-                                        <BrainCircuit size={150} className="mx-auto mb-6"/>
-                                        <p className="text-3xl font-black">اضغط للتحليل</p>
-                                    </div>
-                                )}
+                                    {remedialPlan && (
+                                        <div className="prose prose-invert max-w-none text-indigo-100 leading-relaxed font-medium bg-white/5 p-10 rounded-[2.5rem] border border-white/10">
+                                            <ReactMarkdown>{remedialPlan}</ReactMarkdown>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
