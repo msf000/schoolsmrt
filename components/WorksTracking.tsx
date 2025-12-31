@@ -6,7 +6,7 @@ import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/e
 import { 
     Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Activity, Settings, 
     Plus, Trash2, Layout, RefreshCw, ChevronLeft, Globe, Sparkles, X, 
-    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle
+    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle, Sheet
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -41,9 +41,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
     
-    // Cloud Sync States
+    // Cloud Sync Flow States
     const [showCloudSettings, setShowCloudSettings] = useState(false);
-    const [showMappingUI, setShowMappingUI] = useState(false);
+    const [syncStep, setSyncStep] = useState<'IDLE' | 'SELECT_SHEET' | 'MAPPING'>('IDLE');
     const [availableSheets, setAvailableSheets] = useState<string[]>([]);
     const [fullWorkbook, setFullWorkbook] = useState<any>(null);
     const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
@@ -87,10 +87,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
             setFullWorkbook(workbook);
             setAvailableSheets(sheetNames);
-            if (sheetNames.length > 0) {
-                // نفتح واجهة المطابقة فوراً مع أول ورقة عمل
-                prepareMapping(workbook, sheetNames[0]);
-            }
+            setSyncStep('SELECT_SHEET');
         } catch (e) {
             showToast('فشل الوصول للملف. تأكد أن الرابط "عام" (Public).', 'ERROR');
         } finally {
@@ -98,20 +95,20 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         }
     };
 
-    const prepareMapping = (workbook: any, sheetName: string) => {
-        const { headers, data } = getSheetHeadersAndData(workbook, sheetName);
+    const handleSheetSelect = (sheetName: string) => {
+        if (!fullWorkbook) return;
+        const { headers, data } = getSheetHeadersAndData(fullWorkbook, sheetName);
         setSheetHeaders(headers);
         setSheetRawData(data);
         
         const initialMap: Record<string, string> = {};
-        // محاولة مطابقة ذكية بناءً على العناوين
         filteredAssignments.forEach(assign => {
             const match = headers.find(h => h.trim() === assign.title.trim());
             if (match) initialMap[assign.id] = match;
         });
         
         setColumnMap(initialMap);
-        setShowMappingUI(true);
+        setSyncStep('MAPPING');
     };
 
     const executeFinalSync = async () => {
@@ -147,10 +144,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
 
             if (records.length > 0) {
                 await onAddPerformance(records);
-                showToast(`تمت مزامنة ${records.length} درجة من السحابة بنجاح!`, 'SUCCESS');
-                setShowMappingUI(false);
+                showToast(`تمت مزامنة ${records.length} درجة بنجاح!`, 'SUCCESS');
+                setSyncStep('IDLE');
             } else {
-                showToast('لم نجد تطابق لأرقام هوية الطلاب في الملف.', 'ERROR');
+                showToast('لم نجد تطابق لأرقام هوية الطلاب في الورقة المختارة.', 'ERROR');
             }
         } catch (e) {
             showToast('خطأ في معالجة البيانات.', 'ERROR');
@@ -312,12 +309,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                     </div>
                                 </div>
                             ))}
-                            {assignments.length === 0 && (
-                                <div className="col-span-full py-20 text-center text-slate-300">
-                                    <Database size={80} className="mx-auto mb-4 opacity-10"/>
-                                    <p className="text-xl font-black">لا توجد أعمدة رصد. ابدأ بإضافة عمود جديد.</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 ) : (
@@ -398,51 +389,78 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                 </div>
             )}
 
-            {/* Mapping Interface */}
-            {showMappingUI && (
+            {/* Sync Flow Modal (Sheet Selection and Mapping) */}
+            {syncStep !== 'IDLE' && (
                 <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 animate-fade-in">
                     <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[4rem] shadow-2xl overflow-hidden flex flex-col animate-zoom-in">
                         <div className="p-10 bg-indigo-600 text-white flex justify-between items-center shrink-0">
                             <div>
-                                <h3 className="text-3xl font-black flex items-center gap-4"><ArrowRightLeft size={32}/> مطابقة أعمدة البيانات</h3>
-                                <p className="text-indigo-200 font-bold mt-2">اربط كل عمود في ملفك بمهمة رصد في النظام</p>
+                                <h3 className="text-3xl font-black flex items-center gap-4">
+                                    {syncStep === 'SELECT_SHEET' ? <Sheet size={32}/> : <ArrowRightLeft size={32}/>}
+                                    {syncStep === 'SELECT_SHEET' ? 'اختيار ورقة العمل' : 'مطابقة أعمدة البيانات'}
+                                </h3>
+                                <p className="text-indigo-200 font-bold mt-2">
+                                    {syncStep === 'SELECT_SHEET' ? 'يحتوي ملفك على أوراق عمل متعددة، اختر إحداها' : 'اربط كل عمود في ملفك بمهمة رصد في النظام'}
+                                </p>
                             </div>
-                            <button onClick={() => setShowMappingUI(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors"><X size={24}/></button>
+                            <button onClick={() => setSyncStep('IDLE')} className="p-3 hover:bg-white/10 rounded-full transition-colors"><X size={24}/></button>
                         </div>
                         
                         <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-slate-50/50">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {filteredAssignments.map(assign => (
-                                    <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="font-black text-slate-800">{assign.title}</h4>
-                                                <span className="text-[10px] font-black text-indigo-400 uppercase">{assign.category}</span>
-                                            </div>
-                                            {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
-                                        </div>
-                                        <select 
-                                            className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                                            value={columnMap[assign.id] || ''}
-                                            onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
+                            {syncStep === 'SELECT_SHEET' ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {availableSheets.map(name => (
+                                        <button 
+                                            key={name} 
+                                            onClick={() => handleSheetSelect(name)}
+                                            className="p-8 bg-white border-2 border-transparent hover:border-indigo-600 hover:shadow-xl rounded-[2.5rem] flex items-center justify-between group transition-all"
                                         >
-                                            <option value="">-- تجاهل هذه المهمة --</option>
-                                            {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                                    <Sheet size={24}/>
+                                                </div>
+                                                <span className="font-black text-slate-800 text-lg">{name}</span>
+                                            </div>
+                                            <ChevronLeft className="text-slate-300 group-hover:text-indigo-600 transition-colors" size={24}/>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {filteredAssignments.map(assign => (
+                                        <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-black text-slate-800">{assign.title}</h4>
+                                                    <span className="text-[10px] font-black text-indigo-400 uppercase">{assign.category}</span>
+                                                </div>
+                                                {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
+                                            </div>
+                                            <select 
+                                                className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                                value={columnMap[assign.id] || ''}
+                                                onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
+                                            >
+                                                <option value="">-- تجاهل هذه المهمة --</option>
+                                                {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="p-10 border-t bg-white flex justify-between items-center shrink-0">
-                            <div className="text-slate-400 text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود في الملف السحابي.</div>
-                            <div className="flex gap-4">
-                                <button onClick={() => setShowMappingUI(false)} className="px-8 py-4 text-slate-400 font-black hover:text-slate-600">إلغاء</button>
-                                <button onClick={executeFinalSync} disabled={isGenerating || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
-                                    {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} إتمام المزامنة
-                                </button>
+                        {syncStep === 'MAPPING' && (
+                            <div className="p-10 border-t bg-white flex justify-between items-center shrink-0">
+                                <div className="text-slate-400 text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود في الورقة المختارة.</div>
+                                <div className="flex gap-4">
+                                    <button onClick={() => setSyncStep('SELECT_SHEET')} className="px-8 py-4 text-slate-400 font-black hover:text-slate-600">رجوع للأوراق</button>
+                                    <button onClick={executeFinalSync} disabled={isGenerating || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
+                                        {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} إتمام المزامنة
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             )}
