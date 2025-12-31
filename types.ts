@@ -182,6 +182,7 @@ export interface Assignment {
     classId?: string;
     subject?: string;
     periodTag?: 'P1' | 'P2' | 'ALL';
+    link?: string;
 }
 
 export type PerformanceCategory = 'ACTIVITY' | 'HOMEWORK' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER' | 'ALL';

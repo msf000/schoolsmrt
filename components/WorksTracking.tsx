@@ -6,7 +6,7 @@ import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/e
 import { 
     Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Activity, Settings, 
     Plus, Trash2, Layout, RefreshCw, ChevronLeft, Globe, Sparkles, X, 
-    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle, Sheet, UserCheck
+    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -41,15 +41,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     const [isGenerating, setIsGenerating] = useState(false);
     const [masterUrl, setMasterUrl] = useState('');
     
-    // Cloud Sync Flow States
+    // Cloud Sync Mapping States
     const [showCloudSettings, setShowCloudSettings] = useState(false);
-    const [syncStep, setSyncStep] = useState<'IDLE' | 'SELECT_SHEET' | 'MAPPING'>('IDLE');
-    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
-    const [fullWorkbook, setFullWorkbook] = useState<any>(null);
+    const [isMapping, setIsMapping] = useState(false);
     const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
     const [sheetRawData, setSheetRawData] = useState<any[]>([]);
     const [columnMap, setColumnMap] = useState<Record<string, string>>({}); 
-    const [identityCol, setIdentityCol] = useState<string>(''); // العمود المستخدم للتعريف (هوية أو اسم)
 
     useEffect(() => {
         if (!currentUser) return;
@@ -78,7 +75,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     }, [assignments, filterSubject, filterPeriod]);
 
-    const handleStartSyncFlow = async () => {
+    const handleSyncCloud = async () => {
         if (!masterUrl) {
             setShowCloudSettings(true);
             return showToast('الرجاء إدخال رابط Google Sheet أولاً', 'INFO');
@@ -86,56 +83,36 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         setIsGenerating(true);
         try {
             const { workbook, sheetNames } = await fetchWorkbookStructureUrl(masterUrl);
-            setFullWorkbook(workbook);
-            setAvailableSheets(sheetNames);
-            setSyncStep('SELECT_SHEET');
+            const { headers, data } = getSheetHeadersAndData(workbook, sheetNames[0]);
+            setSheetHeaders(headers);
+            setSheetRawData(data);
+            
+            const initialMap: Record<string, string> = {};
+            filteredAssignments.forEach(assign => {
+                const match = headers.find(h => h.trim() === assign.title.trim());
+                if (match) initialMap[assign.id] = match;
+            });
+            
+            setColumnMap(initialMap);
+            setIsMapping(true);
         } catch (e) {
-            showToast('فشل الوصول للملف. تأكد أن الرابط "عام" (Public).', 'ERROR');
+            showToast('فشل المزامنة. تأكد أن الرابط عام (Public).', 'ERROR');
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const handleSheetSelect = (sheetName: string) => {
-        if (!fullWorkbook) return;
-        const { headers, data } = getSheetHeadersAndData(fullWorkbook, sheetName);
-        setSheetHeaders(headers);
-        setSheetRawData(data);
-        
-        // محاولة تخمين عمود الهوية أو الاسم
-        const idCol = headers.find(h => h.includes('هوية') || h.includes('سجل') || h.includes('Id') || h.includes('ID'));
-        const nameCol = headers.find(h => h.includes('اسم') || h.includes('Name') || h.includes('الطالب'));
-        setIdentityCol(idCol || nameCol || '');
-
-        const initialMap: Record<string, string> = {};
-        filteredAssignments.forEach(assign => {
-            const match = headers.find(h => h.trim() === assign.title.trim());
-            if (match) initialMap[assign.id] = match;
-        });
-        
-        setColumnMap(initialMap);
-        setSyncStep('MAPPING');
-    };
-
-    const executeFinalSync = async () => {
-        if (!identityCol) return showToast('الرجاء اختيار عمود (الهوية أو الاسم) للمطابقة', 'ERROR');
+    const executeMapping = async () => {
         setIsGenerating(true);
         try {
             const records: PerformanceRecord[] = [];
             const today = new Date().toISOString().split('T')[0];
-            let matchCount = 0;
 
             sheetRawData.forEach(row => {
-                const val = String(row[identityCol] || '').trim();
-                if (!val) return;
-
-                // محاولة المطابقة بالهوية أولاً ثم بالاسم
-                const student = students.find(s => s.nationalId === val) || 
-                                students.find(s => s.name.trim() === val) ||
-                                students.find(s => s.name.includes(val) && val.length > 5);
+                const nid = String(row['nationalId'] || row['رقم الهوية'] || row['السجل'] || row['رقم السجل'] || '').trim();
+                const student = students.find(s => s.nationalId === nid);
                 
                 if (student) {
-                    matchCount++;
                     filteredAssignments.forEach(assign => {
                         const mappedHeader = columnMap[assign.id];
                         if (mappedHeader && row[mappedHeader] !== undefined) {
@@ -158,10 +135,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
 
             if (records.length > 0) {
                 await onAddPerformance(records);
-                showToast(`تمت مطابقة ${matchCount} طالب ومزامنة درجاتهم بنجاح!`, 'SUCCESS');
-                setSyncStep('IDLE');
+                showToast(`تمت مزامنة ${records.length} درجة بنجاح!`, 'SUCCESS');
+                setIsMapping(false);
             } else {
-                showToast('لم نجد تطابق للطلاب. تأكد من صحة عمود المطابقة.', 'ERROR');
+                showToast('لم نجد تطابق لأرقام هوية الطلاب في الملف.', 'ERROR');
             }
         } catch (e) {
             showToast('خطأ في معالجة البيانات.', 'ERROR');
@@ -239,7 +216,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                     <button onClick={() => setShowCloudSettings(true)} className={`p-4 rounded-2xl border transition-all shadow-xl ${masterUrl ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-300 border-slate-100 hover:border-indigo-300'}`} title="ربط Google Sheets">
                         <Globe size={24}/>
                     </button>
-                    <button onClick={handleStartSyncFlow} disabled={isGenerating} className="px-8 py-4 bg-indigo-50 text-indigo-600 rounded-[1.5rem] border border-indigo-100 font-black text-xs flex items-center gap-3 hover:bg-indigo-600 hover:text-white transition-all shadow-lg">
+                    <button onClick={handleSyncCloud} disabled={isGenerating} className="px-8 py-4 bg-indigo-50 text-indigo-600 rounded-[1.5rem] border border-indigo-100 font-black text-xs flex items-center gap-3 hover:bg-indigo-600 hover:text-white transition-all shadow-lg">
                         {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>} مزامنة سحابية
                     </button>
                     <button onClick={handleSaveGrid} disabled={isGenerating} className="px-10 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-xs flex items-center gap-3 shadow-2xl hover:bg-black active:scale-95 transition-all">
@@ -320,6 +297,17 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                                 saveAssignment({...a, maxScore: Number(e.target.value)});
                                             }} placeholder="الدرجة"/>
                                         </div>
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2 mb-2">رابط خارجي (اختياري)</p>
+                                            <div className="relative">
+                                                <LinkIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"/>
+                                                <input className="w-full p-3 pl-10 border rounded-2xl text-[10px] font-black bg-slate-50 dir-ltr text-left" placeholder="https://..." value={a.link || ''} onChange={e=>{
+                                                    const updated = assignments.map(x => x.id === a.id ? {...x, link: e.target.value} : x);
+                                                    setAssignments(updated);
+                                                    saveAssignment({...a, link: e.target.value});
+                                                }}/>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -335,7 +323,14 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                     {filteredAssignments.map(a => (
                                         <th key={a.id} className="p-6 border-l border-slate-100 text-center min-w-[150px]">
                                             <div className="flex flex-col items-center gap-1">
-                                                <span className="text-slate-800 text-sm">{a.title}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-slate-800 text-sm">{a.title}</span>
+                                                    {a.link && (
+                                                        <a href={a.link} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                                            <ExternalLink size={12}/>
+                                                        </a>
+                                                    )}
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <span className="text-[8px] bg-indigo-50 px-2 py-0.5 rounded-full text-indigo-600 font-black">{a.periodTag || 'P1'}</span>
                                                     <span className="text-[8px] bg-slate-100 px-2 py-0.5 rounded-full text-slate-400 font-black">{a.maxScore}د</span>
@@ -394,7 +389,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                 <input className="w-full p-5 border-2 border-slate-50 rounded-[1.5rem] bg-slate-50 font-black text-sm dir-ltr outline-none focus:border-indigo-600 transition-all" placeholder="https://docs.google.com/spreadsheets/d/..." value={masterUrl} onChange={e => setMasterUrl(e.target.value)}/>
                                 <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100 flex gap-4">
                                     <Info className="text-blue-600 shrink-0"/>
-                                    <p className="text-xs text-blue-700 leading-relaxed font-bold">تأكد من وجود عمود باسم "رقم الهوية" أو "اسم الطالب" في ملفك للمطابقة.</p>
+                                    <p className="text-xs text-blue-700 leading-relaxed font-bold">تأكد من وجود عمود باسم "رقم الهوية" في ملفك لمطابقة الدرجات مع الطلاب تلقائياً.</p>
                                 </div>
                             </div>
                             <button onClick={() => { saveWorksMasterUrl(masterUrl); showToast('تم حفظ الرابط!', 'SUCCESS'); setShowCloudSettings(false); }} className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black shadow-2xl hover:bg-indigo-700 transition-all">تفعيل الربط السحابي</button>
@@ -403,100 +398,46 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                 </div>
             )}
 
-            {/* Sync Flow Modal (Sheet Selection and Mapping) */}
-            {syncStep !== 'IDLE' && (
-                <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 animate-fade-in">
-                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[4rem] shadow-2xl overflow-hidden flex flex-col animate-zoom-in">
+            {/* Mapping Modal */}
+            {isMapping && (
+                <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 animate-fade-in">
+                    <div className="bg-white w-full max-w-4xl max-h-[80vh] rounded-[4rem] shadow-2xl overflow-hidden flex flex-col animate-zoom-in">
                         <div className="p-10 bg-indigo-600 text-white flex justify-between items-center shrink-0">
                             <div>
-                                <h3 className="text-3xl font-black flex items-center gap-4">
-                                    {syncStep === 'SELECT_SHEET' ? <Sheet size={32}/> : <ArrowRightLeft size={32}/>}
-                                    {syncStep === 'SELECT_SHEET' ? 'اختيار ورقة العمل' : 'مطابقة أعمدة البيانات'}
-                                </h3>
-                                <p className="text-indigo-200 font-bold mt-2">
-                                    {syncStep === 'SELECT_SHEET' ? 'يحتوي ملفك على أوراق عمل متعددة، اختر إحداها' : 'اربط كل عمود في ملفك بمهمة رصد في النظام'}
-                                </p>
+                                <h3 className="text-3xl font-black flex items-center gap-4"><ArrowRightLeft size={32}/> مطابقة أعمدة البيانات</h3>
+                                <p className="text-indigo-200 font-bold mt-2">اربط كل عمود في ملفك بمهمة رصد في النظام</p>
                             </div>
-                            <button onClick={() => setSyncStep('IDLE')} className="p-3 hover:bg-white/10 rounded-full transition-colors"><X size={24}/></button>
+                            <button onClick={() => setIsMapping(false)} className="p-3 hover:bg-white/10 rounded-full transition-colors"><X size={24}/></button>
                         </div>
-                        
                         <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-slate-50/50">
-                            {syncStep === 'SELECT_SHEET' ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {availableSheets.map(name => (
-                                        <button 
-                                            key={name} 
-                                            onClick={() => handleSheetSelect(name)}
-                                            className="p-8 bg-white border-2 border-transparent hover:border-indigo-600 hover:shadow-xl rounded-[2.5rem] flex items-center justify-between group transition-all"
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                                    <Sheet size={24}/>
-                                                </div>
-                                                <span className="font-black text-slate-800 text-lg">{name}</span>
-                                            </div>
-                                            <ChevronLeft className="text-slate-300 group-hover:text-indigo-600 transition-colors" size={24}/>
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="space-y-10">
-                                    {/* Identity Selection Section */}
-                                    <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 shadow-sm">
-                                        <div className="flex items-center gap-4 mb-6">
-                                            <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><UserCheck size={24}/></div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {filteredAssignments.map(assign => (
+                                    <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
+                                        <div className="flex justify-between items-start">
                                             <div>
-                                                <h4 className="font-black text-indigo-900 text-lg">عمود مطابقة الطلاب</h4>
-                                                <p className="text-indigo-400 text-xs font-bold">حدد أي عمود في ملفك يحتوي على (رقم الهوية) أو (اسم الطالب)</p>
+                                                <h4 className="font-black text-slate-800">{assign.title}</h4>
+                                                <span className="text-[10px] font-black text-indigo-400 uppercase">{assign.category}</span>
                                             </div>
+                                            {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
                                         </div>
                                         <select 
-                                            className="w-full p-4 border rounded-2xl bg-white font-black text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
-                                            value={identityCol}
-                                            onChange={e => setIdentityCol(e.target.value)}
+                                            className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                                            value={columnMap[assign.id] || ''}
+                                            onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
                                         >
-                                            <option value="">-- اختر عمود المطابقة (هوية أو اسم) --</option>
+                                            <option value="">-- تجاهل هذه المهمة --</option>
                                             {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                                         </select>
                                     </div>
-
-                                    {/* Assignments Mapping Grid */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {filteredAssignments.map(assign => (
-                                            <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-black text-slate-800">{assign.title}</h4>
-                                                        <span className="text-[10px] font-black text-indigo-400 uppercase">{assign.category}</span>
-                                                    </div>
-                                                    {columnMap[assign.id] ? <CheckCircle className="text-emerald-500" size={20}/> : <AlertCircle className="text-slate-200" size={20}/>}
-                                                </div>
-                                                <select 
-                                                    className="w-full p-3 border rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                                                    value={columnMap[assign.id] || ''}
-                                                    onChange={e => setColumnMap({...columnMap, [assign.id]: e.target.value})}
-                                                >
-                                                    <option value="">-- تجاهل هذه المهمة --</option>
-                                                    {sheetHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                                                </select>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {syncStep === 'MAPPING' && (
-                            <div className="p-10 border-t bg-white flex justify-between items-center shrink-0">
-                                <div className="text-slate-400 text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود في الورقة المختارة.</div>
-                                <div className="flex gap-4">
-                                    <button onClick={() => setSyncStep('SELECT_SHEET')} className="px-8 py-4 text-slate-400 font-black hover:text-slate-600">رجوع للأوراق</button>
-                                    <button onClick={executeFinalSync} disabled={isGenerating || !identityCol || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
-                                        {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} إتمام المزامنة
-                                    </button>
-                                </div>
+                                ))}
                             </div>
-                        )}
+                        </div>
+                        <div className="p-10 border-t bg-white flex justify-between items-center shrink-0">
+                            <div className="text-slate-400 text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود في الملف.</div>
+                            <button onClick={executeMapping} disabled={isGenerating || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
+                                {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} إتمام المزامنة
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
