@@ -1,7 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, AttendanceRecord, SystemUser } from '../types';
-import { getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, saveWorksMasterUrl, getSubjects, addPerformance, getTeacherAssignments } from '../services/storageService';
+import { 
+    getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, 
+    saveWorksMasterUrl, getSubjects, addPerformance, getTeacherAssignments,
+    fetchAssignments // إضافة الدالة الجديدة
+} from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { 
     Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Activity, Settings, 
@@ -51,13 +55,30 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     const [columnMap, setColumnMap] = useState<Record<string, string>>({}); 
     const [identityCol, setIdentityCol] = useState<string>(''); // العمود المستخدم للتعريف (هوية أو اسم)
 
+    // دالة جلب البيانات من السحابة
+    const loadAssignmentsFromCloud = async () => {
+        if (!currentUser) return;
+        setIsGenerating(true);
+        try {
+            const cloudData = await fetchAssignments(currentUser.id);
+            setAssignments(cloudData as ExtendedAssignment[]);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     useEffect(() => {
         if (!currentUser) return;
         setSubjects(getSubjects(currentUser.id));
         setMasterUrl(getWorksMasterUrl());
-        const all = getAssignments(activeTab, currentUser.id) as ExtendedAssignment[];
+        loadAssignmentsFromCloud();
+    }, [currentUser]);
+
+    // إعادة الجلب عند تغيير التبويب لضمان أحدث البيانات
+    useEffect(() => {
+        const all = getAssignments(activeTab, currentUser?.id) as ExtendedAssignment[];
         setAssignments(all);
-    }, [activeTab, currentUser, activeMode]);
+    }, [activeTab]);
 
     useEffect(() => {
         const newGrid: Record<string, Record<string, string>> = {};
@@ -72,11 +93,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
 
     const filteredAssignments = useMemo(() => {
         return assignments.filter(a => {
+            const matchCategory = activeTab === 'ALL' || a.category === activeTab;
             const matchSubject = filterSubject === 'ALL' || a.subject === filterSubject;
             const matchPeriod = filterPeriod === 'ALL' || a.periodTag === filterPeriod;
-            return matchSubject && matchPeriod;
+            return matchCategory && matchSubject && matchPeriod;
         }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    }, [assignments, filterSubject, filterPeriod]);
+    }, [assignments, filterSubject, filterPeriod, activeTab]);
 
     const handleStartSyncFlow = async () => {
         if (!masterUrl) {
@@ -170,7 +192,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         }
     };
 
-    const handleAddColumn = () => {
+    const handleAddColumn = async () => {
         if (!currentUser) return;
         const newAssign: ExtendedAssignment = {
             id: `col_${Date.now()}`,
@@ -183,8 +205,28 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
             periodTag: filterPeriod === 'ALL' ? 'P1' : filterPeriod,
             sortOrder: assignments.length
         };
-        saveAssignment(newAssign);
+        await saveAssignment(newAssign);
         setAssignments([...assignments, newAssign]);
+    };
+
+    const handleUpdateColumn = async (id: string, updates: Partial<ExtendedAssignment>) => {
+        const target = assignments.find(a => a.id === id);
+        if (!target) return;
+        const updated = { ...target, ...updates };
+        
+        // تحديث الحالة فوراً
+        setAssignments(assignments.map(a => a.id === id ? updated : a));
+        
+        // حفظ سحابي
+        await saveAssignment(updated);
+    };
+
+    const handleDeleteColumn = async (id: string) => {
+        if (confirm('هل أنت متأكد من حذف هذا العمود نهائياً؟')) {
+            await deleteAssignment(id);
+            setAssignments(assignments.filter(a => a.id !== id));
+            showToast('تم حذف العمود بنجاح', 'SUCCESS');
+        }
     };
 
     const handleSaveGrid = async () => {
@@ -289,46 +331,30 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                         <div className="flex justify-between items-center mb-10 border-b border-slate-200 pb-8">
                             <div>
                                 <h3 className="text-2xl font-black text-slate-800">إدارة أعمدة الرصد</h3>
-                                <p className="text-sm text-slate-400 font-bold mt-2">الأعمدة المعرفة حالياً: {assignments.length}</p>
+                                <p className="text-sm text-slate-400 font-bold mt-2">الأعمدة المعرفة حالياً: {filteredAssignments.length} (من إجمالي {assignments.length})</p>
                             </div>
                             <button onClick={handleAddColumn} className="bg-slate-900 text-white px-8 py-3.5 rounded-[1.5rem] font-black text-xs hover:bg-black transition-all flex items-center gap-2 shadow-2xl"><Plus size={18}/> إضافة عمود يدوي</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 pb-10">
-                            {assignments.map((a) => (
+                            {filteredAssignments.map((a) => (
                                 <div key={a.id} className="p-8 bg-white border rounded-[3rem] relative group hover:shadow-2xl transition-all duration-500 border-indigo-100">
-                                    <button onClick={()=>{deleteAssignment(a.id); setAssignments(assignments.filter(x=>x.id!==a.id))}} className="absolute top-6 left-6 text-slate-200 hover:text-red-500 transition-all"><Trash2 size={20}/></button>
+                                    <button onClick={() => handleDeleteColumn(a.id)} className="absolute top-6 left-6 text-slate-200 hover:text-red-500 transition-all"><Trash2 size={20}/></button>
                                     <div className="space-y-6">
                                         <div className="space-y-2">
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2">مسمى الرصد (يجب أن يطابق Excel)</p>
-                                            <input className="w-full p-4 border rounded-[1.5rem] font-black bg-slate-50 outline-none border-transparent focus:border-indigo-500 transition-all" value={a.title} onChange={e=> {
-                                                const updated = assignments.map(x => x.id === a.id ? {...x, title: e.target.value} : x);
-                                                setAssignments(updated);
-                                                saveAssignment({...a, title: e.target.value});
-                                            }}/>
+                                            <input className="w-full p-4 border rounded-[1.5rem] font-black bg-slate-50 outline-none border-transparent focus:border-indigo-500 transition-all" value={a.title} onChange={e=> handleUpdateColumn(a.id, {title: e.target.value})} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <select className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50" value={a.subject} onChange={e=>{
-                                                const updated = assignments.map(x => x.id === a.id ? {...x, subject: e.target.value} : x);
-                                                setAssignments(updated);
-                                                saveAssignment({...a, subject: e.target.value});
-                                            }}>
+                                            <select className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50" value={a.subject} onChange={e=> handleUpdateColumn(a.id, {subject: e.target.value})}>
                                                 {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                                             </select>
-                                            <input type="number" className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50 text-center" value={a.maxScore} onChange={e=>{
-                                                const updated = assignments.map(x => x.id === a.id ? {...x, maxScore: Number(e.target.value)} : x);
-                                                setAssignments(updated);
-                                                saveAssignment({...a, maxScore: Number(e.target.value)});
-                                            }} placeholder="الدرجة"/>
+                                            <input type="number" className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50 text-center" value={a.maxScore} onChange={e=> handleUpdateColumn(a.id, {maxScore: Number(e.target.value)})} placeholder="الدرجة"/>
                                         </div>
                                         <div>
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2 mb-2">رابط خارجي (اختياري)</p>
                                             <div className="relative">
                                                 <LinkIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"/>
-                                                <input className="w-full p-3 pl-10 border rounded-2xl text-[10px] font-black bg-slate-50 dir-ltr text-left" placeholder="https://..." value={a.link || ''} onChange={e=>{
-                                                    const updated = assignments.map(x => x.id === a.id ? {...x, link: e.target.value} : x);
-                                                    setAssignments(updated);
-                                                    saveAssignment({...a, link: e.target.value});
-                                                }}/>
+                                                <input className="w-full p-3 pl-10 border rounded-2xl text-[10px] font-black bg-slate-50 dir-ltr text-left" placeholder="https://..." value={a.link || ''} onChange={e=> handleUpdateColumn(a.id, {link: e.target.value})} />
                                             </div>
                                         </div>
                                     </div>

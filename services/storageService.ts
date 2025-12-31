@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { 
     Student, AttendanceRecord, PerformanceRecord, BehaviorIncident, 
@@ -188,6 +189,71 @@ export const deletePerformance = async (id: string) => {
     await fetchPerformance();
 };
 
+// --- أعمدة الرصد (Assignments / Columns) ---
+export const fetchAssignments = async (tid?: string): Promise<Assignment[]> => {
+    try {
+        let query = supabase.from('assignments').select('*');
+        if (tid) query = query.eq('teacher_id', tid);
+        const { data, error } = await query.order('sort_order');
+        if (error) throw error;
+        
+        const mapped: Assignment[] = (data || []).map(a => ({
+            id: a.id,
+            title: a.title,
+            category: a.category,
+            maxScore: a.max_score,
+            isVisible: a.is_visible,
+            teacherId: a.teacher_id,
+            sortOrder: a.sort_order,
+            classId: a.class_id,
+            subject: a.subject,
+            periodTag: a.period_tag,
+            link: a.link
+        }));
+        
+        setLocal('assignments', mapped);
+        return mapped;
+    } catch (e) {
+        return getLocal('assignments');
+    }
+};
+
+export const getAssignments = (cat: string = 'ALL', tid?: string, onlyVisible: boolean = false): Assignment[] => {
+    let list = getLocal('assignments') || [];
+    if (tid) list = list.filter((a: Assignment) => a.teacherId === tid);
+    if (cat !== 'ALL') list = list.filter((a: Assignment) => a.category === cat);
+    if (onlyVisible) list = list.filter((a: Assignment) => a.isVisible);
+    return list;
+};
+
+export const saveAssignment = async (a: Assignment) => {
+    // تحديث محلي أولاً للاستجابة السريعة
+    const local = getLocal('assignments').filter((x: any) => x.id !== a.id);
+    setLocal('assignments', [...local, a]);
+
+    // مزامنة سحابية
+    const { error } = await supabase.from('assignments').upsert({
+        id: a.id,
+        teacher_id: a.teacherId,
+        title: a.title,
+        category: a.category,
+        max_score: a.maxScore,
+        is_visible: a.is_visible,
+        sort_order: a.sort_order,
+        class_id: a.classId,
+        subject: a.subject,
+        period_tag: a.periodTag,
+        link: a.link
+    });
+    
+    if (error) console.error("Cloud Sync Error (Assignment):", error);
+};
+
+export const deleteAssignment = async (id: string) => {
+    setLocal('assignments', getLocal('assignments').filter((a: any) => a.id !== id));
+    await supabase.from('assignments').delete().eq('id', id);
+};
+
 // --- السلوك (Behavior) ---
 export const fetchBehaviorIncidents = async (tid?: string): Promise<BehaviorIncident[]> => {
     try {
@@ -240,6 +306,7 @@ export const fetchParentRequests = async (tid: string): Promise<ParentRequest[]>
 };
 
 export const saveParentRequest = async (req: ParentRequest) => {
+    // Fix property access: Change req.teacher_id to req.teacherId to match the ParentRequest interface definition in types.ts.
     await supabase.from('parent_requests').upsert({
         id: req.id, parent_id: req.parentId, student_id: req.studentId, teacher_id: req.teacherId,
         type: req.type, content: req.content, status: req.status, date: req.date
@@ -342,16 +409,6 @@ export const deleteTeacherAssignment = (id: string) => {
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
 export const saveExam = (exam: Exam) => setLocal('exams', [...getLocal('exams').filter((e: any) => e.id !== exam.id), exam]);
 export const deleteExam = (id: string) => setLocal('exams', getLocal('exams').filter((e: any) => e.id !== id));
-
-export const getAssignments = (cat: string = 'ALL', tid?: string, onlyVisible: boolean = false): Assignment[] => {
-    let list = getLocal('assignments') || [];
-    if (tid) list = list.filter((a: Assignment) => a.teacherId === tid);
-    if (cat !== 'ALL') list = list.filter((a: Assignment) => a.category === cat);
-    if (onlyVisible) list = list.filter((a: Assignment) => a.isVisible);
-    return list;
-};
-export const saveAssignment = (a: Assignment) => setLocal('assignments', [...getLocal('assignments').filter((x: any) => x.id !== a.id), a]);
-export const deleteAssignment = (id: string) => setLocal('assignments', getLocal('assignments').filter((a: any) => a.id !== id));
 
 export const getTasks = (tid?: string): Task[] => (getLocal('tasks') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const saveTask = (task: Task) => setLocal('tasks', [...getLocal('tasks').filter((t: any) => t.id !== task.id), task]);

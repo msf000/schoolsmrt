@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
     fetchSchools, fetchSystemUsers, fetchTeachers, fetchAttendance, fetchPerformance, fetchStudents
@@ -116,6 +117,7 @@ const CloudTableInspector = () => {
         { name: 'students', label: 'الطلاب', columns: ['id', 'name', 'national_id', 'class_name', 'xp', 'seat_index'] },
         { name: 'attendance', label: 'الحضور', columns: ['id', 'student_id', 'date', 'status', 'period', 'subject'] },
         { name: 'performance', label: 'الدرجات', columns: ['id', 'student_id', 'score', 'max_score', 'category', 'notes'] },
+        { name: 'assignments', label: 'الأعمدة', columns: ['id', 'teacher_id', 'title', 'category', 'subject', 'period_tag'] },
         { name: 'behavior_incidents', label: 'السلوك', columns: ['id', 'student_id', 'teacher_id', 'points', 'category'] },
         { name: 'parent_requests', label: 'اللقاءات', columns: ['id', 'parent_id', 'student_id', 'teacher_id', 'status'] },
         { name: 'system_users', label: 'المستخدمين', columns: ['id', 'name', 'role', 'email', 'school_id'] }
@@ -200,7 +202,23 @@ CREATE TABLE IF NOT EXISTS performance (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Behavior Incidents
+-- 4. Assignments (Columns)
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT,
+    title TEXT NOT NULL,
+    category TEXT,
+    max_score NUMERIC DEFAULT 10,
+    is_visible BOOLEAN DEFAULT TRUE,
+    sort_order INTEGER DEFAULT 0,
+    class_id TEXT,
+    subject TEXT,
+    period_tag TEXT,
+    link TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. Behavior Incidents
 CREATE TABLE IF NOT EXISTS behavior_incidents (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -213,7 +231,7 @@ CREATE TABLE IF NOT EXISTS behavior_incidents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. Parent Requests
+-- 6. Parent Requests
 CREATE TABLE IF NOT EXISTS parent_requests (
     id TEXT PRIMARY KEY,
     parent_id TEXT,
