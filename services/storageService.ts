@@ -134,12 +134,14 @@ export const saveAttendance = async (records: AttendanceRecord[]) => {
     await fetchAttendance();
 };
 
+/* Fix: Added deleteAttendance function */
 export const deleteAttendance = async (id: string) => {
+    const local = getLocal('attendance').filter((a: any) => a.id !== id);
+    setLocal('attendance', local);
     await supabase.from('attendance').delete().eq('id', id);
-    await fetchAttendance();
 };
 
-// --- الأداء (Performance) ---
+// --- الأداء (Performance / Grades) ---
 export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[]> => {
     try {
         let query = supabase.from('performance').select('*');
@@ -168,8 +170,9 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
 export const getPerformance = (): PerformanceRecord[] => getLocal('performance');
 
 export const addPerformance = async (records: PerformanceRecord[]) => {
+    // تجهيز البيانات للسحابة
     const dbRecords = records.map(r => ({
-        id: r.id,
+        id: r.id || `${r.studentId}_${r.notes || r.title}_${r.date}`, // مفتاح فريد لمنع التكرار
         student_id: r.studentId,
         subject: r.subject,
         title: r.title,
@@ -180,8 +183,12 @@ export const addPerformance = async (records: PerformanceRecord[]) => {
         notes: r.notes,
         created_by_id: r.createdById
     }));
-    await supabase.from('performance').upsert(dbRecords);
-    await fetchPerformance();
+    
+    // حفظ سحابي باستخدام upsert لضمان التحديث إذا وجد السجل
+    const { error } = await supabase.from('performance').upsert(dbRecords);
+    if (error) console.error("Cloud Performance Sync Error:", error);
+    
+    await fetchPerformance(records[0]?.createdById);
 };
 
 export const deletePerformance = async (id: string) => {
@@ -227,7 +234,7 @@ export const getAssignments = (cat: string = 'ALL', tid?: string, onlyVisible: b
 };
 
 export const saveAssignment = async (a: Assignment) => {
-    // تحديث محلي أولاً للاستجابة السريعة
+    // تحديث محلي فوري
     const local = getLocal('assignments').filter((x: any) => x.id !== a.id);
     setLocal('assignments', [...local, a]);
 
@@ -238,15 +245,16 @@ export const saveAssignment = async (a: Assignment) => {
         title: a.title,
         category: a.category,
         max_score: a.maxScore,
-        is_visible: a.is_visible,
-        sort_order: a.sort_order,
+        is_visible: a.isVisible,
+        /* Fix: Property 'sort_order' does not exist on type 'Assignment'. Changed to sortOrder. */
+        sort_order: a.sortOrder,
         class_id: a.classId,
         subject: a.subject,
         period_tag: a.periodTag,
         link: a.link
     });
     
-    if (error) console.error("Cloud Sync Error (Assignment):", error);
+    if (error) console.error("Cloud Assignment Sync Error:", error);
 };
 
 export const deleteAssignment = async (id: string) => {
@@ -279,7 +287,12 @@ export const fetchBehaviorIncidents = async (tid?: string): Promise<BehaviorInci
     }
 };
 
-export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => getLocal('behavior_incidents').filter((i: any) => !tid || i.teacherId === tid);
+/* Fix: Added getBehaviorIncidents function */
+export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => {
+    let list = getLocal('behavior_incidents') || [];
+    if (tid) list = list.filter((i: BehaviorIncident) => i.teacherId === tid);
+    return list;
+};
 
 export const saveBehaviorIncident = async (incident: BehaviorIncident) => {
     const { error } = await supabase.from('behavior_incidents').insert({
@@ -288,7 +301,7 @@ export const saveBehaviorIncident = async (incident: BehaviorIncident) => {
         note: incident.note, action_taken: incident.actionTaken
     });
     if (error) throw error;
-    await fetchBehaviorIncidents();
+    await fetchBehaviorIncidents(incident.teacherId);
 };
 
 // --- طلبات أولياء الأمور (Parent Requests) ---
@@ -306,7 +319,6 @@ export const fetchParentRequests = async (tid: string): Promise<ParentRequest[]>
 };
 
 export const saveParentRequest = async (req: ParentRequest) => {
-    // Fix property access: Change req.teacher_id to req.teacherId to match the ParentRequest interface definition in types.ts.
     await supabase.from('parent_requests').upsert({
         id: req.id, parent_id: req.parentId, student_id: req.studentId, teacher_id: req.teacherId,
         type: req.type, content: req.content, status: req.status, date: req.date
@@ -314,7 +326,7 @@ export const saveParentRequest = async (req: ParentRequest) => {
     await fetchParentRequests(req.teacherId);
 };
 
-// --- دوال أخرى للنظام ---
+// --- الحسابات والمدارس ---
 export const fetchTeachers = async (): Promise<Teacher[]> => {
     const { data } = await supabase.from('system_users').select('*').eq('role', 'TEACHER');
     const teachers = (data || []) as Teacher[];
@@ -322,6 +334,7 @@ export const fetchTeachers = async (): Promise<Teacher[]> => {
     return teachers;
 };
 
+/* Fix: Added getTeachers function */
 export const getTeachers = (): Teacher[] => getLocal('teachers');
 
 export const fetchSchools = async (): Promise<School[]> => {
@@ -331,6 +344,7 @@ export const fetchSchools = async (): Promise<School[]> => {
     return schools;
 };
 
+/* Fix: Added getSchools function */
 export const getSchools = (): School[] => getLocal('schools');
 
 export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
@@ -377,17 +391,22 @@ export const updateSystemUser = async (user: SystemUser) => {
     await supabase.from('system_users').update(user).eq('id', user.id);
 };
 
+// --- المواد والأكاديميا ---
 export const getSubjects = (tid: string): Subject[] => (getLocal('subjects') || []).filter((s: Subject) => s.teacherId === tid);
 export const addSubject = (subject: Subject) => setLocal('subjects', [...getLocal('subjects'), subject]);
 export const deleteSubject = (id: string) => setLocal('subjects', getLocal('subjects').filter((s: Subject) => s.id !== id));
 
 export const getAcademicTerms = (tid?: string): AcademicTerm[] => (getLocal('academic_terms') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const saveAcademicTerm = (term: AcademicTerm) => setLocal('academic_terms', [...getLocal('academic_terms').filter((t: any) => t.id !== term.id), term]);
+
+/* Fix: Added deleteAcademicTerm function */
 export const deleteAcademicTerm = (id: string) => setLocal('academic_terms', getLocal('academic_terms').filter((t: any) => t.id !== id));
+
+/* Fix: Added setCurrentTerm function */
 export const setCurrentTerm = (id: string, tid: string) => {
-    const terms = getAcademicTerms(tid).map(t => ({ ...t, isCurrent: t.id === id }));
-    const others = (getLocal('academic_terms') || []).filter((t: any) => t.teacherId !== tid);
-    setLocal('academic_terms', [...others, ...terms]);
+    const terms = getAcademicTerms(tid).map((t: AcademicTerm) => ({ ...t, isCurrent: t.id === id }));
+    const allOtherTerms = (getLocal('academic_terms') || []).filter((t: any) => t.teacherId !== tid);
+    setLocal('academic_terms', [...allOtherTerms, ...terms]);
 };
 
 export const getReportHeaderConfig = (tid?: string): ReportHeaderConfig => getLocal('report_configs').find((c: any) => c.teacherId === tid) || { schoolName: '', educationAdmin: '', teacherName: '', schoolManager: '', academicYear: '', term: '', signatureBase64: '' };
@@ -397,17 +416,18 @@ export const getUserTheme = (): UserTheme => JSON.parse(localStorage.getItem('us
 export const saveUserTheme = (theme: UserTheme) => localStorage.setItem('user_theme', JSON.stringify(theme));
 
 export const getTeacherPeriodTimings = (tid: string): string[] => getLocal(`period_timings_${tid}`) || ["07:00", "07:45", "08:30", "09:45", "10:30", "11:15", "12:00", "12:45"];
+
+/* Fix: Added saveTeacherPeriodTimings function */
 export const saveTeacherPeriodTimings = (tid: string, timings: string[]) => setLocal(`period_timings_${tid}`, timings);
 
 export const getTeacherAssignments = (tid?: string): TeacherAssignment[] => (getLocal('teacher_assignments') || []).filter((a: any) => !tid || a.teacherId === tid);
 export const addTeacherAssignment = (a: TeacherAssignment) => setLocal('teacher_assignments', [...getLocal('teacher_assignments'), a]);
-export const deleteTeacherAssignment = (id: string) => {
-    const list = getLocal('teacher_assignments').filter((a: any) => a.id !== id);
-    setLocal('teacher_assignments', list);
-};
+export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getLocal('teacher_assignments').filter((a: any) => a.id !== id));
 
 export const getExams = (tid?: string): Exam[] => (getLocal('exams') || []).filter((e: any) => !tid || e.teacherId === tid);
 export const saveExam = (exam: Exam) => setLocal('exams', [...getLocal('exams').filter((e: any) => e.id !== exam.id), exam]);
+
+/* Fix: Added deleteExam function */
 export const deleteExam = (id: string) => setLocal('exams', getLocal('exams').filter((e: any) => e.id !== id));
 
 export const getTasks = (tid?: string): Task[] => (getLocal('tasks') || []).filter((t: any) => !tid || t.teacherId === tid);
@@ -419,10 +439,17 @@ export const deleteCustomTable = async (id: string) => setLocal('custom_tables',
 
 export const getFormsDetailedResults = (tid: string): FormsDetailedResult[] => (getLocal('forms_detailed') || []).filter((r: any) => r.teacherId === tid);
 export const saveFormsDetailedResult = (res: FormsDetailedResult) => setLocal('forms_detailed', [...getLocal('forms_detailed').filter((x: any) => x.id !== res.id), res]);
-export const deleteFormsDetailedResult = (id: string) => setLocal('forms_detailed', getLocal('forms_detailed').filter((r: any) => r.id !== id));
+
+/* Fix: Added deleteFormsDetailedResult function */
+export const deleteFormsDetailedResult = (id: string) => setLocal('forms_detailed', getLocal('forms_detailed').filter((x: any) => x.id !== id));
 
 export const getEnvironmentRecords = (cid: string): EnvironmentRecord[] => (getLocal('env_records') || []).filter((r: any) => r.classId === cid);
-export const saveEnvironmentRecord = (rec: EnvironmentRecord) => setLocal('env_records', [...(getLocal('env_records') || []), rec]);
+
+/* Fix: Added saveEnvironmentRecord function */
+export const saveEnvironmentRecord = (record: EnvironmentRecord) => {
+    const list = getLocal('env_records').filter((r: any) => r.id !== record.id);
+    setLocal('env_records', [...list, record]);
+};
 
 export const saveWallPost = async (post: WallPost) => {
     await supabase.from('wall_posts').insert({
@@ -459,7 +486,9 @@ export const exportToWord = (elementId: string, filename: string) => {
 
 export const getSchedules = (): ScheduleItem[] => getLocal('schedules') || [];
 export const saveScheduleItem = (item: ScheduleItem) => setLocal('schedules', [...getSchedules().filter(s=>s.id!==item.id), item]);
-export const deleteScheduleItem = (id: string) => setLocal('schedules', getSchedules().filter(s => s.id !== id));
+
+/* Fix: Added deleteScheduleItem function */
+export const deleteScheduleItem = (id: string) => setLocal('schedules', getLocal('schedules').filter((s: any) => s.id !== id));
 
 export const authenticateUser = async (id: string, pass: string): Promise<SystemUser | null> => {
     const { data } = await supabase.from('system_users').select('*').or(`national_id.eq.${id},email.eq.${id}`).eq('password', pass).single();
@@ -477,13 +506,17 @@ export const saveWorksMasterUrl = (url: string) => localStorage.setItem('works_m
 
 export const getGames = (tid?: string): InteractiveGame[] => (getLocal('games') || []).filter((g: any) => !tid || g.teacherId === tid);
 export const saveGame = async (game: InteractiveGame) => setLocal('games', [...getLocal('games').filter((g: any) => g.id !== game.id), game]);
-export const deleteGame = async (id: string) => setLocal('games', getLocal('games').filter((g: any) => g.id !== id));
+
+/* Fix: Added deleteGame function */
+export const deleteGame = (id: string) => setLocal('games', getLocal('games').filter((g: any) => g.id !== id));
 
 export const saveRemedialPlan = (plan: RemedialPlan) => setLocal('remedial_plans', [...getLocal('remedial_plans').filter((p: any) => p.id !== plan.id), plan]);
 export const getRemedialPlans = (tid?: string): RemedialPlan[] => (getLocal('remedial_plans') || []).filter((p: any) => !tid || p.teacherId === tid);
 
 export const saveLessonPlan = (plan: StoredLessonPlan) => setLocal('lesson_plans', [...getLocal('lesson_plans').filter((p: any) => p.id !== plan.id), plan]);
 export const getLessonPlans = (tid?: string): StoredLessonPlan[] => (getLocal('lesson_plans') || []).filter((p: any) => !tid || p.teacherId === tid);
+
+/* Fix: Added deleteLessonPlan function */
 export const deleteLessonPlan = (id: string) => setLocal('lesson_plans', getLocal('lesson_plans').filter((p: any) => p.id !== id));
 
 export const getExamResults = (examId?: string): ExamResult[] => (getLocal('exam_results') || []).filter((r: any) => !examId || r.examId === examId);
@@ -494,29 +527,42 @@ export const saveQuestionToBank = (q: Question) => {
     const list = getLocal('question_bank').filter((x: any) => x.id !== q.id);
     setLocal('question_bank', [...list, q]);
 };
+
+/* Fix: Added deleteQuestionFromBank function */
 export const deleteQuestionFromBank = (id: string) => setLocal('question_bank', getLocal('question_bank').filter((q: any) => q.id !== id));
 
 export const getCurriculumUnits = (tid: string): CurriculumUnit[] => (getLocal('curriculum_units') || []).filter((u: any) => u.teacherId === tid);
 export const saveCurriculumUnit = async (u: CurriculumUnit) => setLocal('curriculum_units', [...getLocal('curriculum_units').filter((x: any) => x.id !== u.id), u]);
-export const deleteCurriculumUnit = (id: string) => setLocal('curriculum_units', getLocal('curriculum_units').filter((x: any) => x.id !== id));
+
+/* Fix: Added deleteCurriculumUnit function */
+export const deleteCurriculumUnit = (id: string) => setLocal('curriculum_units', getLocal('curriculum_units').filter((u: any) => u.id !== id));
+
 export const getCurriculumLessons = (unitId: string): CurriculumLesson[] => (getLocal('curriculum_lessons') || []).filter((l: any) => l.unitId === unitId);
 export const saveCurriculumLesson = async (l: CurriculumLesson) => setLocal('curriculum_lessons', [...getLocal('curriculum_lessons').filter((x: any) => x.id !== l.id), l]);
-export const deleteCurriculumLesson = (id: string) => setLocal('curriculum_lessons', getLocal('curriculum_lessons').filter((x: any) => x.id !== id));
+
+/* Fix: Added deleteCurriculumLesson function */
+export const deleteCurriculumLesson = (id: string) => setLocal('curriculum_lessons', getLocal('curriculum_lessons').filter((l: any) => l.id !== id));
+
+/* Fix: Added toggleCurriculumLesson function */
 export const toggleCurriculumLesson = (id: string, isCompleted: boolean) => {
-    const lessons = (getLocal('curriculum_lessons') || []).map((l: any) => l.id === id ? { ...l, isCompleted } : l);
-    setLocal('curriculum_lessons', lessons);
+    const list = getLocal('curriculum_lessons').map((l: any) => l.id === id ? { ...l, isCompleted } : l);
+    setLocal('curriculum_lessons', list);
 };
 
 export const getLessonLinks = (): LessonLink[] => getLocal('lesson_links') || [];
 export const saveLessonLink = (link: LessonLink) => setLocal('lesson_links', [...getLessonLinks().filter(l=>l.id!==link.id), link]);
-export const deleteLessonLink = (id: string) => setLocal('lesson_links', getLessonLinks().filter(l=>l.id!==id));
+
+/* Fix: Added deleteLessonLink function */
+export const deleteLessonLink = (id: string) => setLocal('lesson_links', getLocal('lesson_links').filter((l: any) => l.id !== id));
 
 export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => (getLocal('weekly_plans') || []).filter((p: any) => p.teacherId === tid);
 export const saveWeeklyPlanItem = (item: WeeklyPlanItem) => setLocal('weekly_plans', [...getLocal('weekly_plans').filter((x: any) => x.id !== item.id), item]);
 
 export const getTrackingSheets = (tid: string): TrackingSheet[] => (getLocal('tracking_sheets') || []).filter((s: any) => s.teacherId === tid);
 export const saveTrackingSheet = (sheet: TrackingSheet) => setLocal('tracking_sheets', [...getLocal('tracking_sheets').filter((x: any) => x.id !== sheet.id), sheet]);
-export const deleteTrackingSheet = (id: string) => setLocal('tracking_sheets', getLocal('tracking_sheets').filter((x: any) => x.id !== id));
+
+/* Fix: Added deleteTrackingSheet function */
+export const deleteTrackingSheet = (id: string) => setLocal('tracking_sheets', getLocal('tracking_sheets').filter((s: any) => s.id !== id));
 
 export const getPurchaseRequests = (tid: string): PurchaseRequest[] => (getLocal('purchase_requests') || []).filter((r: any) => r.teacherId === tid);
 export const updatePurchaseStatus = async (id: string, status: 'APPROVED' | 'REJECTED' | 'PENDING') => {
@@ -527,10 +573,14 @@ export const savePurchaseRequest = async (req: PurchaseRequest) => setLocal('pur
 
 export const getChallenges = (tid: string): WeeklyChallenge[] => (getLocal('challenges') || []).filter((c: any) => c.teacherId === tid);
 export const saveChallenge = async (ch: WeeklyChallenge, tid: string) => setLocal('challenges', [...(getLocal('challenges') || []).filter((c: any) => c.id !== ch.id), { ...ch, teacherId: tid }]);
-export const deleteChallenge = (id: string, tid: string) => setLocal('challenges', (getLocal('challenges') || []).filter((c: any) => c.id !== id));
+
+/* Fix: Added deleteChallenge function */
+export const deleteChallenge = (id: string, tid: string) => setLocal('challenges', getLocal('challenges').filter((c: any) => c.id !== id));
 
 export const getRewards = (tid: string): Reward[] => (getLocal('rewards') || []).filter((r: any) => r.teacherId === tid);
 export const saveReward = (reward: Reward, tid: string) => setLocal('rewards', [...getLocal('rewards').filter((r: any) => r.id !== reward.id), { ...reward, teacherId: tid }]);
+
+/* Fix: Added deleteReward function */
 export const deleteReward = (id: string, tid: string) => setLocal('rewards', getLocal('rewards').filter((r: any) => r.id !== id));
 
 export const fetchSharedResources = async (schoolId?: string): Promise<StoredLessonPlan[]> => {

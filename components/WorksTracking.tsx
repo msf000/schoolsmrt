@@ -4,13 +4,13 @@ import { Student, PerformanceRecord, PerformanceCategory, Assignment, Subject, A
 import { 
     getAssignments, saveAssignment, deleteAssignment, getWorksMasterUrl, 
     saveWorksMasterUrl, getSubjects, addPerformance, getTeacherAssignments,
-    fetchAssignments // إضافة الدالة الجديدة
+    fetchAssignments, fetchPerformance
 } from '../services/storageService';
 import { fetchWorkbookStructureUrl, getSheetHeadersAndData } from '../services/excelService';
 import { 
     Save, CheckCircle, ExternalLink, Loader2, Table, Link as LinkIcon, Activity, Settings, 
     Plus, Trash2, Layout, RefreshCw, ChevronLeft, Globe, Sparkles, X, 
-    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle, Sheet, UserCheck
+    ArrowRightLeft, FileSpreadsheet, Filter, BookOpen, AlertCircle, Info, Database, HelpCircle, Sheet, UserCheck, Cloud
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -43,6 +43,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     const [assignments, setAssignments] = useState<ExtendedAssignment[]>([]);
     const [gridData, setGridData] = useState<Record<string, Record<string, string>>>({}); 
     const [isGenerating, setIsGenerating] = useState(false);
+    const [cloudStatus, setCloudStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS'>('IDLE');
     const [masterUrl, setMasterUrl] = useState('');
     
     // Cloud Sync Flow States
@@ -53,17 +54,22 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
     const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
     const [sheetRawData, setSheetRawData] = useState<any[]>([]);
     const [columnMap, setColumnMap] = useState<Record<string, string>>({}); 
-    const [identityCol, setIdentityCol] = useState<string>(''); // العمود المستخدم للتعريف (هوية أو اسم)
+    const [identityCol, setIdentityCol] = useState<string>(''); 
 
-    // دالة جلب البيانات من السحابة
-    const loadAssignmentsFromCloud = async () => {
+    const loadDataFromCloud = async () => {
         if (!currentUser) return;
-        setIsGenerating(true);
+        setCloudStatus('SYNCING');
         try {
-            const cloudData = await fetchAssignments(currentUser.id);
-            setAssignments(cloudData as ExtendedAssignment[]);
-        } finally {
-            setIsGenerating(false);
+            const [cloudAssignments, cloudPerf] = await Promise.all([
+                fetchAssignments(currentUser.id),
+                fetchPerformance(currentUser.id)
+            ]);
+            setAssignments(cloudAssignments as ExtendedAssignment[]);
+            setCloudStatus('SUCCESS');
+            setTimeout(() => setCloudStatus('IDLE'), 2000);
+        } catch (e) {
+            console.error(e);
+            setCloudStatus('IDLE');
         }
     };
 
@@ -71,15 +77,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         if (!currentUser) return;
         setSubjects(getSubjects(currentUser.id));
         setMasterUrl(getWorksMasterUrl());
-        loadAssignmentsFromCloud();
+        loadDataFromCloud();
     }, [currentUser]);
 
-    // إعادة الجلب عند تغيير التبويب لضمان أحدث البيانات
-    useEffect(() => {
-        const all = getAssignments(activeTab, currentUser?.id) as ExtendedAssignment[];
-        setAssignments(all);
-    }, [activeTab]);
-
+    // مراقبة التبويبات لتحديث مصفوفة الدرجات
     useEffect(() => {
         const newGrid: Record<string, Record<string, string>> = {};
         performance.forEach(p => {
@@ -124,7 +125,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         setSheetHeaders(headers);
         setSheetRawData(data);
         
-        // محاولة تخمين عمود الهوية أو الاسم
         const idCol = headers.find(h => h.includes('هوية') || h.includes('سجل') || h.includes('Id') || h.includes('ID'));
         const nameCol = headers.find(h => h.includes('اسم') || h.includes('Name') || h.includes('الطالب'));
         setIdentityCol(idCol || nameCol || '');
@@ -151,7 +151,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                 const val = String(row[identityCol] || '').trim();
                 if (!val) return;
 
-                // محاولة المطابقة بالهوية أولاً ثم بالاسم
                 const student = students.find(s => s.nationalId === val) || 
                                 students.find(s => s.name.trim() === val) ||
                                 students.find(s => s.name.includes(val) && val.length > 5);
@@ -180,7 +179,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
 
             if (records.length > 0) {
                 await onAddPerformance(records);
-                showToast(`تمت مطابقة ${matchCount} طالب ومزامنة درجاتهم بنجاح!`, 'SUCCESS');
+                showToast(`تمت مطابقة ${matchCount} طالب ومزامنة درجاتهم سحابياً بنجاح!`, 'SUCCESS');
                 setSyncStep('IDLE');
             } else {
                 showToast('لم نجد تطابق للطلاب. تأكد من صحة عمود المطابقة.', 'ERROR');
@@ -213,16 +212,12 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         const target = assignments.find(a => a.id === id);
         if (!target) return;
         const updated = { ...target, ...updates };
-        
-        // تحديث الحالة فوراً
         setAssignments(assignments.map(a => a.id === id ? updated : a));
-        
-        // حفظ سحابي
         await saveAssignment(updated);
     };
 
     const handleDeleteColumn = async (id: string) => {
-        if (confirm('هل أنت متأكد من حذف هذا العمود نهائياً؟')) {
+        if (confirm('هل أنت متأكد من حذف هذا العمود سحابياً؟ سيتم حذف الدرجات المرتبطة به محلياً.')) {
             await deleteAssignment(id);
             setAssignments(assignments.filter(a => a.id !== id));
             showToast('تم حذف العمود بنجاح', 'SUCCESS');
@@ -255,10 +250,10 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
         });
 
         try {
-            await onAddPerformance(records);
-            showToast('تم حفظ السجل بنجاح.', 'SUCCESS');
+            await addPerformance(records); // تستخدم upsert سحابي داخلياً
+            showToast('تم حفظ السجل ومزامنته سحابياً بنجاح.', 'SUCCESS');
         } catch (e) {
-            showToast('فشل الحفظ السحابي.', 'ERROR');
+            showToast('فشل المزامنة السحابية.', 'ERROR');
         } finally {
             setIsGenerating(false);
         }
@@ -278,14 +273,19 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                 </div>
                 
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setShowCloudSettings(true)} className={`p-4 rounded-2xl border transition-all shadow-xl ${masterUrl ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-300 border-slate-100 hover:border-indigo-300'}`} title="ربط Google Sheets">
+                    <div className={`px-4 py-2 rounded-2xl border text-[10px] font-black flex items-center gap-2 transition-all ${cloudStatus === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-400 border-slate-100'}`}>
+                        {cloudStatus === 'SYNCING' ? <Loader2 size={14} className="animate-spin"/> : <Cloud size={14}/>}
+                        {cloudStatus === 'SYNCING' ? 'جاري المزامنة...' : cloudStatus === 'SUCCESS' ? 'السحابة محدثة' : 'متصل بالسحابة'}
+                    </div>
+
+                    <button onClick={() => setShowCloudSettings(true)} className={`p-4 rounded-2xl border transition-all shadow-xl ${masterUrl ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-300 border-slate-100 hover:border-indigo-300'}`} title="ربط Google Sheets">
                         <Globe size={24}/>
                     </button>
                     <button onClick={handleStartSyncFlow} disabled={isGenerating} className="px-8 py-4 bg-indigo-50 text-indigo-600 rounded-[1.5rem] border border-indigo-100 font-black text-xs flex items-center gap-3 hover:bg-indigo-600 hover:text-white transition-all shadow-lg">
-                        {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>} مزامنة سحابية
+                        {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>} استيراد سحابي (Excel)
                     </button>
                     <button onClick={handleSaveGrid} disabled={isGenerating} className="px-10 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-xs flex items-center gap-3 shadow-2xl hover:bg-black active:scale-95 transition-all">
-                        {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>} حفظ السجل
+                        {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>} حفظ السجل النهائي
                     </button>
                 </div>
             </div>
@@ -331,9 +331,9 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                         <div className="flex justify-between items-center mb-10 border-b border-slate-200 pb-8">
                             <div>
                                 <h3 className="text-2xl font-black text-slate-800">إدارة أعمدة الرصد</h3>
-                                <p className="text-sm text-slate-400 font-bold mt-2">الأعمدة المعرفة حالياً: {filteredAssignments.length} (من إجمالي {assignments.length})</p>
+                                <p className="text-sm text-slate-400 font-bold mt-2">الأعمدة السحابية المعرفة: {filteredAssignments.length} (للفئة المحددة)</p>
                             </div>
-                            <button onClick={handleAddColumn} className="bg-slate-900 text-white px-8 py-3.5 rounded-[1.5rem] font-black text-xs hover:bg-black transition-all flex items-center gap-2 shadow-2xl"><Plus size={18}/> إضافة عمود يدوي</button>
+                            <button onClick={handleAddColumn} className="bg-slate-900 text-white px-8 py-3.5 rounded-[1.5rem] font-black text-xs hover:bg-black transition-all flex items-center gap-2 shadow-2xl"><Plus size={18}/> إضافة عمود جديد</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 pb-10">
                             {filteredAssignments.map((a) => (
@@ -341,17 +341,23 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                     <button onClick={() => handleDeleteColumn(a.id)} className="absolute top-6 left-6 text-slate-200 hover:text-red-500 transition-all"><Trash2 size={20}/></button>
                                     <div className="space-y-6">
                                         <div className="space-y-2">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2">مسمى الرصد (يجب أن يطابق Excel)</p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2">مسمى الرصد</p>
                                             <input className="w-full p-4 border rounded-[1.5rem] font-black bg-slate-50 outline-none border-transparent focus:border-indigo-500 transition-all" value={a.title} onChange={e=> handleUpdateColumn(a.id, {title: e.target.value})} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <select className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50" value={a.subject} onChange={e=> handleUpdateColumn(a.id, {subject: e.target.value})}>
-                                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                                            </select>
-                                            <input type="number" className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50 text-center" value={a.maxScore} onChange={e=> handleUpdateColumn(a.id, {maxScore: Number(e.target.value)})} placeholder="الدرجة"/>
+                                            <div className="space-y-1">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase mr-2">المادة</p>
+                                                <select className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50" value={a.subject} onChange={e=> handleUpdateColumn(a.id, {subject: e.target.value})}>
+                                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase mr-2">الدرجة</p>
+                                                <input type="number" className="w-full p-3 border rounded-2xl text-[10px] font-black bg-slate-50 text-center" value={a.maxScore} onChange={e=> handleUpdateColumn(a.id, {maxScore: Number(e.target.value)})} placeholder="الدرجة"/>
+                                            </div>
                                         </div>
                                         <div>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2 mb-2">رابط خارجي (اختياري)</p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2 mb-2">رابط المصدر (اختياري)</p>
                                             <div className="relative">
                                                 <LinkIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"/>
                                                 <input className="w-full p-3 pl-10 border rounded-2xl text-[10px] font-black bg-slate-50 dir-ltr text-left" placeholder="https://..." value={a.link || ''} onChange={e=> handleUpdateColumn(a.id, {link: e.target.value})} />
@@ -446,8 +452,8 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                     </div>
                 </div>
             )}
-
-            {/* Sync Flow Modal (Sheet Selection and Mapping) */}
+            
+            {/* Sync Flow Modal */}
             {syncStep !== 'IDLE' && (
                 <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 animate-fade-in">
                     <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[4rem] shadow-2xl overflow-hidden flex flex-col animate-zoom-in">
@@ -485,7 +491,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                 </div>
                             ) : (
                                 <div className="space-y-10">
-                                    {/* Identity Selection Section */}
                                     <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 shadow-sm">
                                         <div className="flex items-center gap-4 mb-6">
                                             <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><UserCheck size={24}/></div>
@@ -504,7 +509,6 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                         </select>
                                     </div>
 
-                                    {/* Assignments Mapping Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {filteredAssignments.map(assign => (
                                             <div key={assign.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
@@ -535,7 +539,7 @@ const WorksTracking: React.FC<WorksTrackingProps> = ({ students, performance, on
                                 <div className="text-slate-400 text-xs font-bold">تم اكتشاف {sheetHeaders.length} عمود في الورقة المختارة.</div>
                                 <div className="flex gap-4">
                                     <button onClick={() => setSyncStep('SELECT_SHEET')} className="px-8 py-4 text-slate-400 font-black hover:text-slate-600">رجوع للأوراق</button>
-                                    <button onClick={executeFinalSync} disabled={isGenerating || !identityCol || Object.keys(columnMap).length === 0} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:opacity-50">
+                                    <button onClick={executeFinalSync} disabled={isGenerating || !identityCol} className="bg-indigo-600 text-white px-12 py-4 rounded-[2rem] font-black shadow-2xl hover:bg-indigo-700 transition-all flex items-center gap-3">
                                         {isGenerating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} إتمام المزامنة
                                     </button>
                                 </div>
