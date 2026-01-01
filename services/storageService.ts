@@ -89,10 +89,10 @@ export const addStudent = async (student: Student): Promise<void> => {
         id: student.id,
         name: student.name,
         national_id: student.nationalId,
-        class_id: student.class_id,
-        grade_level: student.grade_level,
-        class_name: student.class_name,
-        parent_phone: student.parent_phone,
+        class_id: student.classId,
+        grade_level: student.gradeLevel,
+        class_name: student.className,
+        parent_phone: student.parentPhone,
         created_by_id: student.createdById,
         xp: 0,
         level: 1
@@ -225,7 +225,6 @@ export const addPerformance = async (records: PerformanceRecord[]): Promise<void
         if (ratio >= 0.9) await adjustStudentXP(r.studentId, 50);
     }
 
-    // Fix: Access correct property name 'createdById' on PerformanceRecord
     await fetchPerformance(records[0]?.createdById);
 };
 
