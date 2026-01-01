@@ -7,7 +7,7 @@ import { generateLocalSeatingPlan, generateVarkBalancedGroups } from '../service
 import { useNavigate } from 'react-router-dom';
 import InteractiveSeatMap from './InteractiveSeatMap';
 import ClassMasteryHeatmap from './ClassMasteryHeatmap';
-import { MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle, User, Info, MoreHorizontal, MousePointer2, Grid3X3, Target } from 'lucide-react';
+import { MonitorPlay, Maximize, Clock, Eye, Plus, BrainCircuit, Loader2, Save, RotateCcw, AlertCircle, Wind, Sun, Volume2, History, LayoutGrid, Users, Shuffle, User, Info, MoreHorizontal, MousePointer2, Grid3X3, Target, GraduationCap } from 'lucide-react';
 
 interface ClassroomManagerProps {
     students: Student[];
@@ -29,12 +29,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'TOOLS' | 'SEATING' | 'ENVIRONMENT' | 'GROUPS' | 'HEATMAP'>('SEATING');
     const [selectedClass, setSelectedClass] = useState('');
-    const [isArranging, setIsArranging] = useState(false);
-    const [arrangeMethod, setArrangeMethod] = useState<'AI' | 'LOCAL'>('LOCAL');
-    const [aiCriterion, setAiCriterion] = useState('مزج المستويات (متفوق بجانب ضعيف)');
-    const [envHistory, setEnvHistory] = useState<EnvironmentRecord[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
-    
     const [groupSize, setGroupSize] = useState(4);
     const [generatedGroups, setGeneratedGroups] = useState<Student[][]>([]);
 
@@ -49,7 +44,6 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     useEffect(() => {
         if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
         if (selectedClass) {
-            setEnvHistory(getEnvironmentRecords(selectedClass));
             setAssignments(getAssignments('ALL', currentUser?.id));
         }
     }, [uniqueClasses, selectedClass, activeTab, currentUser]);
@@ -66,42 +60,51 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in overflow-hidden font-tajawal">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><MonitorPlay className="text-indigo-600"/> إدارة وتوجيه الفصل</h2>
+        <div className="p-4 md:p-6 h-full flex flex-col bg-slate-50 animate-fade-in font-tajawal overflow-hidden">
+            <div className="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 shrink-0">
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm">
+                        <MonitorPlay size={24}/>
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">إدارة وتوجيه الفصل</h2>
+                        <p className="text-xs text-slate-500 font-medium">أدوات تنظيم البيئة الصفية التفاعلية</p>
+                    </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border rounded-xl bg-white font-black text-sm outline-none shadow-sm min-w-[150px]">{uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                    <div className="bg-white p-1 rounded-xl border flex gap-1 shadow-sm overflow-x-auto no-scrollbar max-w-[500px]">
+                <div className="flex items-center gap-3">
+                    <select 
+                        value={selectedClass} 
+                        onChange={e => setSelectedClass(e.target.value)} 
+                        className="p-2 border border-slate-200 rounded-lg bg-white font-bold text-xs outline-none shadow-sm min-w-[120px]"
+                    >
+                        {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div className="bg-white p-1 rounded-lg border border-slate-200 flex gap-1 shadow-sm overflow-x-auto no-scrollbar">
                         <TabItem label="المقاعد" active={activeTab === 'SEATING'} onClick={() => setActiveTab('SEATING')} />
                         <TabItem label="خريطة الإتقان" active={activeTab === 'HEATMAP'} onClick={() => setActiveTab('HEATMAP')} />
                         <TabItem label="المجموعات" active={activeTab === 'GROUPS'} onClick={() => setActiveTab('GROUPS')} />
                         <TabItem label="الأدوات" active={activeTab === 'TOOLS'} onClick={() => setActiveTab('TOOLS')} />
-                        <TabItem label="البيئة" active={activeTab === 'ENVIRONMENT'} onClick={() => setActiveTab('ENVIRONMENT')} />
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col relative">
+            <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
                 {activeTab === 'HEATMAP' && (
                     <ClassMasteryHeatmap selectedClass={selectedClass} students={students} performance={performance} assignments={assignments} />
                 )}
 
                 {activeTab === 'TOOLS' && (
-                    <div className="h-full flex flex-col items-center justify-center p-10 text-center gap-8">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
-                             <ToolCard icon={Users} title="مجموعات متوازنة" desc="تقسيم المجموعات بناءً على تنوع الأنماط (VARK) لزيادة فاعلية التعلم النشط." color="bg-indigo-50" textColor="text-indigo-600">
-                                 <div className="flex items-center gap-3 mb-4">
-                                     <span className="text-xs font-bold">حجم المجموعة:</span>
-                                     <input type="number" value={groupSize} onChange={e=>setGroupSize(Number(e.target.value))} className="w-16 p-2 border rounded-xl text-center font-black"/>
-                                 </div>
-                                 <button onClick={handleGenerateGroups} className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all">توليد المجموعات</button>
-                             </ToolCard>
-                             <ToolCard icon={MonitorPlay} title="شاشة العرض" desc="تفعيل السبورة الرقمية، مؤقت الأنشطة، وسحب الأسماء التفاعلي للطلاب." color="bg-purple-50" textColor="text-purple-600">
-                                 <button onClick={onLaunchScreen} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black shadow-lg hover:bg-purple-700 transition-all mt-6">فتح الشاشة الآن</button>
-                             </ToolCard>
-                         </div>
+                    <div className="h-full grid grid-cols-1 md:grid-cols-2 gap-6 p-8 overflow-y-auto">
+                        <ToolCard icon={Users} title="مجموعات التعلم النشط" desc="تقسيم ذكي للطلاب بناءً على تنوع الأنماط (VARK) لضمان تفاعل جماعي فعال." color="bg-blue-50" textColor="text-blue-700">
+                            <div className="flex items-center gap-3 mb-4">
+                                <span className="text-xs font-bold text-slate-500">حجم المجموعة:</span>
+                                <input type="number" value={groupSize} onChange={e=>setGroupSize(Number(e.target.value))} className="w-16 p-1.5 border rounded-lg text-center font-bold text-sm"/>
+                            </div>
+                            <button onClick={handleGenerateGroups} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-bold text-xs shadow-sm hover:bg-blue-700">توليد المجموعات</button>
+                        </ToolCard>
+                        <ToolCard icon={MonitorPlay} title="شاشة الفصل الذكية" desc="عرض السبورة الرقمية، مؤقت الأنشطة، وعجلة الأسماء التفاعلية على شاشة البروجكتر." color="bg-slate-50" textColor="text-slate-700">
+                            <button onClick={onLaunchScreen} className="w-full py-2.5 bg-slate-800 text-white rounded-lg font-bold text-xs shadow-sm hover:bg-black mt-10">إطلاق شاشة العرض</button>
+                        </ToolCard>
                     </div>
                 )}
 
@@ -110,25 +113,25 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                 )}
 
                 {activeTab === 'GROUPS' && (
-                    <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar bg-slate-50/50">
-                        <div className="flex justify-between items-center mb-8 border-b pb-4">
-                            <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><Users className="text-indigo-600"/> مجموعات التعلم المتوازنة (AI Optimized)</h3>
-                            <button onClick={handleGenerateGroups} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black text-xs shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"><Shuffle size={14}/> إعادة خلط المجموعات</button>
+                    <div className="h-full flex flex-col p-6 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Users size={18} className="text-blue-600"/> المجموعات المتوازنة</h3>
+                            <button onClick={handleGenerateGroups} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-blue-700 flex items-center gap-2"><Shuffle size={14}/> إعادة الخلط</button>
                         </div>
                         {generatedGroups.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {generatedGroups.map((group, idx) => (
-                                    <div key={idx} className="bg-white border rounded-[2.5rem] p-8 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
-                                        <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600"></div>
-                                        <h4 className="font-black text-indigo-900 mb-6 text-lg flex items-center justify-between">
+                                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
+                                        <h4 className="font-bold text-slate-800 mb-3 flex justify-between text-sm">
                                             المجموعة {idx+1}
-                                            <span className="text-[10px] bg-indigo-50 px-3 py-1 rounded-full">{group.length} طلاب</span>
+                                            <span className="text-[10px] text-slate-400 font-medium">{group.length} طلاب</span>
                                         </h4>
-                                        <div className="space-y-4">
+                                        <div className="space-y-1">
                                             {group.map(s => (
-                                                <div key={s.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl">
-                                                    <span className="text-xs font-black text-slate-700">{s.name}</span>
-                                                    <span className="text-xs">{s.learningStyle === 'VISUAL' ? '👁️' : s.learningStyle === 'AUDITORY' ? '👂' : s.learningStyle === 'READ_WRITE' ? '📖' : s.learningStyle === 'KINESTHETIC' ? '🏃' : '؟'}</span>
+                                                <div key={s.id} className="text-xs font-medium text-slate-600 p-1.5 rounded bg-slate-50 border border-slate-100 flex justify-between">
+                                                    <span>{s.name}</span>
+                                                    <span className="text-[9px] opacity-40">{s.learningStyle?.charAt(0)}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -136,20 +139,11 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4 opacity-50">
-                                <Users size={100} className="mx-auto"/>
-                                <p className="text-xl font-black">اضغط لتوليد مجموعات متوازنة تعليمياً</p>
+                            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4 opacity-50 py-20">
+                                <Users size={64}/>
+                                <p className="font-bold">يرجى الضغط على "توليد المجموعات" من تبويب الأدوات</p>
                             </div>
                         )}
-                    </div>
-                )}
-
-                {activeTab === 'ENVIRONMENT' && (
-                    <div className="p-10 flex flex-col items-center justify-center text-center gap-8 h-full">
-                         <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-4 animate-bounce"><Sun size={48}/></div>
-                         <h3 className="text-3xl font-black text-slate-800">جهاز استشعار بيئة التعلم</h3>
-                         <p className="text-slate-400 max-w-md font-bold leading-relaxed">يمكنك متابعة وتحسين جودة البيئة الصفية لزيادة تركيز الطلاب من خلال لوحة "بيئة الصف" في الشاشة الذكية.</p>
-                         <button onClick={onLaunchScreen} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:bg-black transition-all">فتح مستشعر البيئة</button>
                     </div>
                 )}
             </div>
@@ -158,15 +152,17 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
 };
 
 const TabItem = ({ label, active, onClick }: any) => (
-    <button onClick={onClick} className={`px-5 py-2 rounded-xl text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}>{label}</button>
+    <button onClick={onClick} className={`px-4 py-1.5 rounded-md text-[11px] font-bold transition-all whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>{label}</button>
 );
 
 const ToolCard = ({ icon: Icon, title, desc, color, textColor, children }: any) => (
-    <div className={`${color} p-10 rounded-[3rem] border border-transparent hover:border-white shadow-sm flex flex-col items-center text-center gap-4 transition-all hover:shadow-xl`}>
-        <div className={`p-5 bg-white rounded-[2rem] shadow-xl ${textColor}`}><Icon size={40}/></div>
-        <h3 className={`text-xl font-black ${textColor}`}>{title}</h3>
-        <p className="text-sm text-slate-500 font-bold leading-relaxed mb-4">{desc}</p>
-        <div className="w-full">{children}</div>
+    <div className={`${color} p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 hover:border-blue-300 transition-all`}>
+        <div className="flex items-center gap-4">
+            <div className={`p-3 bg-white rounded-lg shadow-sm ${textColor}`}><Icon size={24}/></div>
+            <h3 className={`text-base font-bold ${textColor}`}>{title}</h3>
+        </div>
+        <p className="text-xs text-slate-500 font-medium leading-relaxed flex-1">{desc}</p>
+        <div className="w-full pt-4 border-t border-white/40">{children}</div>
     </div>
 );
 

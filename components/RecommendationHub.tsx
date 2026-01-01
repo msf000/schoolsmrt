@@ -34,8 +34,8 @@ const RecommendationHub: React.FC<Props> = ({ students, attendance, performance 
                 if (last < prev - 0.2) {
                     recs.push({
                         type: 'DANGER',
-                        title: `تراجع مفاجئ لـ ${s.name.split(' ')[0]}`,
-                        desc: `انخفضت درجته بنسبة ${Math.round((prev - last) * 100)}% في آخر تقييم. يحتاج مراجعة سريعة.`,
+                        title: `تراجع أداء: ${s.name.split(' ')[0]}`,
+                        desc: `انخفضت نواتج التعلم بنسبة ${Math.round((prev - last) * 100)}% في آخر تقييم.`,
                         action: () => navigate('/followup', { state: { studentId: s.id } }),
                         icon: <AlertCircle className="text-red-500" />
                     });
@@ -46,59 +46,38 @@ const RecommendationHub: React.FC<Props> = ({ students, attendance, performance 
             if (sPerf.length > 0 && (sPerf[0].score / sPerf[0].maxScore) >= 0.95) {
                 recs.push({
                     type: 'SUCCESS',
-                    title: `إبداع مستمر من ${s.name.split(' ')[0]}`,
-                    desc: `حقق الدرجة الكاملة في "${sPerf[0].title}". اقترح منحه وسام التميز.`,
+                    title: `تميز استثنائي: ${s.name.split(' ')[0]}`,
+                    desc: `حقق درجة كاملة في "${sPerf[0].title}". اقترح تكريمه بوسام.`,
                     action: () => navigate('/badges'),
-                    icon: <Trophy className="text-yellow-500" />
+                    icon: <Trophy className="text-amber-500" />
                 });
             }
         });
 
-        // 3. تحليل حضور الفصل
-        const classStats = Array.from(new Set(students.map(s => s.className))).map(cls => {
-            const classStudents = students.filter(s => s.className === cls);
-            const classAtt = attendance.filter(a => classStudents.some(s => s.id === a.studentId) && a.date === today);
-            return { cls, count: classAtt.length, total: classStudents.length };
-        });
-
-        classStats.forEach(stat => {
-            if (stat.total > 0 && stat.count / stat.total < 0.8) {
-                recs.push({
-                    type: 'WARNING',
-                    title: `غياب مرتفع في فصل ${stat.cls}`,
-                    desc: `نسبة الحضور اليوم ${Math.round((stat.count / stat.total) * 100)}% فقط. يفضل إرسال رسائل تذكير للأهالي.`,
-                    action: () => navigate('/messages'),
-                    icon: <Zap className="text-orange-500" />
-                });
-            }
-        });
-
-        return recs.slice(0, 5);
+        return recs.slice(0, 4);
     }, [students, attendance, performance, navigate]);
 
     if (recommendations.length === 0) return null;
 
     return (
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden relative">
-            <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                    <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><Lightbulb size={24}/></div>
-                    <div>
-                        <h3 className="text-xl font-black text-slate-800">مقترحات تربوية ذكية</h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">AI Recommendation Engine</p>
-                    </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-tajawal">
+            <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-50 text-amber-600 rounded-md border border-amber-100"><Lightbulb size={18}/></div>
+                    <h3 className="text-sm font-bold text-slate-800">التوصيات التربوية الآلية</h3>
                 </div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">AI Hub</span>
             </div>
 
-            <div className="space-y-4">
+            <div className="divide-y divide-slate-100">
                 {recommendations.map((rec, i) => (
-                    <div key={i} className="group flex items-start gap-6 p-5 rounded-[2rem] hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 cursor-pointer" onClick={rec.action}>
-                        <div className="p-4 bg-white rounded-2xl shadow-sm group-hover:scale-110 transition-transform">{rec.icon}</div>
+                    <div key={i} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-all cursor-pointer group" onClick={rec.action}>
+                        <div className="p-2.5 bg-slate-50 rounded-lg shadow-sm border border-slate-100 group-hover:bg-white transition-colors">{rec.icon}</div>
                         <div className="flex-1">
-                            <h4 className="font-black text-slate-800 text-sm mb-1">{rec.title}</h4>
-                            <p className="text-xs text-slate-500 font-medium leading-relaxed">{rec.desc}</p>
+                            <h4 className="text-xs font-bold text-slate-800 mb-0.5">{rec.title}</h4>
+                            <p className="text-[10px] text-slate-500 font-medium leading-relaxed">{rec.desc}</p>
                         </div>
-                        <ArrowRight size={16} className="text-slate-300 mt-2 group-hover:text-indigo-600 group-hover:translate-x-[-4px] transition-all"/>
+                        <ArrowRight size={14} className="text-slate-300 group-hover:text-blue-600 transition-all group-hover:translate-x-[-2px]"/>
                     </div>
                 ))}
             </div>

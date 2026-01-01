@@ -1,13 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Student, SystemUser, BehaviorIncident } from '../types';
-import { saveBehaviorIncident, updateStudent } from '../services/storageService';
+import { Student, SystemUser } from '../types';
+import { updateStudent } from '../services/storageService';
 import { 
-    Zap, Star, MonitorPlay, X, Sparkles, Smile, Frown, MessageSquare, ArrowRightLeft, Ghost, CheckCircle, ShieldAlert, User, BrainCircuit, Loader2
+    Zap, MonitorPlay, X, Sparkles, ArrowRightLeft, User, BrainCircuit, Loader2, ChevronLeft, LayoutGrid, CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './ToastProvider';
-import { generateLocalSeatingPlan } from '../services/analysisService';
 import { suggestSeatingPlan } from '../services/geminiService';
 
 interface InteractiveSeatMapProps {
@@ -45,7 +44,7 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
         try {
             await updateStudent({ ...s1, seatIndex: idx2 });
             await updateStudent({ ...s2, seatIndex: idx1 });
-            showToast(`تم تبديل مقعد ${s1.name.split(' ')[0]} مع ${s2.name.split(' ')[0]}`, 'SUCCESS');
+            showToast(`تم تبديل المقاعد بنجاح.`, 'SUCCESS');
         } catch (e) {
             showToast('فشل التبديل السحابي', 'ERROR');
         } finally {
@@ -64,7 +63,7 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
                     const s = students.find(x => x.id === item.studentId);
                     if (s) await updateStudent({ ...s, seatIndex: (item.row * 10) + item.col });
                 }
-                showToast('تمت إعادة توزيع المقاعد ذكياً بنجاح!', 'SUCCESS');
+                showToast('اكتمل التوزيع الذكي للمقاعد.', 'SUCCESS');
             }
         } catch (e) {
             showToast('فشل التوزيع الذكي', 'ERROR');
@@ -74,69 +73,71 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
     };
 
     return (
-        <div className="h-full flex flex-col md:flex-row gap-6 animate-fade-in font-tajawal relative bg-gray-50/50 p-4">
-            <div className="w-full md:w-64 bg-white p-6 rounded-[2.5rem] border shadow-sm h-fit space-y-6">
-                <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm"><MonitorPlay size={18} className="text-indigo-600"/> خريطة الفصل</h3>
-                
-                <div className="space-y-3">
-                    <button 
-                        onClick={handleAIArrange}
-                        disabled={isArranging}
-                        className="w-full py-4 bg-indigo-900 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all disabled:opacity-50"
-                    >
-                        {isArranging ? <Loader2 className="animate-spin" size={16}/> : <BrainCircuit size={16} className="text-indigo-400"/>}
-                        توزيع المقاعد (AI)
-                    </button>
-                    
-                    <button 
-                        onClick={() => { setIsSwapMode(!isSwapMode); setSelectedStudent(null); }}
-                        className={`w-full py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all ${isSwapMode ? 'bg-orange-500 text-white shadow-lg' : 'bg-slate-50 text-slate-600 hover:bg-indigo-50'}`}
-                    >
-                        <ArrowRightLeft size={16}/> {isSwapMode ? 'إلغاء التبديل' : 'تبديل يدوي'}
-                    </button>
+        <div className="h-full flex flex-col md:flex-row animate-fade-in font-tajawal relative bg-white">
+            <div className="w-full md:w-64 border-l border-slate-200 p-6 flex flex-col gap-6 bg-slate-50/50 shrink-0">
+                <div>
+                    <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2"><LayoutGrid size={18} className="text-blue-600"/> تنظيم القاعة</h3>
+                    <div className="space-y-2">
+                        <button 
+                            onClick={handleAIArrange}
+                            disabled={isArranging}
+                            className="w-full py-2 bg-slate-800 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-2 hover:bg-black disabled:opacity-50"
+                        >
+                            {isArranging ? <Loader2 className="animate-spin" size={14}/> : <BrainCircuit size={14} className="text-blue-400"/>}
+                            توزيع ذكي (AI)
+                        </button>
+                        
+                        <button 
+                            onClick={() => { setIsSwapMode(!isSwapMode); setSelectedStudent(null); }}
+                            className={`w-full py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-2 border transition-all ${isSwapMode ? 'bg-amber-50 border-amber-300 text-amber-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600'}`}
+                        >
+                            <ArrowRightLeft size={14}/> {isSwapMode ? 'إلغاء التبديل' : 'تبديل مقاعد يدوي'}
+                        </button>
+                    </div>
                 </div>
 
-                <div className="pt-4 border-t space-y-3">
-                    <div className="flex items-center gap-3 text-xs font-bold text-gray-500"><div className="w-4 h-4 bg-indigo-600 rounded-lg"></div> مقعد مشغول</div>
-                    <div className="flex items-center gap-3 text-xs font-bold text-gray-500"><div className="w-4 h-4 bg-gray-100 rounded-lg border-2 border-dashed"></div> مقعد شاغر</div>
+                <div className="mt-auto p-4 bg-white border border-slate-200 rounded-xl shadow-sm space-y-3">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500"><div className="w-3 h-3 bg-blue-600 rounded"></div> مقعد مشغول</div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500"><div className="w-3 h-3 bg-slate-100 border border-slate-200 rounded"></div> مقعد متاح</div>
                 </div>
             </div>
 
-            <div className="flex-1 bg-white rounded-[3rem] border shadow-sm p-10 overflow-y-auto custom-scrollbar">
-                <div className="w-full max-w-5xl mx-auto flex flex-col gap-16">
-                     <div className="w-64 h-12 bg-slate-800 rounded-b-3xl mx-auto flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest shadow-xl">اتجاه السبورة / المعلم</div>
-                     
-                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
-                        {filteredStudents.map((s) => (
-                            <button 
-                                key={s.id} 
-                                onClick={() => handleStudentClick(s)}
-                                className={`aspect-[4/3] rounded-[2.5rem] border-4 transition-all flex flex-col items-center justify-center p-4 relative group ${selectedStudent?.id === s.id ? 'bg-indigo-600 border-indigo-400 text-white shadow-2xl scale-110 z-20' : 'bg-white border-slate-50 text-slate-800 hover:border-indigo-100 shadow-sm'}`}
-                            >
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black mb-2 ${selectedStudent?.id === s.id ? 'bg-white/20' : 'bg-indigo-50 text-indigo-600 transition-colors'}`}>
-                                    {s.name.charAt(0)}
-                                </div>
-                                <span className="text-[10px] font-black text-center line-clamp-1">{s.name.split(' ')[0]}</span>
-                                <div className="absolute -top-3 -right-3 bg-yellow-400 text-slate-900 w-8 h-8 rounded-xl flex items-center justify-center font-black border-4 border-white shadow-lg text-[10px]">Lv{s.level || 1}</div>
-                            </button>
-                        ))}
-                     </div>
-                </div>
+            <div className="flex-1 p-8 overflow-y-auto custom-scrollbar flex flex-col items-center gap-12">
+                 <div className="w-48 h-8 bg-slate-200 rounded-b-xl flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase tracking-widest border border-t-0 border-slate-300">اتجاه السبورة</div>
+                 
+                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 max-w-5xl w-full">
+                    {filteredStudents.map((s) => (
+                        <div 
+                            key={s.id} 
+                            onClick={() => handleStudentClick(s)}
+                            className={`aspect-[1.2/1] rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center p-3 relative ${selectedStudent?.id === s.id ? 'border-blue-600 bg-blue-50 shadow-md ring-2 ring-blue-100' : 'border-slate-100 bg-white hover:border-blue-300 shadow-sm'}`}
+                        >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold mb-2 ${selectedStudent?.id === s.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                {s.name.charAt(0)}
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-700 text-center truncate w-full">{s.name.split(' ')[0]}</span>
+                            <div className="absolute -top-2 -right-2 bg-blue-600 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-[9px] border-2 border-white shadow">Lv{s.level || 1}</div>
+                        </div>
+                    ))}
+                 </div>
             </div>
 
             {selectedStudent && !isSwapMode && (
-                <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-fade-in">
-                    <div className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-zoom-in">
-                        <div className="p-8 bg-indigo-600 text-white flex items-center gap-6">
-                            <div className="w-16 h-16 bg-white/20 rounded-[1.5rem] flex items-center justify-center text-3xl font-black">{selectedStudent.name.charAt(0)}</div>
-                            <div className="text-right">
-                                <h3 className="text-xl font-black">{selectedStudent.name}</h3>
-                                <p className="text-indigo-200 text-xs font-bold uppercase">{selectedStudent.className}</p>
+                <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-xl shadow-xl overflow-hidden animate-zoom-in">
+                        <div className="p-6 bg-blue-700 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center text-xl font-bold border border-white/20">{selectedStudent.name.charAt(0)}</div>
+                                <div>
+                                    <h3 className="font-bold text-sm">{selectedStudent.name}</h3>
+                                    <p className="text-[10px] font-bold opacity-70 uppercase">{selectedStudent.className}</p>
+                                </div>
                             </div>
-                            <button onClick={() => setSelectedStudent(null)} className="mr-auto p-2 bg-white/10 rounded-full hover:bg-white/20"><X size={20}/></button>
+                            <button onClick={() => setSelectedStudent(null)} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X size={20}/></button>
                         </div>
-                        <div className="p-8">
-                             <button onClick={() => { navigate('/followup', {state:{studentId: selectedStudent.id}}); setSelectedStudent(null); }} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl flex items-center justify-center gap-2">عرض ملف الطالب الكامل <ChevronLeft size={16}/></button>
+                        <div className="p-6 space-y-3">
+                             <button onClick={() => { navigate('/followup', {state:{studentId: selectedStudent.id}}); setSelectedStudent(null); }} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-all flex items-center justify-center gap-2">عرض ملف الطالب <ChevronLeft size={14}/></button>
+                             <button onClick={() => setSelectedStudent(null)} className="w-full py-2.5 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs hover:bg-slate-200 transition-all">إغلاق النافذة</button>
                         </div>
                     </div>
                 </div>
@@ -144,9 +145,5 @@ const InteractiveSeatMap: React.FC<InteractiveSeatMapProps> = ({ students, selec
         </div>
     );
 };
-
-const ChevronLeft = ({ size }: any) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-);
 
 export default InteractiveSeatMap;
