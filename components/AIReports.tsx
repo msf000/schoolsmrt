@@ -1,9 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, SystemUser } from '../types';
 import { generateStudentAnalysis } from '../services/geminiService';
-// Fix: Use actual exported member from storageService.ts
 import { getAcademicTerms } from '../services/storageService';
-import { Sparkles, Bot, Loader2, Calendar } from 'lucide-react';
+import { Sparkles, Bot, Loader2, Calendar, User, Layout, ArrowRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
 
 interface AIReportsProps {
@@ -14,16 +14,9 @@ interface AIReportsProps {
 }
 
 const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance, currentUser }) => {
-  // Safety check
-  if (!students || !attendance || !performance) {
-      return <div className="flex justify-center items-center h-full p-10"><Loader2 className="animate-spin text-gray-400" size={32}/></div>;
-  }
-
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [report, setReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  
-  // Terms State
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [selectedTermId, setSelectedTermId] = useState('');
 
@@ -32,100 +25,73 @@ const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance
       setTerms(loadedTerms);
       const current = loadedTerms.find((t: AcademicTerm) => t.isCurrent);
       if (current) setSelectedTermId(current.id);
-      else if (loadedTerms.length > 0) setSelectedTermId(loadedTerms[0].id);
   }, [currentUser]);
 
   const handleGenerate = async () => {
     if (!selectedStudentId) return;
-    
-    setLoading(true);
-    setReport(null);
-    
+    setLoading(true); setReport(null);
     const student = students.find(s => s.id === selectedStudentId);
-    const activeTerm = terms.find(t => t.id === selectedTermId);
-
     if (student) {
-        // Filter data by selected Term before sending to AI
-        let filteredAtt = attendance;
-        let filteredPerf = performance;
-
-        if (activeTerm) {
-            filteredAtt = attendance.filter(a => a.date >= activeTerm.startDate && a.date <= activeTerm.endDate);
-            filteredPerf = performance.filter(p => p.date >= activeTerm.startDate && p.date <= activeTerm.endDate);
-        }
-
-        const result = await generateStudentAnalysis(student, filteredAtt, filteredPerf);
+        const result = await generateStudentAnalysis(student, attendance, performance);
         setReport(result);
     }
     setLoading(false);
   };
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Sparkles className="text-purple-600" />
-            تحليل الذكاء الاصطناعي
-        </h2>
-        <p className="text-gray-500 mt-2">
-            استخدم الذكاء الاصطناعي لإنشاء تقارير فورية عن أداء الطلاب وسلوكهم.
-        </p>
+    <div className="space-y-6 animate-fade-in h-full flex flex-col">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+        <div>
+            <h2 className="text-2xl font-bold text-slate-800">تحليل الأداء الذكي (AI)</h2>
+            <p className="text-slate-500 text-sm">تقارير تشخيصية وتوصيات تربوية مدعومة بذكاء Gemini.</p>
+        </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        <div className="w-full md:w-1/3 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="mb-4">
-                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><Calendar size={14}/> الفترة الزمنية</label>
-                <select 
-                    className="w-full p-3 border rounded-lg bg-gray-50 outline-none text-sm font-bold"
-                    value={selectedTermId}
-                    onChange={(e) => setSelectedTermId(e.target.value)}
-                >
-                    <option value="">كل الفترات (تراكمي)</option>
-                    {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 overflow-hidden">
+        <div className="lg:col-span-1 space-y-4">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">الفترة الزمنية</label>
+                    <select className="w-full p-2.5 border rounded-lg bg-slate-50 text-sm font-bold outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
+                        <option value="">كل الفترات</option>
+                        {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">اسم الطالب</label>
+                    <select className="w-full p-2.5 border rounded-lg bg-slate-50 text-sm font-bold outline-none" value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)}>
+                        <option value="">-- اختر طالباً --</option>
+                        {students.sort((a,b)=>a.name.localeCompare(b.name, 'ar')).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                </div>
+                <button onClick={handleGenerate} disabled={!selectedStudentId || loading} className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-sm flex justify-center items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
+                    {loading ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} إنشاء التقرير
+                </button>
             </div>
-
-            <label className="block text-sm font-bold text-gray-700 mb-2">اختر الطالب للتحليل</label>
-            <select 
-                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white mb-4"
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-            >
-                <option value="">-- اختر --</option>
-                {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-            </select>
             
-            <button
-                onClick={handleGenerate}
-                disabled={!selectedStudentId || loading}
-                className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white rounded-lg transition-colors font-bold flex justify-center items-center gap-2"
-            >
-                {loading ? <Loader2 className="animate-spin" /> : <Bot />}
-                {loading ? 'جاري التحليل...' : 'إنشاء التقرير'}
-            </button>
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3 items-start">
+                <Bot className="text-blue-600 shrink-0" size={20}/>
+                <p className="text-[11px] text-blue-800 leading-relaxed font-medium">يقوم النظام بتحليل سجلات الحضور والدرجات لاستنتاج نقاط القوة والضعف للطالب آلياً.</p>
+            </div>
         </div>
 
-        <div className="w-full md:w-2/3">
-            {report ? (
-                <div className="bg-white p-8 rounded-xl shadow-md border border-purple-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-purple-500 to-blue-500"></div>
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Bot className="text-purple-600" size={24} />
-                        تقرير الأداء {selectedTermId ? `(${terms.find(t=>t.id===selectedTermId)?.name})` : ''}
-                    </h3>
-                    <div className="prose prose-purple max-w-none text-gray-700 leading-relaxed whitespace-pre-line">
+        <div className="lg:col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+            <div className="p-4 border-b bg-slate-50 flex justify-between items-center shrink-0">
+                <span className="font-bold text-slate-700 text-sm">معاينة التقرير التشخيصي</span>
+                {report && <button onClick={() => window.print()} className="text-[10px] font-bold text-blue-600 hover:underline">طباعة التقرير</button>}
+            </div>
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                {report ? (
+                    <div className="prose prose-slate max-w-none prose-sm leading-relaxed text-slate-700">
                         <ReactMarkdown>{report}</ReactMarkdown>
                     </div>
-                </div>
-            ) : (
-                <div className="h-64 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400">
-                    <Bot size={48} className="mb-4 opacity-50" />
-                    <p>اختر الفترة والطالب ثم اضغط على زر التحليل</p>
-                </div>
-            )}
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50 py-20">
+                        <Layout size={64}/>
+                        <p className="mt-4 font-bold">حدد الطالب واضغط "إنشاء" لبدء التحليل.</p>
+                    </div>
+                )}
+            </div>
         </div>
       </div>
     </div>
