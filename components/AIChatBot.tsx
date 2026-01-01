@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Loader2, Sparkles, User, BrainCircuit, Minimize2 } from 'lucide-react';
+import { Bot, X, Send, Loader2, Sparkles, User, BrainCircuit, Minimize2, MessageSquare } from 'lucide-react';
 import { chatWithData } from '../services/geminiService';
 
 interface AIChatBotProps {
@@ -13,7 +13,7 @@ const AIChatBot: React.FC<AIChatBotProps> = ({ students, attendance, performance
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
-        { role: 'ai', text: 'أهلاً بك! أنا مساعدك الذكي. يمكنك سؤالي عن أداء الطلاب، الحضور، أو طلب نصائح تربوية.' }
+        { role: 'ai', text: 'مرحباً بك! أنا مساعدك الذكي في النظام. كيف يمكنني مساعدتك اليوم في تحليل بيانات الطلاب أو تقديم نصائح تربوية؟' }
     ]);
     const [loading, setLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -42,43 +42,46 @@ const AIChatBot: React.FC<AIChatBotProps> = ({ students, attendance, performance
     };
 
     return (
-        <div className="fixed bottom-6 left-6 z-[100] flex flex-col items-end">
+        <div className="fixed bottom-6 left-6 z-[100] flex flex-col items-end font-tajawal">
             {isOpen ? (
-                <div className="w-80 md:w-96 h-[500px] bg-white rounded-3xl shadow-2xl border border-indigo-100 flex flex-col overflow-hidden animate-zoom-in">
-                    <div className="p-4 bg-indigo-600 text-white flex justify-between items-center shadow-lg">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-white/20 p-1.5 rounded-lg"><Bot size={20}/></div>
-                            <span className="font-bold">المساعد الذكي</span>
+                <div className="w-80 md:w-96 h-[500px] bg-white rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-200 flex flex-col overflow-hidden animate-zoom-in">
+                    <div className="p-4 bg-blue-700 text-white flex justify-between items-center shadow-md shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white/20 p-2 rounded-lg border border-white/20"><Bot size={20}/></div>
+                            <div className="text-right">
+                                <span className="font-bold text-sm block">المساعد التربوي</span>
+                                <span className="text-[9px] opacity-70 uppercase tracking-widest font-bold">AI Data Assistant</span>
+                            </div>
                         </div>
-                        <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1 rounded-full"><X size={20}/></button>
+                        <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
                     </div>
                     
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50/50">
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-50/50">
                         {messages.map((m, i) => (
                             <div key={i} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-indigo-50 text-indigo-800 rounded-br-none border border-indigo-100' : 'bg-white shadow-sm border border-gray-100 rounded-bl-none text-gray-700'}`}>
+                                <div className={`max-w-[85%] p-3 rounded-xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-blue-50 text-blue-800 rounded-tr-none border border-blue-100' : 'bg-white shadow-sm border border-slate-200 rounded-tl-none text-slate-700'}`}>
                                     {m.text}
                                 </div>
                             </div>
                         ))}
                         {loading && (
                             <div className="flex justify-end">
-                                <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-2">
-                                    <Loader2 className="animate-spin text-indigo-600" size={16}/>
-                                    <span className="text-xs text-gray-400">جاري التفكير...</span>
+                                <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex items-center gap-2">
+                                    <Loader2 className="animate-spin text-blue-600" size={16}/>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">جاري التحليل...</span>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <form onSubmit={handleSend} className="p-4 border-t bg-white flex gap-2">
+                    <form onSubmit={handleSend} className="p-4 border-t bg-white flex gap-2 shrink-0 shadow-inner">
                         <input 
-                            className="flex-1 p-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            placeholder="اسألني عن بياناتك..."
+                            className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-medium transition-all"
+                            placeholder="اطرح استفسارك الأكاديمي..."
                             value={input}
                             onChange={e => setInput(e.target.value)}
                         />
-                        <button type="submit" className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md">
+                        <button type="submit" disabled={loading || !input.trim()} className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md transition-all active:scale-95 disabled:opacity-50">
                             <Send size={18}/>
                         </button>
                     </form>
@@ -86,10 +89,10 @@ const AIChatBot: React.FC<AIChatBotProps> = ({ students, attendance, performance
             ) : (
                 <button 
                     onClick={() => setIsOpen(true)}
-                    className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+                    className="w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white"
                 >
-                    <div className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm animate-bounce group-hover:animate-none">AI</div>
-                    <BrainCircuit size={28}/>
+                    <div className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-lg border-2 border-white animate-bounce group-hover:animate-none">AI</div>
+                    <MessageSquare size={24}/>
                 </button>
             )}
         </div>
