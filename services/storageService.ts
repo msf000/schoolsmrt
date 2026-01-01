@@ -89,10 +89,10 @@ export const addStudent = async (student: Student): Promise<void> => {
         id: student.id,
         name: student.name,
         national_id: student.nationalId,
-        class_id: student.classId,
-        grade_level: student.gradeLevel,
-        class_name: student.className,
-        parent_phone: student.parentPhone,
+        class_id: student.class_id,
+        grade_level: student.grade_level,
+        class_name: student.class_name,
+        parent_phone: student.parent_phone,
         created_by_id: student.createdById,
         xp: 0,
         level: 1
@@ -109,12 +109,10 @@ export const updateStudent = async (student: Student): Promise<void> => {
         xp: student.xp,
         level: student.level,
         learning_style: student.learningStyle,
-        // Fix: Use correct camelCase property name student.seatIndex
         seat_index: student.seatIndex,
         aura_color: student.auraColor,
         active_title: student.activeTitle,
         badges: student.badges,
-        // Fix: Use correct camelCase property name student.purchasedRewards
         purchased_rewards: student.purchasedRewards
     }).eq('id', student.id);
     if (error) throw error;
@@ -208,7 +206,6 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
 export const addPerformance = async (records: PerformanceRecord[]): Promise<void> => {
     const dbRecords = records.map(r => ({
         id: r.id || `${r.studentId}_${r.notes || r.title}_${r.date}`,
-        // Fix: Use correct camelCase property name r.studentId
         student_id: r.studentId,
         subject: r.subject,
         title: r.title,
@@ -228,6 +225,7 @@ export const addPerformance = async (records: PerformanceRecord[]): Promise<void
         if (ratio >= 0.9) await adjustStudentXP(r.studentId, 50);
     }
 
+    // Fix: Access correct property name 'createdById' on PerformanceRecord
     await fetchPerformance(records[0]?.createdById);
 };
 
@@ -320,10 +318,10 @@ export const saveAssignment = async (a: Assignment): Promise<void> => {
         category: a.category,
         max_score: a.maxScore,
         is_visible: a.isVisible,
-        sort_order: a.sort_order,
+        sort_order: a.sortOrder,
         class_id: a.classId,
         subject: a.subject,
-        period_tag: a.period_tag,
+        period_tag: a.periodTag,
         link: a.link
     });
     if (error) throw error;
