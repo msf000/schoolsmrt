@@ -11,16 +11,33 @@ import {
     getStudents, getAttendance, fetchPerformance
 } from '../services/storageService';
 import { 
-    School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod, TeacherAssignment 
+    School, SystemUser, Teacher, Subject, AcademicTerm, ReportHeaderConfig, UserTheme, TermPeriod, TeacherAssignment, Student 
 } from '../types';
 import { 
     Building2, Users, Settings, 
-    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Package, Database, DownloadCloud, ShieldCheck
+    Trash2, CheckCircle, Plus, LayoutGrid, CalendarDays, List, ChevronDown, ChevronRight, ChevronLeft, PenTool, Sparkles, FileText, BookOpen, Save, User, Clock, RotateCcw, Package, Database, DownloadCloud, ShieldCheck, FileSpreadsheet, Upload, Download
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import DataImport from './DataImport';
 
-const SchoolManagement: React.FC<{ currentUser?: SystemUser | null }> = ({ currentUser }) => {
+interface SchoolManagementProps {
+    students: Student[];
+    onImportStudents: () => void;
+    onImportPerformance: () => void;
+    onImportAttendance: () => void;
+    currentUser?: SystemUser | null;
+}
+
+const SchoolManagement: React.FC<SchoolManagementProps> = ({ 
+    students, 
+    onImportStudents, 
+    onImportPerformance, 
+    onImportAttendance, 
+    currentUser 
+}) => {
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SUBJECTS' | 'CALENDAR' | 'SETTINGS' | 'BACKUP'>('DASHBOARD');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importType, setImportType] = useState<'STUDENTS' | 'PERFORMANCE' | 'ATTENDANCE'>('STUDENTS');
   
   // Data States
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -70,6 +87,26 @@ const SchoolManagement: React.FC<{ currentUser?: SystemUser | null }> = ({ curre
       } 
   };
 
+  const exportAllData = () => {
+    const data = {
+        students: getStudents(),
+        attendance: getAttendance(),
+        performance: getPerformanceRecords(), // local helper or direct from service
+        settings: reportConfig
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+  };
+
+  const getPerformanceRecords = () => {
+      // Simple helper for backup
+      return JSON.parse(localStorage.getItem('performance') || '[]');
+  };
+
   return (
     <div className="p-4 md:p-6 h-full flex flex-col bg-slate-50 font-tajawal">
         <div className="mb-6 flex overflow-x-auto gap-2 border-b border-slate-200 pb-2 bg-white p-2 rounded-xl shadow-sm no-scrollbar">
@@ -98,9 +135,26 @@ const SchoolManagement: React.FC<{ currentUser?: SystemUser | null }> = ({ curre
                             ))}
                         </div>
                     </div>
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center opacity-50">
-                        <Building2 size={48} className="text-slate-300 mb-2"/>
-                        <p className="text-xs font-bold text-slate-400 uppercase">بيانات المدرسة السحابية</p>
+
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2"><Upload size={18} className="text-emerald-600"/> استيراد بيانات جماعي</h3>
+                        <p className="text-xs text-slate-500 mb-2">يمكنك استيراد قوائم الطلاب أو الدرجات من ملفات Excel مباشرة.</p>
+                        <div className="grid grid-cols-1 gap-2">
+                            <button onClick={() => {setImportType('STUDENTS'); setShowImportModal(true);}} className="flex items-center justify-between p-3 bg-slate-50 border rounded-lg hover:bg-slate-100 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <Users size={16} className="text-blue-600"/>
+                                    <span className="text-xs font-bold">استيراد قائمة الطلاب</span>
+                                </div>
+                                <ChevronLeft size={14} className="text-slate-300"/>
+                            </button>
+                            <button onClick={() => {setImportType('PERFORMANCE'); setShowImportModal(true);}} className="flex items-center justify-between p-3 bg-slate-50 border rounded-lg hover:bg-slate-100 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <FileSpreadsheet size={16} className="text-emerald-600"/>
+                                    <span className="text-xs font-bold">استيراد سجل الدرجات</span>
+                                </div>
+                                <ChevronLeft size={14} className="text-slate-300"/>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -147,7 +201,34 @@ const SchoolManagement: React.FC<{ currentUser?: SystemUser | null }> = ({ curre
                     <button onClick={handleSaveSettings} className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-blue-700">حفظ كافة الإعدادات</button>
                 </div>
             )}
+
+            {activeTab === 'BACKUP' && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                    <div className="bg-white p-10 rounded-[2.5rem] border shadow-sm text-center">
+                        <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Database size={40}/>
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">تصدير النسخة الاحتياطية</h3>
+                        <p className="text-sm text-slate-500 mb-8">قم بتحميل نسخة كاملة من بياناتك (الطلاب، الدرجات، الإعدادات) لاستعادتها في أي وقت أو للاحتفاظ بها خارج النظام.</p>
+                        <button onClick={exportAllData} className="inline-flex items-center gap-2 bg-indigo-600 text-white px-10 py-3 rounded-2xl font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-100">
+                            <Download size={20}/> تصدير بصيغة JSON
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
+
+        {showImportModal && (
+            <DataImport 
+                forcedType={importType}
+                existingStudents={students}
+                onImportStudents={(data) => { onImportStudents(); setShowImportModal(false); }}
+                onImportPerformance={(data) => { onImportPerformance(); setShowImportModal(false); }}
+                onImportAttendance={(data) => { onImportAttendance(); setShowImportModal(false); }}
+                onClose={() => setShowImportModal(false)}
+                currentUser={currentUser}
+            />
+        )}
     </div>
   );
 };
