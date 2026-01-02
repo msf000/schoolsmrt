@@ -34,7 +34,8 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   }, [students, currentUser]);
 
   useEffect(() => {
-      if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+      // Fix: Added fallback empty string to satisfy TypeScript SetStateAction requirement
+      if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
   }, [uniqueClasses, selectedClass]);
 
   const filteredStudents = useMemo(() => {
@@ -146,7 +147,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                                         <td className="px-8 text-center text-slate-300 font-mono text-[11px] border-l border-slate-50">{idx + 1}</td>
                                         <td className="px-8 border-l border-slate-50">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${status === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white' : status === AttendanceStatus.ABSENT ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-white' : status === AttendanceStatus.ABSENT ? 'bg-red-50 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                     {student.name.charAt(0)}
                                                 </div>
                                                 <span className="font-black text-slate-700 text-sm">{student.name}</span>
