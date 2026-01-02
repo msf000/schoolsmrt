@@ -15,8 +15,6 @@ import StudentFollowUp from './components/StudentFollowUp';
 import ClassroomManager from './components/ClassroomManager';
 import ClassroomScreen from './components/ClassroomScreen';
 import ExamsManager from './components/ExamsManager';
-import QuestionBank from './components/QuestionBank';
-import GamesBuilder from './components/GamesBuilder';
 import SharedLibrary from './components/SharedLibrary';
 import BehaviorTracking from './components/BehaviorTracking';
 import LearningLab from './components/LearningLab';
@@ -37,10 +35,8 @@ import TeacherSubscription from './components/TeacherSubscription';
 import CustomTablesView from './components/CustomTablesView';
 import AutoGrading from './components/AutoGrading';
 import NoorExporter from './components/NoorExporter';
-import BehaviorAnalyzer from './components/BehaviorAnalyzer';
-import ClassStrategy from './components/ClassStrategy';
 import MeetingScheduler from './components/MeetingScheduler';
-import SchoolWall from './components/SchoolWall';
+import AdvancedAnalytics from './components/AdvancedAnalytics';
 import { fetchStudents, fetchAttendance, fetchPerformance, getBehaviorIncidents, fetchTeachers, fetchSystemUsers, fetchSchools } from './services/storageService';
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
@@ -62,14 +58,11 @@ const App: React.FC = () => {
 
     const loadInitialData = async () => {
         try {
-            // جلب البيانات من السحابة لضمان التزامن
-            const [stds, att, perf, tchs, usrs, schs] = await Promise.all([
+            const [stds, att, perf, tchs] = await Promise.all([
                 fetchStudents(),
                 fetchAttendance(),
                 fetchPerformance(),
-                fetchTeachers(),
-                fetchSystemUsers(),
-                fetchSchools()
+                fetchTeachers()
             ]);
             setStudents(stds || []);
             setAttendance(att || []);
@@ -97,51 +90,26 @@ const App: React.FC = () => {
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             <Routes>
-                {/* الأساسية */}
                 <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(path) => navigate(path)} />} />
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={loadInitialData} onUpdateStudent={loadInitialData} onDeleteStudent={loadInitialData} onImportStudents={loadInitialData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
-                <Route path="/works" element={<WorksTracking students={students} performance={performance} attendance={attendance} onAddPerformance={loadInitialData} currentUser={currentUser as SystemUser} />} />
+                <Route path="/works" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={loadInitialData} onDeletePerformance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
-                
-                {/* التدريس الذكي */}
                 <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={loadInitialData} onImportAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
                 <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
-                <Route path="/bank" element={<QuestionBank currentUser={currentUser as SystemUser} />} />
-                <Route path="/auto-grade" element={<AutoGrading currentUser={currentUser as SystemUser} />} />
-                <Route path="/games" element={<GamesBuilder currentUser={currentUser as SystemUser} />} />
-                
-                {/* التحليل والذكاء */}
                 <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />
-                <Route path="/reports" element={<ReportsCenter students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
-                <Route path="/behavior-ai" element={<BehaviorAnalyzer students={students} currentUser={currentUser as SystemUser} />} />
-                <Route path="/strategy-ai" element={<ClassStrategy students={students} currentUserId={(currentUser as SystemUser).id} />} />
                 <Route path="/interventions" element={<InterventionLog students={students} incidents={getBehaviorIncidents()} currentUser={currentUser as SystemUser} />} />
                 <Route path="/followup" element={<StudentFollowUp students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-
-                {/* الإدارة والضبط */}
-                <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/school-mgmt" element={<SchoolManagement students={students} onImportStudents={loadInitialData} onImportPerformance={loadInitialData} onImportAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
-                <Route path="/principal" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={teachers} />} />
-                <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/meetings" element={<MeetingScheduler currentUser={currentUser as SystemUser} isTeacherView={true} />} />
-                <Route path="/custom-tables" element={<CustomTablesView currentUser={currentUser as SystemUser} />} />
-                
-                {/* الموارد والتحفيز */}
-                <Route path="/badges" element={<SmartBadges students={students} />} />
-                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
-                <Route path="/library" element={<SharedLibrary currentUser={currentUser as SystemUser} />} />
-                <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
-                <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
-                
-                {/* الحساب */}
                 <Route path="/profile" element={<TeacherProfile currentUser={currentUser as SystemUser} />} />
                 <Route path="/ai-config" element={<TeacherAIConfig currentUser={currentUser as SystemUser} />} />
-                <Route path="/subscription" element={<TeacherSubscription currentUser={currentUser as SystemUser} />} />
                 <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
-
+                <Route path="/meetings" element={<MeetingScheduler currentUser={currentUser as SystemUser} isTeacherView={true} />} />
+                <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
+                <Route path="/analytics-deep" element={<AdvancedAnalytics students={students} attendance={attendance} performance={performance} />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </TeacherPortal>
