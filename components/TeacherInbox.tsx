@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AttendanceRecord, Student, SystemUser, AttendanceStatus, PurchaseRequest } from '../types';
-import { getAttendance, saveAttendance, getStudents, getPurchaseRequests, updatePurchaseStatus, updateStudent } from '../services/storageService';
-import { Inbox, Check, X, Clock, User, Bell, ShoppingCart, Zap, FileText, ChevronLeft, Loader2 } from 'lucide-react';
+import { getAttendance, saveAttendance, getStudents, getPurchaseRequests, updatePurchaseStatus } from '../services/storageService';
+import { Inbox, Check, X, Clock, User, Bell, ShoppingCart, Zap, FileText, ChevronLeft, Loader2, Filter } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
 const TeacherInbox: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => {
@@ -25,84 +25,84 @@ const TeacherInbox: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
     const handleApproveExcuse = (record: AttendanceRecord) => {
         saveAttendance([{ ...record, status: AttendanceStatus.EXCUSED }]);
         setAttendance(getAttendance());
-        alert('تم قبول العذر وتعديل حالة الغياب.');
-    };
-
-    const handleApprovePurchase = async (req: PurchaseRequest) => {
-        await updatePurchaseStatus(req.id, 'APPROVED');
-        setPurchaseRequests(getPurchaseRequests(currentUser.id));
-        alert('تم تفعيل المكافأة للطالب بنجاح.');
+        alert('تم قبول العذر بنجاح.');
     };
 
     return (
-        <div className="p-6 md:p-10 h-full flex flex-col bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+        <div className="space-y-6 page-enter font-tajawal h-full flex flex-col overflow-hidden">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
                 <div>
-                    <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3">
-                        <Inbox className="text-indigo-600" size={32} /> بريد المعلم
-                    </h2>
-                    <p className="text-sm text-gray-400 font-bold uppercase mt-1">طلبات أولياء الأمور والطلاب قيد الانتظار</p>
+                    <h1 className="text-2xl font-bold text-slate-900">مركز الطلبات</h1>
+                    <p className="text-slate-500 text-sm">مراجعة طلبات أولياء الأمور والطلاب قيد الانتظار.</p>
                 </div>
-                <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
-                    <button onClick={() => setTab('EXCUSES')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${tab === 'EXCUSES' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400'}`}>أعذار الغياب ({excuseRequests.length})</button>
-                    <button onClick={() => setTab('PURCHASES')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${tab === 'PURCHASES' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400'}`}>طلبات المتجر ({purchaseRequests.filter(r=>r.status==='PENDING').length})</button>
+                <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                    <button onClick={() => setTab('EXCUSES')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'EXCUSES' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>أعذار طبية ({excuseRequests.length})</button>
+                    <button onClick={() => setTab('PURCHASES')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${tab === 'PURCHASES' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>المتجر ({purchaseRequests.filter(r=>r.status==='PENDING').length})</button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-1">
+            <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-y-auto custom-scrollbar">
                 {tab === 'EXCUSES' ? (
-                    excuseRequests.length > 0 ? excuseRequests.map(req => {
-                        const student = students.find(s => s.id === req.studentId);
-                        return (
-                            <div key={req.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 hover:shadow-xl transition-all flex flex-col md:flex-row gap-8 items-center group">
-                                <div className="flex items-center gap-6 min-w-[250px]">
-                                    <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-2xl shadow-inner group-hover:scale-110 transition-transform">
-                                        {student?.name.charAt(0)}
+                    excuseRequests.length > 0 ? (
+                        <div className="divide-y divide-slate-100">
+                            {excuseRequests.map(req => {
+                                const student = students.find(s => s.id === req.studentId);
+                                return (
+                                    <div key={req.id} className="p-6 flex flex-col md:flex-row gap-6 hover:bg-slate-50 transition-colors">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <h4 className="font-bold text-slate-800">{student?.name}</h4>
+                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">{student?.className}</span>
+                                            </div>
+                                            <p className="text-xs text-slate-600 leading-relaxed italic">"{req.excuseNote}"</p>
+                                            <p className="text-[10px] text-slate-400 font-bold mt-3 flex items-center gap-1"><Clock size={12}/> غياب يوم: {formatDualDate(req.date)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => handleApproveExcuse(req)} className="px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-emerald-100">
+                                                <Check size={14}/> قبول
+                                            </button>
+                                            <button className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                                                <X size={16}/>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <h4 className="font-black text-gray-800 text-lg">{student?.name}</h4>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase">{student?.className} • {formatDualDate(req.date)}</p>
-                                    </div>
-                                </div>
-                                <div className="flex-1 bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                    <p className="text-sm text-gray-600 leading-relaxed italic font-medium">"{req.excuseNote}"</p>
-                                </div>
-                                <div className="flex gap-3">
-                                    <button onClick={() => handleApproveExcuse(req)} className="p-4 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-2xl transition-all shadow-sm"><Check size={28}/></button>
-                                    <button className="p-4 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-2xl transition-all shadow-sm"><X size={28}/></button>
-                                </div>
-                            </div>
-                        );
-                    }) : <EmptyState icon={<FileText/>} label="لا توجد أعذار طبية مرسلة"/>
-                ) : (
-                    purchaseRequests.filter(r=>r.status==='PENDING').length > 0 ? purchaseRequests.filter(r=>r.status==='PENDING').map(req => (
-                        <div key={req.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 hover:shadow-xl transition-all flex flex-col md:flex-row gap-8 items-center group">
-                            <div className="flex items-center gap-6 min-w-[250px]">
-                                <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 font-black text-2xl shadow-inner group-hover:scale-110 transition-transform"><ShoppingCart size={28}/></div>
-                                <div className="text-right">
-                                    <h4 className="font-black text-gray-800 text-lg">{req.studentName}</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase">طلب مكافأة • {formatDualDate(req.date)}</p>
-                                </div>
-                            </div>
-                            <div className="flex-1 flex items-center gap-6 bg-purple-50/30 p-6 rounded-3xl border border-purple-100">
-                                <div>
-                                    <h5 className="font-black text-purple-900 text-xl mb-1">{req.rewardTitle}</h5>
-                                    <div className="flex items-center gap-2 text-xs font-bold text-purple-400"><Zap size={14} fill="currentColor"/> تكلفة الاستبدال: {req.cost} XP</div>
-                                </div>
-                            </div>
-                            <button onClick={() => handleApprovePurchase(req)} className="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-indigo-700 transition-all active:scale-95">تفعيل الآن</button>
+                                );
+                            })}
                         </div>
-                    )) : <EmptyState icon={<ShoppingCart/>} label="لا توجد طلبات مكافآت"/>
+                    ) : (
+                        <EmptyState icon={FileText} label="لا توجد طلبات أعذار حالياً"/>
+                    )
+                ) : (
+                    purchaseRequests.filter(r=>r.status==='PENDING').length > 0 ? (
+                        <div className="divide-y divide-slate-100">
+                            {purchaseRequests.filter(r=>r.status==='PENDING').map(req => (
+                                <div key={req.id} className="p-6 flex flex-col md:flex-row gap-6 hover:bg-slate-50 transition-colors">
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-slate-800 mb-1">{req.studentName}</h4>
+                                        <p className="text-xs font-medium text-slate-500">طلب استبدال: <span className="text-brand-600 font-bold">{req.rewardTitle}</span></p>
+                                        <p className="text-[10px] text-slate-400 font-bold mt-2 flex items-center gap-1"><Zap size={12} fill="currentColor"/> تكلفة التفعيل: {req.cost} XP</p>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <button onClick={async () => { await updatePurchaseStatus(req.id, 'APPROVED'); setPurchaseRequests(getPurchaseRequests(currentUser.id)); }} className="px-6 py-2 bg-brand-500 text-white rounded-xl text-xs font-bold hover:bg-brand-600 shadow-sm transition-all">
+                                            تفعيل المكافأة
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <EmptyState icon={ShoppingCart} label="لا توجد طلبات شراء من المتجر"/>
+                    )
                 )}
             </div>
         </div>
     );
 };
 
-const EmptyState = ({ icon, label }: any) => (
-    <div className="h-full flex flex-col items-center justify-center py-40 text-slate-300 opacity-40 border-4 border-dashed rounded-[4rem]">
-        {React.cloneElement(icon, { size: 100, strokeWidth: 1.5 })}
-        <p className="text-3xl font-black mt-6">{label}</p>
+const EmptyState = ({ icon: Icon, label }: any) => (
+    <div className="py-20 text-center opacity-30">
+        <Icon size={48} className="mx-auto mb-4" />
+        <p className="font-bold">{label}</p>
     </div>
 );
 

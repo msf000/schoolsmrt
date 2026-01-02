@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, BehaviorIncident } from '../types';
 import { getBehaviorIncidents, updateStudent, saveRemedialPlan } from '../services/storageService';
 import { generateStudentAnalysis, generateSmartRemedialPlan } from '../services/geminiService';
-// Added Target to the imported icons from lucide-react
 import { 
     Search, TrendingUp, Loader2, Bot, ArrowRight, Star, Radar as RadarIcon, 
     BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle, FileText, LayoutGrid, Activity, ChevronLeft, ShieldCheck, Target
@@ -25,9 +24,7 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
 
     const [activeTab, setActiveTab] = useState<'SUMMARY' | 'AI' | 'ACADEMIC' | 'BEHAVIOR'>('SUMMARY');
     const [reportContent, setReportContent] = useState('');
-    const [remedialPlan, setRemedialPlan] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [isReportOpen, setIsReportOpen] = useState(false);
 
     const student = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
@@ -63,143 +60,125 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
     };
 
     return (
-        <div className="space-y-8 animate-fade-in font-tajawal pb-16 h-full flex flex-col">
+        <div className="space-y-6 page-enter font-tajawal">
             {isReportOpen && student && <ReportCard student={student} performance={performance} attendance={attendance} onClose={() => setIsReportOpen(false)} />}
             
-            {/* Header Area */}
-            <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col lg:flex-row justify-between items-center gap-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-full bg-slate-900/5 -skew-x-12 translate-x-16"></div>
-                <div className="flex items-center gap-6 relative z-10">
-                    <button onClick={() => navigate('/students')} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-all"><ArrowRight/></button>
-                    <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-xl shadow-slate-200">
-                        <ShieldCheck size={32} />
+            {/* SaaS Profile Header */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 border border-slate-200 font-bold text-xl">
+                        {student ? student.name.charAt(0) : <User/>}
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-800">الملف التربوي الشامل</h2>
-                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Holistic Student Intelligence File</p>
+                        <select 
+                            value={selectedStudentId} 
+                            onChange={e => setSelectedStudentId(e.target.value)}
+                            className="text-lg font-bold text-slate-900 bg-transparent border-none outline-none cursor-pointer hover:text-brand-500"
+                        >
+                            <option value="">اختر طالباً...</option>
+                            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                        <p className="text-xs text-slate-500 font-medium mt-1">{student?.className || 'لم يتم تحديد الفصل'}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4 relative z-10">
-                    <select value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)} className="p-4 border-2 border-slate-100 rounded-2xl font-black text-xs bg-slate-50 outline-none focus:border-blue-500 transition-all min-w-[250px]">
-                        <option value="">-- اختر الطالب للمعاينة --</option>
-                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                    <button onClick={() => setIsReportOpen(true)} className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs flex items-center gap-3 shadow-xl hover:bg-black transition-all">
-                        <Printer size={18}/> تقرير رسمي
+                <div className="flex gap-2">
+                    <button onClick={() => setIsReportOpen(true)} className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 flex items-center gap-2">
+                        <Printer size={16}/> تقرير PDF
+                    </button>
+                    <button onClick={handleAiAnalysis} disabled={isLoading || !student} className="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-bold hover:bg-brand-600 shadow-sm flex items-center gap-2">
+                        {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>} تحليل Gemini
                     </button>
                 </div>
             </div>
 
             {student && stats ? (
-                <div className="flex-1 flex flex-col gap-8 overflow-hidden animate-slide-up">
-                    {/* Key Metrics Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <MetricBox label="مستوى التمكن" value={`${stats.gradeAvg}%`} sub="المعدل التراكمي" color="blue" icon={<Target/>}/>
-                        <MetricBox label="معدل الحضور" value={`${stats.attRate}%`} sub="نسبة الانضباط" color="emerald" icon={<ShieldCheck/>}/>
-                        <MetricBox label="رصيد التفاعل" value={student.xp || 0} sub="XP النشط" color="amber" icon={<Zap/>}/>
-                        <MetricBox label="مستوى السلوك" value={student.behaviorPoints || 0} sub="النقاط السلوكية" color="rose" icon={<Heart/>}/>
-                    </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Metrics column */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <SmallMetric label="التمكن" value={`${stats.gradeAvg}%`} color="blue" />
+                            <SmallMetric label="الحضور" value={`${stats.attRate}%`} color="emerald" />
+                            <SmallMetric label="النقاط" value={student.xp || 0} color="amber" />
+                            <SmallMetric label="السلوك" value={student.behaviorPoints || 0} color="rose" />
+                        </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-hidden">
-                        {/* Left Column: Visual Analytics */}
-                        <div className="lg:col-span-2 space-y-8 overflow-y-auto custom-scrollbar pr-2">
-                            <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm h-[400px] flex flex-col">
-                                <h3 className="text-xl font-black text-slate-800 mb-10 flex items-center gap-3"><LineIcon className="text-blue-600"/> منحنى التقدم الأكاديمي</h3>
-                                <div className="flex-1">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={stats.trendData}>
-                                            <defs>
-                                                <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                            <XAxis dataKey="date" hide />
-                                            <YAxis hide domain={[0, 100]} />
-                                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                                            <Area type="monotone" dataKey="val" stroke="#2563eb" fillOpacity={1} fill="url(#colorTrend)" strokeWidth={4} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm flex flex-col items-center">
-                                    <h3 className="text-lg font-black text-slate-800 mb-8 w-full border-b pb-4">رادار الكفايات</h3>
-                                    <div className="h-64 w-full">
-                                        <ResponsiveContainer>
-                                            <RadarChart data={stats.radarData}>
-                                                <PolarGrid stroke="#f1f5f9" />
-                                                <PolarAngleAxis dataKey="subject" tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} />
-                                                <Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.1} strokeWidth={3} />
-                                                <Tooltip />
-                                            </RadarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-900 rounded-[3.5rem] p-10 text-white flex flex-col justify-center relative overflow-hidden shadow-2xl">
-                                    <div className="absolute top-0 right-0 p-8 opacity-5 rotate-12"><Bot size={200}/></div>
-                                    <div className="relative z-10 space-y-6">
-                                        <div className="bg-white/10 w-fit p-3 rounded-2xl border border-white/10 flex items-center gap-2">
-                                            <Sparkles size={18} className="text-yellow-400"/>
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">AI Diagnosis</span>
-                                        </div>
-                                        <h4 className="text-2xl font-black">التحليل التربوي المعمق</h4>
-                                        <p className="text-indigo-100 text-sm leading-relaxed font-medium">استخدم قوة Gemini لتحليل كافة بيانات الطالب واستنتاج خطة دعم شخصية.</p>
-                                        <button onClick={handleAiAnalysis} disabled={isLoading} className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black text-xs hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
-                                            {isLoading ? <Loader2 className="animate-spin" size={16}/> : <BrainCircuit size={16}/>}
-                                            {isLoading ? 'جاري التشخيص...' : 'توليد التحليل الآن'}
-                                        </button>
-                                    </div>
-                                </div>
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-[350px]">
+                            <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                <TrendingUp size={16} className="text-brand-500"/> منحنى التقدم الأكاديمي
+                            </h3>
+                            <div className="h-[250px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={stats.trendData}>
+                                        <defs>
+                                            <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                                                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="date" hide />
+                                        <YAxis hide domain={[0, 100]} />
+                                        <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)'}} />
+                                        <Area type="monotone" dataKey="val" stroke="#4f46e5" fillOpacity={1} fill="url(#colorTrend)" strokeWidth={3} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
 
-                        {/* Right Column: Records & AI Results */}
-                        <div className="space-y-8 overflow-y-auto custom-scrollbar">
-                            <div className="bg-white p-8 rounded-[3rem] border shadow-sm">
-                                <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Activity className="text-blue-600" size={18}/> آخر الملاحظات السلوكية</h3>
-                                <div className="space-y-3">
-                                    {incidents.slice(0, 5).map(i => (
-                                        <div key={i.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center group hover:bg-white hover:border-blue-200 transition-all">
-                                            <div>
-                                                <p className="font-black text-slate-700 text-xs">{i.category}</p>
-                                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{formatDualDate(i.date)}</p>
-                                            </div>
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${i.points > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                {i.points > 0 ? `+${i.points}` : i.points}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {incidents.length === 0 && <p className="text-center py-10 text-slate-300 italic text-sm">السجل السلوكي نظيف.</p>}
+                        {reportContent && (
+                            <div className="bg-brand-50/50 p-6 rounded-2xl border border-brand-100">
+                                <h3 className="text-sm font-bold text-brand-700 mb-4 flex items-center gap-2"><Bot size={18}/> تقرير الذكاء الاصطناعي</h3>
+                                <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
+                                    <ReactMarkdown>{reportContent}</ReactMarkdown>
                                 </div>
                             </div>
+                        )}
+                    </div>
 
-                            {reportContent && (
-                                <div className="bg-indigo-50 border-2 border-indigo-200 p-8 rounded-[3rem] shadow-xl animate-slide-up">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="font-black text-indigo-900 flex items-center gap-2"><Sparkles size={18}/> توصيات Gemini AI</h3>
-                                        <button onClick={() => window.print()} className="p-2 bg-white rounded-xl text-indigo-600 shadow-sm"><Printer size={16}/></button>
+                    {/* Behavior and Details column */}
+                    <div className="space-y-6">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2"><Star size={16} className="text-brand-500"/> آخر الملاحظات السلوكية</h3>
+                            <div className="space-y-3">
+                                {incidents.slice(0, 4).map(i => (
+                                    <div key={i.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-700">{i.category}</p>
+                                            <p className="text-[10px] text-slate-400 mt-0.5">{formatDualDate(i.date)}</p>
+                                        </div>
+                                        <span className={`text-xs font-bold ${i.points > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {i.points > 0 ? `+${i.points}` : i.points}
+                                        </span>
                                     </div>
-                                    <div className="prose prose-sm prose-indigo max-w-none text-indigo-800 font-medium leading-relaxed">
-                                        <ReactMarkdown>{reportContent}</ReactMarkdown>
-                                    </div>
+                                ))}
+                                {incidents.length === 0 && <p className="text-center py-6 text-slate-400 text-xs italic">لا توجد ملاحظات مسجلة.</p>}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden">
+                             <div className="relative z-10">
+                                <h4 className="font-bold text-indigo-400 text-xs uppercase tracking-widest mb-2">رتبة الطالب</h4>
+                                <h3 className="text-xl font-black mb-4">بطل صاعد (Lv {student.level || 1})</h3>
+                                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
+                                    <div className="h-full bg-indigo-500" style={{width: '65%'}}></div>
                                 </div>
-                            )}
+                                <p className="text-[10px] text-slate-400 font-bold">متبقي 120 نقطة للوصول للمستوى القادم</p>
+                             </div>
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col items-center justify-center py-40 opacity-20">
-                    <User size={150} strokeWidth={1} />
-                    <p className="text-4xl font-black mt-8">يرجى اختيار طالب لعرض ملفه التربوي</p>
+                <div className="py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
+                    <User size={48} className="mx-auto mb-4 opacity-20"/>
+                    <p className="font-bold">يرجى اختيار طالب لعرض البيانات</p>
                 </div>
             )}
         </div>
     );
 };
 
-const MetricBox = ({ label, value, sub, color, icon }: any) => {
+const SmallMetric = ({ label, value, color }: any) => {
     const colors: any = {
         blue: 'text-blue-600 bg-blue-50 border-blue-100',
         emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100',
@@ -207,27 +186,11 @@ const MetricBox = ({ label, value, sub, color, icon }: any) => {
         rose: 'text-rose-600 bg-rose-50 border-rose-100'
     };
     return (
-        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm group hover:scale-[1.02] transition-transform">
-            <div className="flex justify-between items-start mb-6">
-                <div className={`p-4 rounded-2xl ${colors[color]} group-hover:scale-110 transition-transform shadow-inner`}>
-                    {React.cloneElement(icon, { size: 24 })}
-                </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                    <h3 className="text-3xl font-black text-slate-800">{value}</h3>
-                </div>
-            </div>
-            <div className="pt-4 border-t border-slate-50 flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> {sub}
-            </div>
+        <div className={`p-4 rounded-xl border ${colors[color]} text-center`}>
+            <p className="text-[10px] font-bold opacity-60 uppercase mb-1">{label}</p>
+            <p className="text-lg font-black">{value}</p>
         </div>
     );
-};
-
-const TabBtn = ({ label, active, onClick, icon: Icon }: any) => (
-    <button onClick={onClick} className={`flex-1 py-3 px-6 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
-        <Icon size={16}/> {label}
-    </button>
-);
+}
 
 export default StudentFollowUp;
