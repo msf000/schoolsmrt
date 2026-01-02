@@ -90,7 +90,7 @@ const App: React.FC = () => {
     const teacherRoutes = (
         <TeacherPortal currentUser={currentUser as SystemUser} onLogout={handleLogout}>
             <Routes>
-                <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} onNavigate={(path) => navigate(path)} />} />
+                <Route path="/" element={<Dashboard students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={loadInitialData} onUpdateStudent={loadInitialData} onDeleteStudent={loadInitialData} onImportStudents={loadInitialData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/works" element={<Performance students={students} performance={performance} attendance={attendance} onAddPerformance={loadInitialData} onDeletePerformance={loadInitialData} currentUser={currentUser as SystemUser} />} />
