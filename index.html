@@ -5,14 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#4f46e5" />
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="المنظومة الأكاديمية الذكية - تجربة تعليمية عالمية" />
+    <title>المنظومة التعليمية الذكية</title>
     
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <title>المتابع الذكي الرفيع | Smart School System</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -22,56 +17,55 @@
           extend: {
             fontFamily: { sans: ['Tajawal', 'sans-serif'] },
             colors: {
-              primary: '#4f46e5',
-              secondary: '#6366f1',
-              accent: '#f59e0b',
+              brand: {
+                50: '#f5f7ff',
+                100: '#ebf0fe',
+                500: '#4f46e5',
+                600: '#4338ca',
+                700: '#3730a3',
+              },
               surface: '#ffffff',
               background: '#f8fafc',
             },
             borderRadius: {
-              '3xl': '1.5rem',
-              '4xl': '2rem',
-              '5xl': '3rem',
-            },
-            animation: {
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'float': 'float 3s ease-in-out infinite',
-            },
-            keyframes: {
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-10px)' },
-              }
+              'xl': '1rem',
+              '2xl': '1.5rem',
+              '3xl': '2rem',
             }
           }
         }
       }
     </script>
     <style>
-        :root {
-          --safe-area-inset-top: env(safe-area-inset-top);
-          --safe-area-inset-bottom: env(safe-area-inset-bottom);
-        }
-        html, body { height: 100%; background-color: #f8fafc; font-family: 'Tajawal', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        body { background-color: #f8fafc; font-family: 'Tajawal', sans-serif; color: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         
-        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
-        .active-nav-shadow { box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2); }
-        .text-gradient { background: linear-gradient(to left, #4f46e5, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        
-        /* استجابة الجداول المتقدمة */
-        @media (max-width: 768px) {
-          .mobile-stack { display: flex; flex-direction: column; }
-          .hide-on-mobile { display: none; }
-          .full-width-on-mobile { width: 100% !important; }
+        .sidebar-item-active {
+          background-color: #4f46e5;
+          color: white;
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
         }
         
-        /* تأثيرات التحميل السريع */
-        .page-transition { animation: slideIn 0.4s ease-out; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .glass-header {
+          background: rgba(255, 255, 255, 0.8);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid #f1f5f9;
+        }
+
+        .card-subtle {
+          background: white;
+          border: 1px solid #f1f5f9;
+          transition: all 0.2s ease;
+        }
+        .card-subtle:hover {
+          border-color: #e2e8f0;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+
+        .page-enter { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
   <script type="importmap">
 {
@@ -93,7 +87,7 @@
 }
 </script>
 </head>
-  <body className="antialiased">
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

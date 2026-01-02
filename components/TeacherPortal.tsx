@@ -6,11 +6,8 @@ import {
     LayoutGrid, Users, CheckSquare, BarChart3, Calendar, 
     Monitor, PenTool, FileQuestion, Database, Gamepad2, 
     Activity, Shield, Settings, LogOut, Bell, Menu, X, ChevronLeft, ChevronRight,
-    Inbox, User, Table, ShieldAlert, Globe, Award, Search, Command, Sparkles, 
-    Moon, Sun, Mic, Camera, Wand2, Plus, MessageSquare, Heart
+    Inbox, User, Table, ShieldAlert, Globe, Award, Search, Plus, Mic, Camera
 } from 'lucide-react';
-import OmniSearch from './OmniSearch';
-import VoiceObservation from './VoiceObservation';
 
 interface Props {
     currentUser: SystemUser;
@@ -21,160 +18,110 @@ interface Props {
 const TeacherPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isOmniSearchOpen, setIsOmniSearchOpen] = useState(false);
-    const [isVoiceOpen, setIsVoiceOpen] = useState(false);
-    const [isFabOpen, setIsFabOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-    useEffect(() => {
-        const handleResize = () => {
-            if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            else setIsSidebarOpen(true);
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    const NavItem = ({ path, label, icon: Icon, isActive }: any) => (
-        <button 
-            onClick={() => {
-                navigate(path);
-                if (window.innerWidth < 1024) setIsMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 text-sm font-black ${
-                isActive 
-                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-200 translate-x-[-4px]' 
-                : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
-            }`}
-        >
-            <Icon size={20} strokeWidth={isActive ? 3 : 2} className={isActive ? 'animate-pulse' : ''} />
-            {(isSidebarOpen || isMobileMenuOpen) && <span>{label}</span>}
-        </button>
-    );
+    const NavItem = ({ path, label, icon: Icon }: any) => {
+        const isActive = location.pathname === path;
+        return (
+            <button 
+                onClick={() => navigate(path)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium mb-1 ${
+                    isActive 
+                    ? 'sidebar-item-active' 
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+            >
+                <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                {isSidebarOpen && <span>{label}</span>}
+            </button>
+        );
+    };
 
     return (
-        <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-tajawal text-slate-800" dir="rtl">
-            <OmniSearch isOpen={isOmniSearchOpen} onClose={() => setIsOmniSearchOpen(false)} students={[]} />
-            {isVoiceOpen && <VoiceObservation students={[]} teacherId={currentUser.id} onClose={() => setIsVoiceOpen(false)} />}
-
-            {/* Sidebar Desktop */}
-            <aside className={`hidden lg:flex flex-col transition-all duration-500 ease-in-out bg-white border-l border-slate-100 shadow-sm ${isSidebarOpen ? 'w-80' : 'w-24'}`}>
-                <div className="h-24 flex items-center px-8 border-b border-slate-50 shrink-0">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-indigo-100 transform rotate-3 hover:rotate-0 transition-transform">
-                        <Shield size={28} />
+        <div className="flex h-screen bg-[#f8fafc] font-tajawal text-slate-800" dir="rtl">
+            {/* Minimalist Sidebar */}
+            <aside className={`flex flex-col border-l border-slate-200 bg-white transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+                <div className="h-16 flex items-center px-6 border-b border-slate-50">
+                    <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center text-white shrink-0">
+                        <Shield size={20} />
                     </div>
                     {isSidebarOpen && (
-                        <div className="mr-4 overflow-hidden animate-fade-in">
-                            <span className="font-black text-slate-900 text-xl block whitespace-nowrap tracking-tight">المتابع الذكي</span>
-                            <span className="text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em] block">Unified Cloud</span>
+                        <div className="mr-3 overflow-hidden">
+                            <span className="font-bold text-slate-900 text-lg block truncate">المتابع الذكي</span>
                         </div>
                     )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-1">
-                    <div className="mb-6">
-                        {isSidebarOpen && <span className="px-4 text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-4">الرئيسية</span>}
-                        <NavItem path="/" label="لوحة القيادة" icon={LayoutGrid} isActive={location.pathname === '/'} />
-                        <NavItem path="/students" label="سجل الطلاب" icon={Users} isActive={location.pathname === '/students'} />
-                        <NavItem path="/attendance" label="التحضير اليومي" icon={CheckSquare} isActive={location.pathname === '/attendance'} />
-                        <NavItem path="/works" label="سجل الدرجات" icon={BarChart3} isActive={location.pathname === '/works'} />
-                    </div>
-                    
-                    <div className="mb-6">
-                        {isSidebarOpen && <span className="px-4 text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-4">أدوات ذكية</span>}
-                        <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} isActive={location.pathname === '/classroom'} />
-                        <NavItem path="/planning" label="تحضير الدروس" icon={PenTool} isActive={location.pathname === '/planning'} />
-                        <NavItem path="/lab" label="مختبر VARK" icon={Wand2} isActive={location.pathname === '/lab'} />
-                        <NavItem path="/behavior" label="متابعة السلوك" icon={Heart} isActive={location.pathname === '/behavior'} />
-                    </div>
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    <div className="space-y-6">
+                        <div>
+                            {isSidebarOpen && <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">عام</p>}
+                            <NavItem path="/" label="لوحة التحكم" icon={LayoutGrid} />
+                            <NavItem path="/students" label="الطلاب" icon={Users} />
+                            <NavItem path="/attendance" label="التحضير" icon={CheckSquare} />
+                            <NavItem path="/works" label="الدرجات" icon={BarChart3} />
+                        </div>
+                        
+                        <div>
+                            {isSidebarOpen && <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">الأدوات</p>}
+                            <NavItem path="/classroom" label="إدارة الفصل" icon={Monitor} />
+                            <NavItem path="/planning" label="التحضير الذكي" icon={PenTool} />
+                            <NavItem path="/behavior" label="السلوك" icon={ShieldAlert} />
+                            <NavItem path="/lab" label="المختبر" icon={Activity} />
+                        </div>
 
-                    <div className="mb-6">
-                        {isSidebarOpen && <span className="px-4 text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-4">تقارير ورسميات</span>}
-                        <NavItem path="/reports" label="مركز التقارير" icon={Table} isActive={location.pathname === '/reports'} />
-                        <NavItem path="/certificates" label="الأوسمة والشهادات" icon={Award} isActive={location.pathname === '/certificates'} />
-                        <NavItem path="/interventions" label="التدخل التربوي" icon={ShieldAlert} isActive={location.pathname === '/interventions'} />
+                        <div>
+                            {isSidebarOpen && <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">النظام</p>}
+                            <NavItem path="/reports" label="التقارير" icon={Table} />
+                            <NavItem path="/school-mgmt" label="الإعدادات" icon={Settings} />
+                        </div>
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-slate-50 space-y-2">
-                    <NavItem path="/profile" label="حسابي" icon={User} isActive={location.pathname === '/profile'} />
-                    <button onClick={onLogout} className="w-full flex items-center gap-4 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all text-sm font-black">
-                        <LogOut size={20} />
-                        {isSidebarOpen && <span>خروج آمن</span>}
+                <div className="p-4 border-t border-slate-50">
+                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all text-sm font-bold">
+                        <LogOut size={18} />
+                        {isSidebarOpen && <span>تسجيل الخروج</span>}
                     </button>
                 </div>
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 relative">
-                <header className="h-20 lg:h-24 bg-white/80 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-4 lg:px-10 shrink-0 z-40">
-                    <div className="flex items-center gap-4 lg:gap-8">
-                        <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-3 text-slate-600 bg-slate-100 rounded-2xl"><Menu size={22}/></button>
-                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden lg:flex p-3 text-slate-400 hover:bg-slate-100 hover:text-indigo-600 rounded-2xl transition-all">
-                            {isSidebarOpen ? <ChevronRight size={22}/> : <Menu size={22}/>}
+            <div className="flex-1 flex flex-col min-w-0">
+                <header className="h-16 glass-header flex items-center justify-between px-8 z-40">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                            <Menu size={20}/>
                         </button>
-                        <button onClick={() => setIsOmniSearchOpen(true)} className="flex items-center gap-4 px-6 py-3 bg-slate-100/50 hover:bg-slate-100 rounded-[1.5rem] text-slate-400 transition-all border border-transparent hover:border-slate-200 hidden md:flex">
-                            <Search size={18}/><span className="text-xs font-black">بحث سريع (Ctrl + K)</span>
-                        </button>
+                        <div className="h-4 w-px bg-slate-200"></div>
+                        <h2 className="text-sm font-bold text-slate-600">لوحة إدارة المعلم</h2>
                     </div>
                     
-                    <div className="flex items-center gap-2 lg:gap-6">
-                        <div className="flex gap-1">
-                            <button onClick={() => navigate('/inbox')} className="p-3 text-slate-400 hover:bg-slate-50 hover:text-indigo-600 rounded-2xl transition-all relative">
-                                <Inbox size={22} />
-                                <span className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-                            </button>
-                            <button onClick={() => navigate('/meetings')} className="p-3 text-slate-400 hover:bg-slate-50 hover:text-indigo-600 rounded-2xl transition-all">
-                                <Calendar size={22} />
-                            </button>
-                        </div>
-                        <div className="w-px h-8 bg-slate-100 mx-1 lg:mx-2"></div>
-                        <div className="flex items-center gap-3 cursor-pointer p-1.5 rounded-2xl group" onClick={() => navigate('/profile')}>
+                    <div className="flex items-center gap-4">
+                        <button className="p-2 text-slate-400 hover:text-brand-500 relative">
+                            <Bell size={20} />
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        <div className="flex items-center gap-3 cursor-pointer group px-2 py-1 rounded-lg hover:bg-slate-50" onClick={() => navigate('/profile')}>
                             <div className="text-left hidden sm:block">
-                                <p className="text-xs font-black text-slate-900 leading-none">{currentUser.name}</p>
+                                <p className="text-xs font-bold text-slate-900 leading-none">{currentUser.name}</p>
+                                <p className="text-[10px] text-slate-400 mt-1">معلم مادة</p>
                             </div>
-                            <div className="w-10 lg:w-12 h-10 lg:h-12 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-white shadow-xl">
+                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center font-bold text-slate-600 border border-slate-200">
                                 {currentUser.name.charAt(0)}
                             </div>
                         </div>
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-10 bg-[#f8fafc]">
-                    <div className="max-w-7xl mx-auto h-full page-transition">
+                <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    <div className="max-w-6xl mx-auto page-enter">
                         {children}
                     </div>
                 </main>
-
-                {/* Magic Floating Action Button (FAB) */}
-                <div className="fixed bottom-8 left-8 z-[100] flex flex-col items-center gap-4">
-                    {isFabOpen && (
-                        <div className="flex flex-col gap-4 mb-4 animate-slide-up">
-                            <FabAction icon={Mic} label="رصد صوتي" color="bg-purple-600" onClick={() => { setIsVoiceOpen(true); setIsFabOpen(false); }} />
-                            <FabAction icon={Camera} label="رصد بصري" color="bg-indigo-600" onClick={() => { navigate('/attendance'); setIsFabOpen(false); }} />
-                            <FabAction icon={MessageSquare} label="رسالة أسر" color="bg-emerald-600" onClick={() => { navigate('/inbox'); setIsFabOpen(false); }} />
-                        </div>
-                    )}
-                    <button 
-                        onClick={() => setIsFabOpen(!isFabOpen)}
-                        className={`w-16 h-16 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-500 ${isFabOpen ? 'bg-rose-500 rotate-45' : 'bg-slate-900 hover:bg-indigo-600'}`}
-                    >
-                        {isFabOpen ? <X size={28}/> : <Plus size={28}/>}
-                    </button>
-                </div>
             </div>
         </div>
     );
 };
-
-const FabAction = ({ icon: Icon, label, color, onClick }: any) => (
-    <div className="flex items-center gap-4 group cursor-pointer" onClick={onClick}>
-        <span className="bg-white px-3 py-1.5 rounded-xl shadow-lg text-[10px] font-black text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{label}</span>
-        <div className={`w-14 h-14 ${color} rounded-2xl flex items-center justify-center text-white shadow-xl hover:scale-110 transition-transform`}>
-            <Icon size={24}/>
-        </div>
-    </div>
-);
 
 export default TeacherPortal;
