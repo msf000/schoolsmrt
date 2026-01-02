@@ -48,23 +48,24 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ students, atten
 
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal overflow-hidden">
-            <div className="mb-8 flex justify-between items-center">
+            <div className="mb-8 flex justify-between items-center shrink-0">
                 <div>
                     <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3">
                         <Shield className="text-indigo-600" size={36}/> مركز قيادة المنشأة
                     </h2>
-                    <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">نظام الرقابة الذكي (School Health Monitor)</p>
+                    <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">نظام الرقابة الذكي (School Health Monitor)</p>
                 </div>
                 <button 
                     onClick={handleRunAudit}
                     disabled={loading}
                     className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-sm shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
                 >
-                    {loading ? <Bot className="animate-bounce"/> : <Sparkles/>} تدقيق ذكي للمدرسة (AI Audit)
+                    {loading ? <Bot className="animate-bounce" size={18}/> : <Sparkles size={18}/>} 
+                    {loading ? 'جاري التدقيق...' : 'تدقيق ذكي للمدرسة (AI Audit)'}
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pb-20">
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pb-20 pr-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <PrincipalStatCard label="إجمالي الطلاب" value={stats.totalStudents} sub="طلاب نشطون" icon={<Users/>} color="text-indigo-600" bg="bg-indigo-50"/>
                     <PrincipalStatCard label="الكادر التعليمي" value={stats.totalTeachers} sub="معلمين معتمدين" icon={<Briefcase/>} color="text-emerald-600" bg="bg-emerald-50"/>
@@ -105,11 +106,11 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ students, atten
                         <div className="relative z-10">
                             <div className="bg-white/10 w-fit p-3 rounded-2xl mb-6 backdrop-blur-md border border-white/10 flex items-center gap-2">
                                 <Bot className="text-indigo-400" size={24}/>
-                                <span className="text-[10px] font-black uppercase tracking-widest">توصية المدير الذكية</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">توصية المدير الذكية</span>
                             </div>
                             {aiSummary ? (
                                 <div className="space-y-6 animate-slide-up">
-                                    <p className="text-xl font-medium leading-relaxed italic">"{aiSummary}"</p>
+                                    <p className="text-xl font-medium leading-relaxed italic text-indigo-50">"{aiSummary}"</p>
                                     <div className="pt-6 border-t border-white/10 space-y-4">
                                         <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest">الأولويات المقترحة:</h4>
                                         <div className="space-y-2">
@@ -145,7 +146,9 @@ const PrincipalStatCard = ({ label, value, sub, icon, color, bg }: any) => (
             <h3 className={`text-3xl font-black ${color}`}>{value}</h3>
             <p className="text-[10px] font-bold text-slate-400 mt-1">{sub}</p>
         </div>
-        <div className={`p-4 ${bg} ${color} rounded-2xl group-hover:scale-110 transition-transform`}>{icon}</div>
+        <div className={`p-4 ${bg} ${color} rounded-2xl group-hover:scale-110 transition-transform shadow-inner`}>
+            {React.cloneElement(icon, { size: 28 })}
+        </div>
     </div>
 );
 

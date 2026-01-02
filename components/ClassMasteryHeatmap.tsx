@@ -13,7 +13,7 @@ interface Props {
 const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignments, selectedClass }) => {
     
     const classStudents = useMemo(() => 
-        students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name)),
+        students.filter(s => s.className === selectedClass).sort((a,b) => a.name.localeCompare(b.name, 'ar')),
     [students, selectedClass]);
 
     const visibleAssignments = useMemo(() => 
@@ -23,7 +23,7 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
     const getHeatColor = (score: number, max: number) => {
         const ratio = score / max;
         if (ratio >= 0.9) return 'bg-emerald-500 text-white';
-        if (ratio >= 0.75) return 'bg-emerald-200 text-emerald-900';
+        if (ratio >= 0.75) return 'bg-emerald-100 text-emerald-800';
         if (ratio >= 0.6) return 'bg-amber-100 text-amber-900';
         if (ratio >= 0.4) return 'bg-orange-100 text-orange-900';
         return 'bg-red-500 text-white';
@@ -39,25 +39,25 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
     }, [visibleAssignments, performance, classStudents]);
 
     return (
-        <div className="p-8 h-full flex flex-col animate-fade-in font-tajawal">
-            <div className="flex justify-between items-center mb-10">
+        <div className="p-8 h-full flex flex-col animate-fade-in font-tajawal overflow-hidden">
+            <div className="flex justify-between items-center mb-10 shrink-0">
                 <div>
                     <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                        <Target className="text-indigo-600"/> خريطة إتقان نواتج التعلم
+                        <Target size={28} className="text-indigo-600"/> خريطة إتقان نواتج التعلم
                     </h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Mastery Heatmap Analysis</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Unified Mastery Analytics Grid</p>
                 </div>
                 <div className="flex gap-4">
-                    <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100"><Sparkles size={14}/> تحديث مباشر</div>
+                    <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100"><Sparkles size={14}/> تحليل فوري للمهارات</div>
                 </div>
             </div>
 
-            <div className="flex-1 bg-white rounded-[3.5rem] border shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex-1 bg-white rounded-[4rem] border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
                 <div className="overflow-auto flex-1 custom-scrollbar">
                     <table className="w-full text-center border-collapse min-w-[800px]">
                         <thead className="bg-[#F8FAFC] border-b text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-30 shadow-sm">
                             <tr>
-                                <th className="p-6 text-right sticky right-0 bg-[#F8FAFC] z-40 border-l w-64 text-slate-800">الاسم / المهارة</th>
+                                <th className="p-6 text-right sticky right-0 bg-[#F8FAFC] z-40 border-l w-64 text-slate-800">اسم الطالب الكامل</th>
                                 {visibleAssignments.map(a => (
                                     <th key={a.id} className="p-4 border-l min-w-[120px] max-w-[150px]">
                                         <div className="truncate" title={a.title}>{a.title}</div>
@@ -68,7 +68,7 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
                         <tbody className="divide-y divide-slate-50">
                             {classStudents.map((student) => (
                                 <tr key={student.id} className="hover:bg-indigo-50/10 transition-colors">
-                                    <td className="p-4 text-right sticky right-0 bg-white z-20 border-l font-black text-slate-700 text-sm">
+                                    <td className="p-4 text-right sticky right-0 bg-white z-20 border-l font-black text-slate-700 text-sm shadow-sm">
                                         {student.name}
                                     </td>
                                     {visibleAssignments.map(a => {
@@ -80,7 +80,7 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
                                                         {Math.round((rec.score / rec.maxScore) * 100)}%
                                                     </div>
                                                 ) : (
-                                                    <div className="h-12 w-full rounded-2xl bg-slate-50/50 border border-dashed border-slate-100 flex items-center justify-center text-slate-200 text-xs font-bold">---</div>
+                                                    <div className="h-12 w-full rounded-2xl bg-slate-50/50 border border-dashed border-slate-100 flex items-center justify-center text-slate-200 text-[10px] font-bold uppercase">Pending</div>
                                                 )}
                                             </td>
                                         );
@@ -90,7 +90,7 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
                         </tbody>
                         <tfoot className="bg-slate-900 text-white font-black text-xs sticky bottom-0 z-30">
                             <tr>
-                                <td className="p-6 text-right sticky right-0 bg-slate-900 border-l">متوسط الفصل التراكمي</td>
+                                <td className="p-6 text-right sticky right-0 bg-slate-900 border-l uppercase tracking-widest">إجمالي متوسط الفصل</td>
                                 {classSkillAverages.map(skill => (
                                     <td key={skill.id} className={`p-6 border-l ${skill.avg >= 85 ? 'text-emerald-400' : skill.avg < 60 ? 'text-rose-400' : 'text-indigo-300'}`}>
                                         {skill.avg}%
@@ -102,7 +102,7 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
                 </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0 pb-4">
                 <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 flex gap-4">
                     <div className="p-3 bg-white rounded-2xl text-indigo-600 shadow-sm"><TrendingUp size={20}/></div>
                     <div>
@@ -114,7 +114,7 @@ const ClassMasteryHeatmap: React.FC<Props> = ({ students, performance, assignmen
                     <div className="p-3 bg-white rounded-2xl text-rose-600 shadow-sm"><AlertCircle size={20}/></div>
                     <div>
                         <h4 className="font-black text-rose-900 text-sm mb-1">فجوات التعلم الحرجة</h4>
-                        <p className="text-xs text-rose-700 font-bold">{classSkillAverages.sort((a,b)=>a.avg-b.avg).find(s=>s.count>0)?.title || 'لا يوجد فجوات حالياً'}</p>
+                        <p className="text-xs text-rose-700 font-bold truncate max-w-[200px]">{classSkillAverages.sort((a,b)=>a.avg-b.avg).find(s=>s.count>0)?.title || 'لا توجد فجوات'}</p>
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border shadow-sm flex items-center justify-center">
