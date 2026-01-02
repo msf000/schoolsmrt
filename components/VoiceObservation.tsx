@@ -102,7 +102,7 @@ const VoiceObservation: React.FC<Props> = ({ students, teacherId, onClose }) => 
                 <div className="p-8 flex flex-col items-center gap-8">
                     {!aiAnalysis ? (
                         <div className="text-center space-y-6">
-                            <div className={`w-32 h-32 rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl ${isRecording ? 'bg-red-500 scale-110' : 'bg-slate-100 text-slate-300'}`}>
+                            <div className={`w-32 h-32 rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl ${isRecording ? 'bg-red-50 scale-110' : 'bg-slate-100 text-slate-300'}`}>
                                 {isRecording ? (
                                     <div className="relative">
                                         <div className="absolute inset-0 rounded-full animate-ping bg-red-400/50"></div>
