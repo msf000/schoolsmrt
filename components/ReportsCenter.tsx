@@ -24,7 +24,8 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
     
     useEffect(() => {
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+        // Fix: Explicitly fallback to empty string to satisfy TS SetStateAction<string>
+        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0] || '');
     }, [uniqueClasses, selectedClass]);
 
     const stats = useMemo(() => {
@@ -115,7 +116,7 @@ const ReportsCenter: React.FC<{ students: Student[], attendance: AttendanceRecor
                                         "يظهر تحليل البيانات استقراراً في معدلات الحضور بنسبة 92%، مع تحسن ملحوظ في نواتج تعلم مادة لغتي لدى طلاب الصف الثاني. نوصي بتفعيل خطة دعم فردية للطلاب الثلاثة الأقل أداءً في التقييم الأخير."
                                     </p>
                                     <div className="pt-6 border-t border-white/10 flex gap-4">
-                                        <button className="flex-1 py-3 bg-white text-slate-900 rounded-xl font-black text-xs hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                                        <button onClick={() => window.print()} className="flex-1 py-3 bg-white text-slate-900 rounded-xl font-black text-xs hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
                                             <Printer size={16}/> طباعة التقرير الشامل
                                         </button>
                                         <button className="p-3 bg-white/10 rounded-xl border border-white/10 text-white hover:bg-white/20 transition-all">

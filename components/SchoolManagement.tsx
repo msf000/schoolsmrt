@@ -139,12 +139,12 @@ const SchoolManagement: React.FC<{ students: Student[], onImportStudents: () => 
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <ConfigInput label="إدارة التعليم" value={reportConfig.educationAdmin} onChange={v=>setReportConfig({...reportConfig, educationAdmin:v})} />
-                          <ConfigInput label="اسم المدرسة" value={reportConfig.schoolName} onChange={v=>setReportConfig({...reportConfig, schoolName:v})} />
-                          <ConfigInput label="مدير المدرسة" value={reportConfig.schoolManager} onChange={v=>setReportConfig({...reportConfig, schoolManager:v})} />
-                          <ConfigInput label="معلم المادة" value={reportConfig.teacherName} onChange={v=>setReportConfig({...reportConfig, teacherName:v})} />
-                          <ConfigInput label="العام الدراسي" value={reportConfig.academicYear} onChange={v=>setReportConfig({...reportConfig, academicYear:v})} placeholder="1446-1447هـ" />
-                          <ConfigInput label="الفصل الدراسي" value={reportConfig.term} onChange={v=>setReportConfig({...reportConfig, term:v})} placeholder="الفصل الأول" />
+                          <ConfigInput label="إدارة التعليم" value={reportConfig.educationAdmin} onChange={(v: string)=>setReportConfig({...reportConfig, educationAdmin:v})} />
+                          <ConfigInput label="اسم المدرسة" value={reportConfig.schoolName} onChange={(v: string)=>setReportConfig({...reportConfig, schoolName:v})} />
+                          <ConfigInput label="مدير المدرسة" value={reportConfig.schoolManager} onChange={(v: string)=>setReportConfig({...reportConfig, schoolManager:v})} />
+                          <ConfigInput label="معلم المادة" value={reportConfig.teacherName} onChange={(v: string)=>setReportConfig({...reportConfig, teacherName:v})} />
+                          <ConfigInput label="العام الدراسي" value={reportConfig.academicYear} onChange={(v: string)=>setReportConfig({...reportConfig, academicYear:v})} placeholder="1446-1447هـ" />
+                          <ConfigInput label="الفصل الدراسي" value={reportConfig.term} onChange={(v: string)=>setReportConfig({...reportConfig, term:v})} placeholder="الفصل الأول" />
                       </div>
                   </div>
               </div>
@@ -166,7 +166,8 @@ const SchoolManagement: React.FC<{ students: Student[], onImportStudents: () => 
   );
 };
 
-const ConfigInput = ({ label, value, onChange, placeholder }: any) => (
+// Fix: Typed the props for ConfigInput to avoid implicit any
+const ConfigInput = ({ label, value, onChange, placeholder }: { label: string, value: string, onChange: (v: string) => void, placeholder?: string }) => (
     <div>
         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mr-1">{label}</label>
         <input 
