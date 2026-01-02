@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, SystemUser, Assignment, AttendanceRecord } from '../types';
 import { getAssignments, addPerformance } from '../services/storageService';
 import { 
-    PlusCircle, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles, Loader2, Save, FileText, ChevronLeft, BarChart3, ClipboardCheck, Filter
+    PlusCircle, Trash2, Zap, ArrowRight, List, PieChart, TrendingUp, Sparkles, Loader2, Save, FileText, ChevronLeft, BarChart3, ClipboardCheck, Filter, Award, Target
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -51,45 +51,44 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
         try { 
             await onAddPerformance(records); 
             setBulkScores({}); 
-            alert('تم اعتماد الدرجات ومزامنتها سحابياً بنجاح.'); 
+            alert('تم اعتماد السجل سحابياً بنجاح.'); 
         } catch (e) { alert('فشل حفظ الدرجات.'); }
     }
     setIsSaving(false);
   };
 
   return (
-    <div className="p-4 md:p-6 h-full flex flex-col bg-slate-50 animate-fade-in font-tajawal overflow-hidden">
-      <div className="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 shrink-0">
-          <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-700 rounded-xl flex items-center justify-center text-white shadow-sm">
-                  <BarChart3 size={24}/>
-              </div>
+    <div className="space-y-8 animate-fade-in font-tajawal h-full flex flex-col overflow-hidden pb-10">
+      {/* Registry Performance Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-center gap-8 bg-white p-8 rounded-[3.5rem] border shadow-sm">
+          <div className="flex items-center gap-6">
+              <div className="p-5 bg-indigo-700 text-white rounded-[2rem] shadow-2xl shadow-indigo-100"><Award size={36}/></div>
               <div>
-                  <h2 className="text-xl font-bold text-slate-800">سجل الرصد الأكاديمي</h2>
-                  <p className="text-xs text-slate-500 font-medium">رصد الدرجات، الاختبارات، والواجبات اليومية</p>
+                  <h2 className="text-3xl font-black text-slate-800">سجل الرصد الأكاديمي</h2>
+                  <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Unified Academic Progress Ledger</p>
               </div>
           </div>
-          <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-              <button onClick={() => setActiveTab('BULK')} className={`px-6 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'BULK' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>رصد سريع</button>
-              <button onClick={() => setActiveTab('ANALYTICS')} className={`px-6 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'ANALYTICS' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>تحليل الأداء</button>
-              <button onClick={() => setActiveTab('LOG')} className={`px-6 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'LOG' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>سجل الرصد</button>
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl border shadow-inner">
+              <button onClick={() => setActiveTab('BULK')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${activeTab === 'BULK' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:text-indigo-600'}`}>الرصد السريع</button>
+              <button onClick={() => setActiveTab('ANALYTICS')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${activeTab === 'ANALYTICS' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:text-indigo-600'}`}>تحليل النتائج</button>
+              <button onClick={() => setActiveTab('LOG')} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${activeTab === 'LOG' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:text-indigo-600'}`}>الأرشيف التاريخي</button>
           </div>
       </div>
 
-      <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="flex-1 bg-white rounded-[4rem] border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
           {activeTab === 'BULK' && (
               <>
-                <div className="p-4 bg-slate-50/50 border-b flex flex-wrap gap-4 items-center shrink-0">
-                    <div className="w-64">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 mr-1">الفصل الدراسي</label>
-                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs font-bold outline-none focus:border-blue-500 transition-all shadow-sm">
+                <div className="p-10 bg-slate-50/50 border-b flex flex-wrap gap-10 items-center shrink-0">
+                    <div className="w-80">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 mr-1">الفصل الدراسي الحالي</label>
+                        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-full p-4 border-2 border-transparent focus:border-indigo-500 rounded-[1.5rem] bg-white text-sm font-black outline-none shadow-sm transition-all">
                             <option value="">-- اختر الفصل --</option>
                             {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
-                    <div className="w-64">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 mr-1">الربط بتقييم محدد</label>
-                        <select value={activeAssignmentId} onChange={e => setActiveAssignmentId(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs font-bold outline-none focus:border-blue-500 transition-all shadow-sm">
+                    <div className="w-80">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 mr-1">الربط بمعيار أو تقييم</label>
+                        <select value={activeAssignmentId} onChange={e => setActiveAssignmentId(e.target.value)} className="w-full p-4 border-2 border-transparent focus:border-indigo-500 rounded-[1.5rem] bg-white text-sm font-black outline-none shadow-sm transition-all">
                             <option value="">-- اختر التقييم --</option>
                             {assignments.map(a => <option key={a.id} value={a.id}>{a.title} ({a.maxScore} درجة)</option>)}
                         </select>
@@ -99,22 +98,22 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {selectedClass ? (
                         <table className="w-full text-right border-collapse">
-                            <thead className="bg-slate-50 border-b text-[10px] font-bold text-slate-400 uppercase tracking-widest sticky top-0 z-10 h-12">
+                            <thead className="bg-[#F8FAFC] border-b font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 h-20 shadow-sm">
                                 <tr>
-                                    <th className="px-6 border-l border-slate-100 w-16 text-center">م</th>
-                                    <th className="px-6 border-l border-slate-100">اسم الطالب</th>
-                                    <th className="px-6 text-center w-48">الدرجة المستحقة</th>
+                                    <th className="px-10 border-l border-slate-50 w-24 text-center">م</th>
+                                    <th className="px-10 border-l border-slate-50">اسم الطالب</th>
+                                    <th className="px-10 text-center w-64">الدرجة المكتسبة</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-slate-50">
                                 {filteredStudents.map((s, idx) => (
-                                    <tr key={s.id} className="hover:bg-blue-50/30 transition-colors h-14 group">
-                                        <td className="px-6 text-center text-slate-400 font-mono text-xs border-l border-slate-100">{idx + 1}</td>
-                                        <td className="px-6 font-bold text-slate-700 border-l border-slate-100">{s.name}</td>
-                                        <td className="px-6">
+                                    <tr key={s.id} className="hover:bg-indigo-50/20 transition-all group h-20">
+                                        <td className="px-10 text-center text-slate-300 font-mono text-[11px] border-l border-slate-50 font-black">{idx + 1}</td>
+                                        <td className="px-10 font-black text-slate-700 text-base border-l border-slate-50">{s.name}</td>
+                                        <td className="px-10">
                                             <input 
                                                 type="number" 
-                                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-black text-blue-700 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" 
+                                                className="w-full p-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl text-center font-black text-indigo-700 outline-none transition-all shadow-inner text-lg" 
                                                 placeholder="-"
                                                 value={bulkScores[s.id] || ''} 
                                                 onChange={e => setBulkScores({...bulkScores, [s.id]: e.target.value})}
@@ -125,17 +124,17 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                             </tbody>
                         </table>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-300 py-32 opacity-30 gap-4">
-                            <ClipboardCheck size={80} strokeWidth={1.5}/>
-                            <p className="font-bold text-xl">يرجى اختيار الفصل والتقييم للبدء بالرصد</p>
+                        <div className="h-full flex flex-col items-center justify-center text-slate-200 py-48 opacity-40">
+                            <Target size={160} strokeWidth={1}/>
+                            <p className="mt-8 font-black text-3xl italic">يرجى اختيار الفصل والتقييم لبدء الرصد الأكاديمي</p>
                         </div>
                     )}
                 </div>
 
-                <div className="p-4 bg-slate-50 border-t flex justify-between items-center px-8 shrink-0">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">عدد الطلاب: {filteredStudents.length}</p>
-                    <button onClick={handleBulkSave} disabled={isSaving || !selectedClass} className="px-10 py-2.5 bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md hover:bg-blue-800 disabled:opacity-50 transition-all flex items-center gap-2">
-                        {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>} اعتماد وحفظ الدرجات
+                <div className="p-8 bg-slate-900 border-t flex justify-between items-center px-12 shrink-0">
+                    <p className="text-[11px] font-black text-indigo-400 uppercase tracking-widest">عدد طلاب السجل: {filteredStudents.length}</p>
+                    <button onClick={handleBulkSave} disabled={isSaving || !selectedClass} className="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-2xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-3">
+                        {isSaving ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} اعتماد نهائي وحفظ سحابي
                     </button>
                 </div>
               </>
@@ -144,31 +143,34 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
           {activeTab === 'LOG' && (
               <div className="flex-1 overflow-auto custom-scrollbar">
                   <table className="w-full text-right border-collapse text-sm">
-                      <thead className="bg-slate-50 border-b text-[10px] font-bold text-slate-400 uppercase tracking-widest sticky top-0 z-10 h-12">
+                      <thead className="bg-[#F8FAFC] border-b font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 h-20 shadow-sm">
                           <tr>
-                            <th className="px-6 border-l border-slate-100">التاريخ</th>
-                            <th className="px-6 border-l border-slate-100">الطالب</th>
-                            <th className="px-6 border-l border-slate-100">التقييم</th>
-                            <th className="px-6 text-center border-l border-slate-100">الدرجة</th>
-                            <th className="px-6 text-center">الإجراء</th>
+                            <th className="px-10 border-l border-slate-50">تاريخ الرصد</th>
+                            <th className="px-10 border-l border-slate-50">اسم الطالب</th>
+                            <th className="px-10 border-l border-slate-50">التقييم / المهمة</th>
+                            <th className="px-10 text-center border-l border-slate-50 w-48">الدرجة المستحقة</th>
+                            <th className="px-10 text-center">إدارة</th>
                           </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-50">
                           {performance.slice().reverse().map(rec => (
-                              <tr key={rec.id} className="hover:bg-slate-50 h-12">
-                                  <td className="px-6 text-slate-400 font-mono text-xs border-l border-slate-100">{rec.date}</td>
-                                  <td className="px-6 font-bold text-slate-700 border-l border-slate-100">{students.find(s=>s.id===rec.studentId)?.name}</td>
-                                  <td className="px-6 text-slate-500 font-medium border-l border-slate-100">{rec.title}</td>
-                                  <td className="px-6 text-center font-black text-blue-600 border-l border-slate-100">{rec.score} / {rec.maxScore}</td>
-                                  <td className="px-6 text-center">
-                                      <button onClick={() => onDeletePerformance(rec.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                              <tr key={rec.id} className="hover:bg-slate-50 h-16 group transition-colors">
+                                  <td className="px-10 text-slate-400 font-mono text-xs border-l border-slate-50">{rec.date}</td>
+                                  <td className="px-10 font-black text-slate-800 border-l border-slate-50">{students.find(s=>s.id===rec.studentId)?.name}</td>
+                                  <td className="px-10 text-slate-400 font-bold border-l border-slate-50 uppercase text-[10px] tracking-widest">{rec.title}</td>
+                                  <td className="px-10 text-center font-black text-indigo-600 border-l border-slate-50 text-base">{rec.score} <span className="text-slate-200 text-xs font-bold">/ {rec.maxScore}</span></td>
+                                  <td className="px-10 text-center">
+                                      <button onClick={() => onDeletePerformance(rec.id)} className="p-3 text-slate-200 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={20}/></button>
                                   </td>
                               </tr>
                           ))}
                       </tbody>
                   </table>
                   {performance.length === 0 && (
-                      <div className="py-32 text-center text-slate-300 opacity-30 font-bold text-xl">لا توجد سجلات رصد حتى الآن</div>
+                      <div className="py-48 text-center text-slate-200 flex flex-col items-center gap-8">
+                         <BarChart3 size={150} strokeWidth={1} className="opacity-20"/>
+                         <p className="text-4xl font-black opacity-30">أرشيف الرصد فارغ</p>
+                      </div>
                   )}
               </div>
           )}
