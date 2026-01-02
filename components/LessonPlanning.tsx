@@ -3,23 +3,21 @@ import React, { useState, useEffect } from 'react';
 import { getSubjects, saveLessonPlan, getLessonPlans, deleteLessonPlan, exportToWord } from '../services/storageService';
 import { generateLessonBlocks } from '../services/geminiService';
 import { LessonBlock, StoredLessonPlan, Subject, SystemUser } from '../types';
-import { Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, Image as ImageIcon, Video, Type, ArrowUp, ArrowDown, X, Printer, FileText } from 'lucide-react';
+// Add missing Zap import
+import { 
+    Loader2, Save, RefreshCw, BookOpen, Trash2, Plus, PenTool, Image as ImageIcon, 
+    Video, Type, ArrowUp, ArrowDown, X, Printer, FileText, Bot, Sparkles, ChevronRight, Layout, Zap
+} from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const SAUDI_GRADES = [
     "الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي",
     "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي",
     "الصف الأول المتوسط", "الصف الثاني المتوسط", "الصف الثالث المتوسط",
-    "الصف الأول الثانوي (السنة المشتركة)", 
-    "الصف الثاني الثانوي (مسارات)", 
-    "الصف الثالث الثانوي (مسارات)"
+    "الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"
 ];
 
-interface LessonPlanningProps {
-    currentUser?: SystemUser | null;
-}
-
-const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
+const LessonPlanning: React.FC<{ currentUser?: SystemUser | null }> = ({ currentUser }) => {
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedGrade, setSelectedGrade] = useState('');
@@ -32,10 +30,9 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
     const location = useLocation();
 
     useEffect(() => {
-        const user = currentUser || JSON.parse(localStorage.getItem('current_user') || '{}');
-        if (user.id) {
-            setSubjects(getSubjects(user.id));
-            setSavedPlans(getLessonPlans(user.id));
+        if (currentUser) {
+            setSubjects(getSubjects(currentUser.id));
+            setSavedPlans(getLessonPlans(currentUser.id));
         }
         if (location.state) {
             const { subject, topic, grade } = location.state as any;
@@ -46,26 +43,21 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
     }, [location.state, currentUser]);
 
     const handleGenerate = async () => {
-        if (!selectedSubject || !lessonTopic || !selectedGrade) return;
+        if (!selectedSubject || !lessonTopic || !selectedGrade) return alert('الرجاء تعبئة بيانات الدرس الأساسية أولاً.');
         setIsGenerating(true);
         try {
             const blocks = await generateLessonBlocks(selectedSubject, lessonTopic, selectedGrade, { 
                 includeActivity: true, includeVideo: true, includeWorksheet: true 
             });
             setLessonContent(blocks);
-        } catch (e) {
-            alert('حدث خطأ أثناء التوليد');
-        } finally {
-            setIsGenerating(false);
-        }
+        } catch (e) { alert('حدث خطأ أثناء التوليد بالذكاء الاصطناعي.'); } finally { setIsGenerating(false); }
     };
 
     const handleSave = () => {
-        const user = currentUser || JSON.parse(localStorage.getItem('current_user') || '{}');
-        if (!user.id) return;
+        if (!currentUser || !lessonTopic) return;
         const newPlan: StoredLessonPlan = {
             id: Date.now().toString(),
-            teacherId: user.id,
+            teacherId: currentUser.id,
             subject: selectedSubject,
             topic: lessonTopic,
             contentJson: JSON.stringify(lessonContent),
@@ -73,115 +65,154 @@ const LessonPlanning: React.FC<LessonPlanningProps> = ({ currentUser }) => {
             createdAt: new Date().toISOString()
         };
         saveLessonPlan(newPlan);
-        setSavedPlans(getLessonPlans(user.id));
-        alert('تم حفظ التحضير');
-    };
-
-    const loadPlan = (plan: StoredLessonPlan) => {
-        setSelectedSubject(plan.subject);
-        setLessonTopic(plan.topic);
-        try { setLessonContent(JSON.parse(plan.contentJson)); } catch { }
-    };
-
-    const addBlock = (type: LessonBlock['type']) => {
-        const newBlock: LessonBlock = {
-            id: Date.now().toString(),
-            type,
-            title: type === 'MEDIA' ? 'وسائط' : 'عنوان جديد',
-            content: 'اكتب المحتوى هنا...',
-        };
-        setLessonContent([...lessonContent, newBlock]);
-        setIsAddMenuOpen(false);
-    };
-
-    const updateBlock = (id: string, updates: Partial<LessonBlock>) => {
-        setLessonContent(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
-    };
-
-    const moveBlock = (index: number, direction: 'UP' | 'DOWN') => {
-        const newContent = [...lessonContent];
-        const target = direction === 'UP' ? index - 1 : index + 1;
-        if (target < 0 || target >= lessonContent.length) return;
-        [newContent[index], newContent[target]] = [newContent[target], newContent[index]];
-        setLessonContent(newContent);
+        setSavedPlans(getLessonPlans(currentUser.id));
+        alert('تم حفظ خطة الدرس بنجاح في السحابة.');
     };
 
     return (
-        <div className="p-6 h-full bg-gray-50 overflow-y-auto animate-fade-in flex flex-col md:flex-row gap-6 print:p-0 print:bg-white print:overflow-visible font-tajawal" dir="rtl">
-            <div className="w-full md:w-1/4 space-y-4 print:hidden">
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-700 mb-4 border-b pb-2 flex items-center gap-2"><BookOpen size={18}/> خططي المحفوظة</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                        {savedPlans.map(plan => (
-                            <div key={plan.id} className="p-3 border rounded-lg bg-gray-50 hover:bg-purple-50 cursor-pointer" onClick={() => loadPlan(plan)}>
-                                <div className="font-bold text-gray-800 text-sm truncate">{plan.topic}</div>
-                                <div className="text-xs text-gray-500">{plan.subject}</div>
-                            </div>
-                        ))}
+        <div className="space-y-8 animate-fade-in font-tajawal pb-16">
+            {/* Header Area */}
+            <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm flex flex-col lg:flex-row justify-between items-center gap-8 relative overflow-hidden print:hidden">
+                <div className="flex items-center gap-5">
+                    <div className="p-4 bg-purple-600 text-white rounded-3xl shadow-xl shadow-purple-100"><PenTool size={32}/></div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-800">مساعد التحضير الذكي</h2>
+                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">AI Lesson Designer (Gemini)</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-700 mb-4 border-b pb-2">إعدادات الدرس</h3>
-                    <div className="space-y-4">
-                        <select className="w-full p-2 border rounded-lg text-sm" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
-                            <option value="">-- اختر المادة --</option>
-                            {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                        </select>
-                        <select className="w-full p-2 border rounded-lg text-sm" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
-                            <option value="">-- اختر الصف --</option>
-                            {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                        <input className="w-full p-2 border rounded-lg text-sm" placeholder="عنوان الدرس..." value={lessonTopic} onChange={e => setLessonTopic(e.target.value)}/>
-                        <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold flex justify-center items-center gap-2 disabled:opacity-50">
-                            {isGenerating ? <Loader2 className="animate-spin"/> : <RefreshCw size={18}/>} توليد التحضير (AI)
-                        </button>
-                    </div>
+                <div className="flex gap-3">
+                    <button onClick={() => exportToWord('lesson-doc-area', `${lessonTopic}.doc`)} className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-xs hover:bg-slate-200 transition-all flex items-center gap-2">
+                        <FileText size={18}/> تصدير Word
+                    </button>
+                    <button onClick={() => window.print()} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-black transition-all flex items-center gap-2 shadow-lg">
+                        <Printer size={18}/> طباعة PDF
+                    </button>
+                    <button onClick={handleSave} className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-200">
+                        <Save size={18}/> حفظ الخطة
+                    </button>
                 </div>
             </div>
 
-            <div className="flex-1 bg-white p-8 rounded-xl border border-gray-200 shadow-sm min-h-[600px] relative flex flex-col print:border-none print:shadow-none print:p-0">
-                <div className="flex justify-between items-center mb-6 border-b pb-4 print:hidden">
-                    <h1 className="text-2xl font-black text-gray-800">{lessonTopic || 'محرر الدرس'}</h1>
-                    <div className="flex gap-2">
-                        <button onClick={() => setIsAddMenuOpen(!isAddMenuOpen)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg font-bold text-sm hover:bg-gray-200 flex items-center gap-2">
-                            <Plus size={16}/> إضافة عنصر
-                        </button>
-                        <button onClick={() => exportToWord('lesson-printable-area', `${lessonTopic || 'lesson'}.doc`)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-blue-700"><FileText size={16}/> تصدير Word</button>
-                        <button onClick={() => window.print()} className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-gray-900"><Printer size={16}/> طباعة PDF</button>
-                        <button onClick={handleSave} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm hover:bg-green-700"><Save size={16}/> حفظ</button>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[750px] overflow-hidden">
+                {/* Inputs & Settings Sidebar */}
+                <div className="lg:col-span-1 bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col gap-6 overflow-y-auto custom-scrollbar print:hidden">
+                    <div className="space-y-6 flex-1">
+                        <h3 className="font-black text-slate-800 border-b pb-4 flex items-center gap-3 text-sm"><Layout size={18} className="text-blue-600"/> إعدادات الخطة</h3>
+                        
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">المادة الدراسية</label>
+                            <select className="w-full p-3 border rounded-2xl bg-slate-50 font-black text-xs outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
+                                <option value="">-- اختر المادة --</option>
+                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">المرحلة / الصف</label>
+                            <select className="w-full p-3 border rounded-2xl bg-slate-50 font-black text-xs outline-none" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
+                                <option value="">-- اختر الصف --</option>
+                                {SAUDI_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">موضوع الدرس</label>
+                            <input className="w-full p-3 border rounded-2xl bg-slate-50 font-black text-xs outline-none" placeholder="اكتب عنوان الدرس..." value={lessonTopic} onChange={e => setLessonTopic(e.target.value)}/>
+                        </div>
+
+                        <div className="bg-purple-50 p-6 rounded-[2rem] border border-purple-100 space-y-4">
+                            <div className="flex items-center gap-2 text-purple-700">
+                                <Bot size={18}/>
+                                <span className="text-[10px] font-black uppercase tracking-widest">AI Engine</span>
+                            </div>
+                            <p className="text-[10px] text-purple-900 leading-relaxed font-bold">سيقوم الذكاء الاصطناعي ببناء خطة درس متكاملة تشمل (الأهداف، الشرح، الأنشطة، والتقويم) بناءً على المدخلات أعلاه.</p>
+                            <button onClick={handleGenerate} disabled={isGenerating || !lessonTopic} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black text-xs shadow-xl shadow-purple-100 hover:bg-purple-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                                {isGenerating ? <Loader2 className="animate-spin" size={16}/> : <Sparkles size={16}/>}
+                                {isGenerating ? 'جاري الصياغة...' : 'توليد التحضير الذكي'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest flex items-center gap-2"><BookOpen size={14}/> السجلات المحفوظة</h4>
+                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                            {savedPlans.map(plan => (
+                                <button key={plan.id} onClick={() => { setSelectedSubject(plan.subject); setLessonTopic(plan.topic); setLessonContent(JSON.parse(plan.contentJson)); }} className="w-full p-3 bg-slate-50 rounded-xl text-right hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100">
+                                    <p className="font-black text-slate-700 text-xs truncate">{plan.topic}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold">{plan.subject}</p>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
-                <div id="lesson-printable-area" className="flex-1 overflow-y-auto space-y-4">
-                    {lessonContent.map((block, idx) => (
-                        <div key={block.id} className="p-4 bg-gray-50 rounded-lg border border-gray-100 relative group print:bg-white print:border-none print:p-0 print:mb-6">
-                            <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1 rounded border print:hidden">
-                                <button onClick={() => moveBlock(idx, 'UP')} className="p-1 hover:bg-gray-100"><ArrowUp size={14}/></button>
-                                <button onClick={() => moveBlock(idx, 'DOWN')} className="p-1 hover:bg-gray-100"><ArrowDown size={14}/></button>
+                {/* Formal Document View */}
+                <div id="lesson-doc-area" className="lg:col-span-3 bg-white rounded-[4rem] border shadow-sm overflow-y-auto p-12 custom-scrollbar relative print:p-0 print:border-none print:shadow-none print:overflow-visible">
+                    <div className="max-w-4xl mx-auto space-y-12">
+                        {/* Doc Header */}
+                        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-12">
+                            <div className="space-y-1 text-right">
+                                <p className="text-[10px] font-black">المملكة العربية السعودية</p>
+                                <p className="text-[10px] font-black">وزارة التعليم</p>
+                                <p className="text-xs font-black mt-2">سجل تحضير الدروس الرقمي</p>
                             </div>
-                            <input className="font-bold text-xl text-indigo-900 bg-transparent border-none outline-none w-full mb-2" value={block.title} onChange={(e) => updateBlock(block.id, { title: e.target.value })} />
-                            <textarea className="w-full p-2 bg-transparent border-none outline-none text-gray-700 leading-relaxed min-h-[100px] resize-none text-lg" value={block.content} onChange={(e) => updateBlock(block.id, { content: e.target.value })} />
+                            <div className="text-center flex flex-col items-center">
+                                <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-16 mb-4 opacity-80" alt="Moe"/>
+                                <h1 className="text-2xl font-black text-slate-900">{lessonTopic || 'اسم الدرس'}</h1>
+                            </div>
+                            <div className="space-y-1 text-left text-[10px] font-black">
+                                <p>المادة: {selectedSubject || '................'}</p>
+                                <p>الصف: {selectedGrade || '................'}</p>
+                                <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                            </div>
                         </div>
-                    ))}
-                    {lessonContent.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-20 py-20">
-                            <PenTool size={100} className="mb-4"/>
-                            <p className="text-xl font-bold">ابدأ بكتابة التحضير أو استخدم الذكاء الاصطناعي</p>
+
+                        {/* Content Blocks */}
+                        <div className="space-y-10">
+                            {lessonContent.length > 0 ? lessonContent.map((block, idx) => (
+                                <div key={block.id} className="relative group">
+                                    <div className="absolute -right-8 top-0 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                                        <button className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:text-indigo-600"><ArrowUp size={14}/></button>
+                                        <button onClick={()=>setLessonContent(lessonContent.filter(b=>b.id!==block.id))} className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:text-red-500"><Trash2 size={14}/></button>
+                                    </div>
+                                    <h3 className="font-black text-lg text-slate-900 border-r-4 border-slate-900 pr-4 mb-4 flex items-center gap-3">
+                                        {block.type === 'CONTENT' ? <Type size={18}/> : block.type === 'ACTIVITY' ? <Zap size={18}/> : <ImageIcon size={18}/>}
+                                        {block.title}
+                                    </h3>
+                                    <textarea 
+                                        className="w-full bg-transparent border-none p-2 text-slate-700 leading-relaxed min-h-[50px] outline-none font-medium text-lg resize-none" 
+                                        value={block.content} 
+                                        onChange={e => setLessonContent(lessonContent.map(b => b.id === block.id ? {...b, content: e.target.value} : b))}
+                                        onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                                    />
+                                </div>
+                            )) : (
+                                <div className="py-40 flex flex-col items-center justify-center text-slate-200 gap-6">
+                                    <PenTool size={100} strokeWidth={1} />
+                                    <p className="text-2xl font-black">ابدأ بتعبئة البيانات الجانبية لتوليد الخطة</p>
+                                </div>
+                            )}
                         </div>
-                    )}
+
+                        {/* Doc Footer */}
+                        {lessonContent.length > 0 && (
+                            <div className="mt-20 pt-10 border-t-2 border-dotted border-slate-200 flex justify-between items-end">
+                                <div className="text-center">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">توقيع المعلم</p>
+                                    <div className="h-12"></div>
+                                    <p className="font-black text-slate-800">{currentUser?.name || '...................'}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">مصادقة القائد</p>
+                                    <div className="h-12"></div>
+                                    <p className="font-black text-slate-800">..............................</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-
-            {isAddMenuOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20" onClick={() => setIsAddMenuOpen(false)}>
-                    <div className="bg-white rounded-xl shadow-xl w-48 overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => addBlock('CONTENT')} className="w-full text-right px-4 py-3 hover:bg-gray-50 text-sm flex items-center gap-2"><Type size={16}/> نص / شرح</button>
-                        <button onClick={() => addBlock('MEDIA')} className="w-full text-right px-4 py-3 hover:bg-gray-50 text-sm flex items-center gap-2"><ImageIcon size={16}/> صورة / فيديو</button>
-                        <button onClick={() => addBlock('ACTIVITY')} className="w-full text-right px-4 py-3 hover:bg-gray-50 text-sm flex items-center gap-2"><PenTool size={16}/> نشاط</button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
