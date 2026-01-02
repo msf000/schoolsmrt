@@ -11,7 +11,24 @@ import {
     LayoutGrid, Users, Shuffle, Target, Zap, ChevronLeft
 } from 'lucide-react';
 
-const ClassroomManager: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance?: PerformanceRecord[], onLaunchScreen: () => void, currentUser?: SystemUser | null }> = ({ students = [], onLaunchScreen, currentUser, performance = [] }) => {
+interface ClassroomManagerProps {
+  students: Student[];
+  attendance: AttendanceRecord[];
+  performance?: PerformanceRecord[];
+  onLaunchScreen: () => void;
+  onNavigateToAttendance?: () => void;
+  onSaveAttendance?: (records: AttendanceRecord[]) => void;
+  onImportAttendance?: (records: AttendanceRecord[]) => void;
+  currentUser?: SystemUser | null;
+}
+
+const ClassroomManager: React.FC<ClassroomManagerProps> = ({ 
+    students = [], 
+    attendance, 
+    performance = [], 
+    onLaunchScreen, 
+    currentUser 
+}) => {
     const [activeTab, setActiveTab] = useState<'SEATING' | 'HEATMAP' | 'GROUPS'>('SEATING');
     const [selectedClass, setSelectedClass] = useState('');
     const [generatedGroups, setGeneratedGroups] = useState<Student[][]>([]);
