@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-// Fix: Added missing Trophy and CheckCircle imports
-import { ScanLine, Camera, Upload, Check, X, RefreshCw, BrainCircuit, Image as ImageIcon, Sparkles, Loader2, Save, FileText, Bot, Lightbulb, Trophy, CheckCircle } from 'lucide-react';
+// Fix: Added missing Target, Trophy and CheckCircle imports from lucide-react
+import { ScanLine, Camera, Upload, Check, X, RefreshCw, BrainCircuit, Image as ImageIcon, Sparkles, Loader2, Save, FileText, Bot, Lightbulb, Trophy, CheckCircle, Target } from 'lucide-react';
 import { Exam, Student, PerformanceRecord, SystemUser } from '../types';
 import { getExams, getStudents, addPerformance } from '../services/storageService';
 import { gradeExamPaper } from '../services/geminiService';

@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, BehaviorIncident, FormsDetailedResult } from '../types';
-import { getBehaviorIncidents, getFormsDetailedResults, updateStudent, saveRemedialPlan } from '../services/storageService';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, BehaviorIncident } from '../types';
+import { getBehaviorIncidents, updateStudent, saveRemedialPlan } from '../services/storageService';
 import { generateStudentAnalysis, generateSmartRemedialPlan } from '../services/geminiService';
+// Added Target to the imported icons from lucide-react
 import { 
     Search, TrendingUp, Loader2, Bot, ArrowRight, Star, Radar as RadarIcon, 
-    BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle, FileText, LayoutGrid, Activity
+    BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle, FileText, LayoutGrid, Activity, ChevronLeft, ShieldCheck, Target
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, AreaChart, Area } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -22,7 +23,7 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
         return '';
     });
 
-    const [activeTab, setActiveTab] = useState<'SUMMARY' | 'AI' | 'SKILLS'>('SUMMARY');
+    const [activeTab, setActiveTab] = useState<'SUMMARY' | 'AI' | 'ACADEMIC' | 'BEHAVIOR'>('SUMMARY');
     const [reportContent, setReportContent] = useState('');
     const [remedialPlan, setRemedialPlan] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +49,9 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
             { subject: 'المشاركة', A: 90 },
         ];
 
-        return { attRate: Math.round(attRate), gradeAvg: Math.round(gradeAvg), radarData };
+        const trendData = sPerf.slice(-6).map(p => ({ date: p.date, val: (p.score/p.maxScore)*100 }));
+
+        return { attRate: Math.round(attRate), gradeAvg: Math.round(gradeAvg), radarData, trendData };
     }, [student, attendance, performance]);
 
     const handleAiAnalysis = async () => {
@@ -59,161 +62,171 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
         setIsLoading(false);
     };
 
-    const handleGenerateRemedialPlan = async () => {
-        if (!student) return;
-        setIsGeneratingPlan(true);
-        try {
-            const gaps = performance.filter(p => p.studentId === student.id && (p.score/p.maxScore) < 0.6);
-            const res = await generateSmartRemedialPlan(student, gaps);
-            setRemedialPlan(res);
-            
-            await saveRemedialPlan({
-                id: `plan_${Date.now()}`,
-                studentId: student.id,
-                teacherId: currentUser?.id || '',
-                subject: gaps[0]?.subject || 'عام',
-                topic: 'خطة تدخل ذكية',
-                content: res,
-                date: new Date().toISOString()
-            });
-        } catch (e) {
-            alert('فشل توليد الخطة العلاجية.');
-        } finally {
-            setIsGeneratingPlan(false);
-        }
-    };
-
     return (
-        <div className="p-4 md:p-6 h-full flex flex-col bg-slate-50 animate-fade-in font-tajawal overflow-hidden">
+        <div className="space-y-8 animate-fade-in font-tajawal pb-16 h-full flex flex-col">
             {isReportOpen && student && <ReportCard student={student} performance={performance} attendance={attendance} onClose={() => setIsReportOpen(false)} />}
             
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 shrink-0">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/students')} className="p-2 hover:bg-white rounded-lg transition-all text-slate-400 hover:text-blue-600"><ArrowRight size={20}/></button>
-                    <h2 className="text-xl font-bold text-slate-800">الملف الموحد للطالب</h2>
+            {/* Header Area */}
+            <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col lg:flex-row justify-between items-center gap-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-full bg-slate-900/5 -skew-x-12 translate-x-16"></div>
+                <div className="flex items-center gap-6 relative z-10">
+                    <button onClick={() => navigate('/students')} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-all"><ArrowRight/></button>
+                    <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-xl shadow-slate-200">
+                        <ShieldCheck size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-800">الملف التربوي الشامل</h2>
+                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Holistic Student Intelligence File</p>
+                    </div>
                 </div>
-                <select value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)} className="p-2 border border-slate-200 rounded-lg bg-white font-bold text-xs outline-none shadow-sm min-w-[200px]">
-                    <option value="">-- اختر الطالب --</option>
-                    {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+
+                <div className="flex items-center gap-4 relative z-10">
+                    <select value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)} className="p-4 border-2 border-slate-100 rounded-2xl font-black text-xs bg-slate-50 outline-none focus:border-blue-500 transition-all min-w-[250px]">
+                        <option value="">-- اختر الطالب للمعاينة --</option>
+                        {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <button onClick={() => setIsReportOpen(true)} className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs flex items-center gap-3 shadow-xl hover:bg-black transition-all">
+                        <Printer size={18}/> تقرير رسمي
+                    </button>
+                </div>
             </div>
 
             {student && stats ? (
-                <div className="flex-1 flex flex-col overflow-hidden gap-6">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 shrink-0 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-1 h-full bg-blue-600"></div>
-                        <div className="flex items-center gap-6 relative z-10">
-                            <div className="w-20 h-20 bg-slate-100 rounded-xl flex items-center justify-center text-3xl font-bold text-blue-600 border border-slate-200">{student.name.charAt(0)}</div>
-                            <div>
-                                <h2 className="text-xl font-bold text-slate-800">{student.name}</h2>
-                                <p className="text-xs text-slate-400 font-bold uppercase mt-1">{student.className} • {student.nationalId}</p>
-                                <div className="flex gap-2 mt-3">
-                                    <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold border border-blue-100 flex items-center gap-1"><Zap size={12} fill="currentColor"/> {student.xp || 0} XP</span>
-                                    <span className="bg-slate-50 text-slate-600 px-3 py-1 rounded-full text-[10px] font-bold border border-slate-200 uppercase tracking-wider">المستوى {student.level || 1}</span>
+                <div className="flex-1 flex flex-col gap-8 overflow-hidden animate-slide-up">
+                    {/* Key Metrics Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <MetricBox label="مستوى التمكن" value={`${stats.gradeAvg}%`} sub="المعدل التراكمي" color="blue" icon={<Target/>}/>
+                        <MetricBox label="معدل الحضور" value={`${stats.attRate}%`} sub="نسبة الانضباط" color="emerald" icon={<ShieldCheck/>}/>
+                        <MetricBox label="رصيد التفاعل" value={student.xp || 0} sub="XP النشط" color="amber" icon={<Zap/>}/>
+                        <MetricBox label="مستوى السلوك" value={student.behaviorPoints || 0} sub="النقاط السلوكية" color="rose" icon={<Heart/>}/>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 overflow-hidden">
+                        {/* Left Column: Visual Analytics */}
+                        <div className="lg:col-span-2 space-y-8 overflow-y-auto custom-scrollbar pr-2">
+                            <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm h-[400px] flex flex-col">
+                                <h3 className="text-xl font-black text-slate-800 mb-10 flex items-center gap-3"><LineIcon className="text-blue-600"/> منحنى التقدم الأكاديمي</h3>
+                                <div className="flex-1">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={stats.trendData}>
+                                            <defs>
+                                                <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="date" hide />
+                                            <YAxis hide domain={[0, 100]} />
+                                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                                            <Area type="monotone" dataKey="val" stroke="#2563eb" fillOpacity={1} fill="url(#colorTrend)" strokeWidth={4} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
                                 </div>
                             </div>
-                        </div>
-                        <div className="flex gap-8 text-center bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">معدل الإتقان</p><p className="text-2xl font-black text-blue-700">{stats.gradeAvg}%</p></div>
-                            <div className="w-px h-8 bg-slate-200 self-center"></div>
-                            <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">نسبة الحضور</p><p className="text-2xl font-black text-emerald-600">{stats.attRate}%</p></div>
-                        </div>
-                    </div>
 
-                    <div className="flex bg-white rounded-lg p-1 border border-slate-200 shadow-sm shrink-0">
-                        <TabBtn label="نظرة عامة" active={activeTab==='SUMMARY'} onClick={()=>setActiveTab('SUMMARY')} icon={LayoutGrid} />
-                        <TabBtn label="المهارات والتحصيل" active={activeTab==='SKILLS'} onClick={()=>setActiveTab('SKILLS')} icon={TrendingUp} />
-                        <TabBtn label="التحليلات الذكية" active={activeTab==='AI'} onClick={()=>setActiveTab('AI')} icon={Bot} />
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
-                        {activeTab === 'SUMMARY' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-80 flex flex-col">
-                                    <h3 className="font-bold text-slate-700 mb-6 flex items-center gap-2 text-sm"><RadarIcon size={18} className="text-blue-600"/> رادار الكفايات التعليمية</h3>
-                                    <div className="flex-1">
-                                        <ResponsiveContainer width="100%" height="100%">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-white p-10 rounded-[3.5rem] border shadow-sm flex flex-col items-center">
+                                    <h3 className="text-lg font-black text-slate-800 mb-8 w-full border-b pb-4">رادار الكفايات</h3>
+                                    <div className="h-64 w-full">
+                                        <ResponsiveContainer>
                                             <RadarChart data={stats.radarData}>
                                                 <PolarGrid stroke="#f1f5f9" />
-                                                <PolarAngleAxis dataKey="subject" tick={{fontSize:10, fontWeight:'bold', fill: '#94a3b8'}} />
-                                                <Radar name="الأداء" dataKey="A" stroke="#2563eb" fill="#2563eb" fillOpacity={0.1} strokeWidth={3} />
+                                                <PolarAngleAxis dataKey="subject" tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} />
+                                                <Radar name="الأداء" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.1} strokeWidth={3} />
                                                 <Tooltip />
                                             </RadarChart>
                                         </ResponsiveContainer>
                                     </div>
                                 </div>
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                                    <h3 className="font-bold text-slate-700 mb-6 flex items-center gap-2 text-sm"><Activity size={18} className="text-blue-600"/> سجل السلوك الأخير</h3>
-                                    <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-                                        {incidents.slice(0, 5).map(i => (
-                                            <div key={i.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex justify-between items-center hover:bg-white transition-colors">
-                                                <div>
-                                                    <p className="font-bold text-slate-700 text-xs">{i.category}</p>
-                                                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDualDate(i.date)}</p>
-                                                </div>
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${i.points > 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
-                                                    {i.points > 0 ? `+${i.points}` : i.points} XP
-                                                </span>
+
+                                <div className="bg-slate-900 rounded-[3.5rem] p-10 text-white flex flex-col justify-center relative overflow-hidden shadow-2xl">
+                                    <div className="absolute top-0 right-0 p-8 opacity-5 rotate-12"><Bot size={200}/></div>
+                                    <div className="relative z-10 space-y-6">
+                                        <div className="bg-white/10 w-fit p-3 rounded-2xl border border-white/10 flex items-center gap-2">
+                                            <Sparkles size={18} className="text-yellow-400"/>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">AI Diagnosis</span>
+                                        </div>
+                                        <h4 className="text-2xl font-black">التحليل التربوي المعمق</h4>
+                                        <p className="text-indigo-100 text-sm leading-relaxed font-medium">استخدم قوة Gemini لتحليل كافة بيانات الطالب واستنتاج خطة دعم شخصية.</p>
+                                        <button onClick={handleAiAnalysis} disabled={isLoading} className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black text-xs hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                                            {isLoading ? <Loader2 className="animate-spin" size={16}/> : <BrainCircuit size={16}/>}
+                                            {isLoading ? 'جاري التشخيص...' : 'توليد التحليل الآن'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Records & AI Results */}
+                        <div className="space-y-8 overflow-y-auto custom-scrollbar">
+                            <div className="bg-white p-8 rounded-[3rem] border shadow-sm">
+                                <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Activity className="text-blue-600" size={18}/> آخر الملاحظات السلوكية</h3>
+                                <div className="space-y-3">
+                                    {incidents.slice(0, 5).map(i => (
+                                        <div key={i.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center group hover:bg-white hover:border-blue-200 transition-all">
+                                            <div>
+                                                <p className="font-black text-slate-700 text-xs">{i.category}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{formatDualDate(i.date)}</p>
                                             </div>
-                                        ))}
-                                        {incidents.length === 0 && <div className="text-center py-10 text-slate-300 italic text-xs">لا توجد ملاحظات سلوكية.</div>}
-                                    </div>
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${i.points > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                {i.points > 0 ? `+${i.points}` : i.points}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {incidents.length === 0 && <p className="text-center py-10 text-slate-300 italic text-sm">السجل السلوكي نظيف.</p>}
                                 </div>
                             </div>
-                        )}
 
-                        {activeTab === 'AI' && (
-                            <div className="grid grid-cols-1 gap-6 animate-fade-in">
-                                <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-                                    <div className="flex justify-between items-center mb-8">
-                                        <h3 className="font-bold text-slate-800 flex items-center gap-2"><Bot className="text-blue-600"/> التحليل التربوي المعمق</h3>
-                                        <button onClick={handleAiAnalysis} disabled={isLoading} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-sm hover:bg-blue-700 transition-all">
-                                            {isLoading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>} توليد التحليل التلقائي
-                                        </button>
+                            {reportContent && (
+                                <div className="bg-indigo-50 border-2 border-indigo-200 p-8 rounded-[3rem] shadow-xl animate-slide-up">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-black text-indigo-900 flex items-center gap-2"><Sparkles size={18}/> توصيات Gemini AI</h3>
+                                        <button onClick={() => window.print()} className="p-2 bg-white rounded-xl text-indigo-600 shadow-sm"><Printer size={16}/></button>
                                     </div>
-                                    {reportContent ? (
-                                        <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed font-medium bg-slate-50 p-6 rounded-xl border border-slate-100 text-sm">
-                                            <ReactMarkdown>{reportContent}</ReactMarkdown>
-                                        </div>
-                                    ) : (
-                                        <div className="h-40 flex flex-col items-center justify-center text-slate-300 opacity-50"><Bot size={48} className="mb-2"/><p className="text-xs font-bold">بانتظار طلب التحليل من محرك Gemini</p></div>
-                                    )}
-                                </div>
-
-                                <div className="bg-slate-800 p-8 rounded-xl text-white relative overflow-hidden shadow-md">
-                                    <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><FileText size={120}/></div>
-                                    <div className="relative z-10 flex justify-between items-center mb-8">
-                                        <div>
-                                            <h3 className="font-bold text-lg">خطة التدخل العلاجي (AI Remedial)</h3>
-                                            <p className="text-blue-300 text-[10px] font-bold uppercase tracking-widest mt-1">بناءً على فجوات التعلم المكتشفة</p>
-                                        </div>
-                                        <button onClick={handleGenerateRemedialPlan} disabled={isGeneratingPlan} className="bg-white text-slate-800 px-6 py-2 rounded-lg font-bold text-xs shadow-sm hover:bg-slate-100 transition-all flex items-center gap-2">
-                                            {isGeneratingPlan ? <Loader2 className="animate-spin" size={14}/> : <BrainCircuit size={14} className="text-blue-600"/>} توليد الخطة
-                                        </button>
+                                    <div className="prose prose-sm prose-indigo max-w-none text-indigo-800 font-medium leading-relaxed">
+                                        <ReactMarkdown>{reportContent}</ReactMarkdown>
                                     </div>
-                                    {remedialPlan && (
-                                        <div className="prose prose-invert max-w-none text-blue-50 leading-relaxed bg-white/5 p-6 rounded-xl border border-white/10 text-sm">
-                                            <ReactMarkdown>{remedialPlan}</ReactMarkdown>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-30 gap-6 py-20">
-                    <Search size={100} strokeWidth={1}/>
-                    <p className="text-2xl font-bold">يرجى البحث عن طالب للبدء بالمتابعة</p>
+                <div className="flex-1 flex flex-col items-center justify-center py-40 opacity-20">
+                    <User size={150} strokeWidth={1} />
+                    <p className="text-4xl font-black mt-8">يرجى اختيار طالب لعرض ملفه التربوي</p>
                 </div>
             )}
         </div>
     );
 };
 
+const MetricBox = ({ label, value, sub, color, icon }: any) => {
+    const colors: any = {
+        blue: 'text-blue-600 bg-blue-50 border-blue-100',
+        emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+        amber: 'text-amber-600 bg-amber-50 border-amber-100',
+        rose: 'text-rose-600 bg-rose-50 border-rose-100'
+    };
+    return (
+        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm group hover:scale-[1.02] transition-transform">
+            <div className="flex justify-between items-start mb-6">
+                <div className={`p-4 rounded-2xl ${colors[color]} group-hover:scale-110 transition-transform shadow-inner`}>
+                    {React.cloneElement(icon, { size: 24 })}
+                </div>
+                <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                    <h3 className="text-3xl font-black text-slate-800">{value}</h3>
+                </div>
+            </div>
+            <div className="pt-4 border-t border-slate-50 flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> {sub}
+            </div>
+        </div>
+    );
+};
+
 const TabBtn = ({ label, active, onClick, icon: Icon }: any) => (
-    <button onClick={onClick} className={`flex-1 py-2.5 rounded-md font-bold text-[11px] transition-all flex items-center justify-center gap-2 ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
-        <Icon size={14}/> {label}
+    <button onClick={onClick} className={`flex-1 py-3 px-6 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
+        <Icon size={16}/> {label}
     </button>
 );
 

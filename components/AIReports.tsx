@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, AcademicTerm, SystemUser } from '../types';
 import { generateStudentAnalysis } from '../services/geminiService';
 import { getAcademicTerms } from '../services/storageService';
-// Added missing 'Info' icon import
-import { Sparkles, Bot, Loader2, Calendar, User, Layout, ArrowRight, BrainCircuit, FileText, Printer, Search, Info } from 'lucide-react';
+import { 
+    Sparkles, Bot, Loader2, Calendar, User, Layout, ArrowRight, BrainCircuit, 
+    FileText, Printer, Search, Info, ShieldCheck, Zap, ChevronLeft, Target, Award
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
 
 interface AIReportsProps {
@@ -43,73 +45,123 @@ const AIReports: React.FC<AIReportsProps> = ({ students, attendance, performance
   const filteredStudents = students.filter(s => s.name.includes(searchTerm)).sort((a,b) => a.name.localeCompare(b.name, 'ar'));
 
   return (
-    <div className="p-4 md:p-6 h-full flex flex-col bg-slate-50 animate-fade-in font-tajawal overflow-hidden">
-      <div className="flex flex-col lg:flex-row justify-between items-center gap-4 mb-8 shrink-0">
-          <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-indigo-700 rounded-xl flex items-center justify-center text-white shadow-sm">
-                  <BrainCircuit size={24}/>
+    <div className="space-y-8 animate-fade-in font-tajawal pb-16 h-full flex flex-col">
+      {/* Premium Header */}
+      <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col lg:flex-row justify-between items-center gap-8 relative overflow-hidden shrink-0">
+          <div className="absolute top-0 right-0 w-32 h-full bg-slate-900/5 -skew-x-12 translate-x-16"></div>
+          <div className="flex items-center gap-6 relative z-10">
+              <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-xl">
+                  <BrainCircuit size={32} />
               </div>
               <div>
-                  <h2 className="text-xl font-bold text-slate-800">مركز التشخيص الذكي</h2>
-                  <p className="text-xs text-slate-500 font-medium">تقارير تشخيصية مدعومة بمحرك Gemini AI</p>
+                  <h2 className="text-3xl font-black text-slate-800">مركز التشخيص الأكاديمي</h2>
+                  <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Official Diagnostic Report Center</p>
               </div>
           </div>
-          <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-xs font-bold border border-blue-100 flex items-center gap-2">
-              <Bot size={18}/> حالة المحلل: <span className="uppercase text-blue-800">نشط سحابياً</span>
+          <div className="flex items-center gap-3 relative z-10">
+             <div className="flex flex-col items-end">
+                <span className="text-[10px] font-black text-indigo-500 uppercase">حالة الملحق الذكي:</span>
+                <span className="text-xs font-black text-slate-800">نشط سحابياً (Gemini Engine)</span>
+             </div>
+             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 overflow-hidden">
-        <div className="lg:col-span-1 flex flex-col gap-4 overflow-hidden">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-5">
-                <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 mr-1">الفترة الزمنية للتحليل</label>
-                    <select className="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50 text-xs font-bold outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
-                        <option value="">كل السجلات</option>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1 overflow-hidden">
+        {/* Selection Sidebar */}
+        <div className="lg:col-span-1 bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col gap-8 overflow-hidden animate-slide-up">
+            <div className="space-y-6 flex-1 flex flex-col overflow-hidden">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">الفترة الزمنية</label>
+                    <select className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-xs outline-none" value={selectedTermId} onChange={e => setSelectedTermId(e.target.value)}>
+                        <option value="">كل السجلات السحابية</option>
                         {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                 </div>
-                <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 mr-1">البحث عن طالب</label>
-                    <div className="relative mb-2">
-                        <Search className="absolute right-2.5 top-2.5 text-slate-300" size={14}/>
-                        <input className="w-full pr-8 pl-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-xs font-bold outline-none" placeholder="اكتب الاسم..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} />
+                
+                <div className="space-y-4 flex-1 flex flex-col overflow-hidden">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">البحث عن طالب</label>
+                    <div className="relative shrink-0">
+                        <Search className="absolute right-4 top-3.5 text-slate-300" size={18}/>
+                        <input className="w-full pr-12 pl-4 py-3.5 border rounded-2xl bg-slate-50 font-black text-xs outline-none focus:bg-white transition-all" placeholder="الاسم الكامل..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} />
                     </div>
-                    <div className="max-h-48 overflow-y-auto custom-scrollbar border rounded-lg p-1 bg-slate-50 space-y-1">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar border rounded-3xl p-2 bg-slate-50/50 space-y-1">
                         {filteredStudents.map(s => (
-                            <button key={s.id} onClick={() => setSelectedStudentId(s.id)} className={`w-full text-right p-2 rounded text-[11px] font-bold transition-all ${selectedStudentId === s.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-indigo-600'}`}>
-                                {s.name}
+                            <button key={s.id} onClick={() => {setSelectedStudentId(s.id); setReport(null);}} className={`w-full text-right p-4 rounded-2xl text-[11px] font-black transition-all flex justify-between items-center group ${selectedStudentId === s.id ? 'bg-indigo-600 text-white shadow-xl translate-x-[-4px]' : 'text-slate-600 hover:bg-white hover:text-indigo-600'}`}>
+                                <span>{s.name.split(' ')[0]} {s.name.split(' ')[1]}</span>
+                                {selectedStudentId === s.id && <ChevronLeft size={16}/>}
                             </button>
                         ))}
                     </div>
                 </div>
-                <button onClick={handleGenerate} disabled={!selectedStudentId || loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-md flex justify-center items-center gap-2 hover:bg-indigo-700 disabled:opacity-50 transition-all">
-                    {loading ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} إنشاء التقرير التشخيصي
-                </button>
             </div>
-            
-            <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 flex flex-col gap-3">
-                <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs"><Info size={16}/> ملاحظة مهنية:</div>
-                <p className="text-[10px] text-indigo-800 leading-relaxed font-medium">يقوم النظام بتحليل العلاقة السببية بين (الحضور، السلوك، الدرجات) لاستنتاج التوصيات التربوية المخصصة لكل طالب.</p>
-            </div>
+
+            <button onClick={handleGenerate} disabled={!selectedStudentId || loading} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-sm shadow-2xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-3">
+                {loading ? <Loader2 className="animate-spin" size={20}/> : <Sparkles size={20}/>}
+                {loading ? 'جاري التحليل...' : 'إصدار التقرير التشخيصي'}
+            </button>
         </div>
 
-        <div className="lg:col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative">
-            <div className="p-4 border-b bg-slate-50/50 flex justify-between items-center shrink-0">
-                <span className="font-bold text-slate-700 text-sm flex items-center gap-2"><FileText size={18} className="text-blue-600"/> معاينة مخرجات Gemini AI</span>
+        {/* Report Preview */}
+        <div className="lg:col-span-3 bg-white rounded-[4rem] border shadow-sm flex flex-col overflow-hidden relative group animate-slide-up">
+            <div className="p-8 border-b bg-slate-50/50 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white rounded-2xl shadow-sm text-blue-600"><FileText size={20}/></div>
+                    <span className="font-black text-slate-800">معاينة التقرير الرسمي المعتمد</span>
+                </div>
                 {report && (
-                    <button onClick={() => window.print()} className="px-4 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold flex items-center gap-2 hover:bg-slate-50 transition-all"><Printer size={14}/> طباعة</button>
+                    <button onClick={() => window.print()} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-xs font-black flex items-center gap-3 hover:bg-black transition-all shadow-xl shadow-slate-200">
+                        <Printer size={16}/> طباعة التقرير (PDF)
+                    </button>
                 )}
             </div>
-            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar relative">
+            <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-white relative print:p-0 print:border-none print:shadow-none">
                 {report ? (
-                    <div className="prose prose-slate max-w-none prose-sm leading-relaxed text-slate-700 animate-fade-in font-medium">
-                        <ReactMarkdown>{report}</ReactMarkdown>
+                    <div className="max-w-4xl mx-auto space-y-12 animate-fade-in">
+                        {/* Report Official Header - Visible in Print */}
+                        <div className="hidden print:flex justify-between items-start border-b-2 border-slate-900 pb-8">
+                            <div className="text-right text-xs font-black">
+                                <p>المملكة العربية السعودية</p>
+                                <p>وزارة التعليم</p>
+                                <p>مركز التحليل الأكاديمي الموحد</p>
+                            </div>
+                            <div className="text-center flex flex-col items-center">
+                                <img src="https://upload.wikimedia.org/wikipedia/ar/9/98/MoE_Logo.svg" className="h-20 mb-4 opacity-80" alt="Moe"/>
+                                <h1 className="text-2xl font-black text-slate-900">تقرير تشخيصي لنواتج التعلم</h1>
+                            </div>
+                            <div className="text-left text-xs font-black">
+                                <p>التاريخ: {new Date().toLocaleDateString('ar-SA')}</p>
+                                <p>الرقم المرجعي: AI-{Date.now().toString().slice(-8)}</p>
+                            </div>
+                        </div>
+
+                        {/* Analysis Content */}
+                        <div className="prose prose-indigo max-w-none text-slate-700 leading-relaxed font-medium text-lg">
+                            <ReactMarkdown>{report}</ReactMarkdown>
+                        </div>
+
+                        {/* Signature Area */}
+                        <div className="mt-20 pt-10 border-t-2 border-dotted border-slate-100 flex justify-between items-end print:flex">
+                            <div className="text-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-10">ختم المركز الذكي</p>
+                                <div className="w-24 h-24 border-4 border-slate-50 rounded-full flex items-center justify-center opacity-40 mx-auto">
+                                    <ShieldCheck size={48} className="text-indigo-200"/>
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">مصادقة المحلل التربوي</p>
+                                <div className="h-10"></div>
+                                <p className="font-black text-slate-900 border-t-2 border-slate-900 pt-2 px-10">Gemini Pro 2.5</p>
+                            </div>
+                        </div>
                     </div>
                 ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-30 py-20 gap-6">
-                        <Bot size={120} strokeWidth={1}/>
-                        <p className="text-2xl font-bold text-center">المحلل جاهز، اختر طالباً <br/> واضغط على "إنشاء التقرير" لبدء التشخيص</p>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-200 gap-8 py-32">
+                        <Bot size={180} strokeWidth={1} />
+                        <div className="text-center">
+                            <h3 className="text-4xl font-black mb-4">المحلل بانتظار الطالب</h3>
+                            <p className="text-xl font-bold max-w-sm mx-auto">اختر طالباً من القائمة واضغط على "إصدار التقرير" لفك تشفير بياناته الأكاديمية.</p>
+                        </div>
                     </div>
                 )}
             </div>
