@@ -61,7 +61,7 @@ const NoorExporter: React.FC<NoorExporterProps> = ({ students, performance, curr
                 <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3">
                     <Database className="text-indigo-600" size={36}/> مصدّر نظام نور
                 </h2>
-                <p className="text-sm text-gray-400 font-bold uppercase mt-1 tracking-widest">تجهيز ملفات الرصد الرسمية آلياً</p>
+                <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1 tracking-widest">تجهيز ملفات الرصد الرسمية آلياً</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 flex-1 overflow-hidden">

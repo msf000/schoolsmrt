@@ -70,7 +70,7 @@ const KnowledgeTree: React.FC<Props> = ({ student, performance, formsResults }) 
                                     <h4 className={`text-2xl font-black leading-tight ${skill.isMastered ? 'text-white' : 'text-slate-500'}`}>{skill.name}</h4>
                                     <div className="flex flex-col items-center gap-4">
                                         <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 shadow-inner p-0.5">
-                                            <div className={`h-full transition-all duration-[2000ms] ease-out rounded-full ${skill.isMastered ? 'bg-gradient-to-r from-indigo-500 to-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-slate-700'}`} style={{width: `${skill.mastery}%`}}></div>
+                                            <div className={`h-full transition-all duration-[2000ms] ease-out rounded-full ${skill.isMastered ? 'bg-gradient-to-r from-indigo-50 to-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-slate-700'}`} style={{width: `${skill.mastery}%`}}></div>
                                         </div>
                                         <span className="text-[10px] font-black text-indigo-400 tracking-[0.3em] uppercase">{skill.mastery}% Mastery Level</span>
                                     </div>

@@ -7,7 +7,7 @@ import {
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
     Bell, ShieldCheck, Zap, Sparkles, Puzzle, Layers, User, Crown, 
     Rocket, ChevronLeft, Target, GraduationCap, BrainCircuit, Calendar,
-    RefreshCw, Heart, Award, ListChecks, Medal
+    RefreshCw, Heart, Award, ListChecks, Medal, Network, History
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
@@ -18,6 +18,8 @@ import StudentQuestSystem from './StudentQuestSystem';
 import RemedialBridge from './RemedialBridge';
 import StudentAchievements from './StudentAchievements';
 import StudentAITutor from './StudentAITutor';
+import KnowledgeTree from './KnowledgeTree';
+import StudentAchievementTimeline from './StudentAchievementTimeline';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
     const [selectedGame, setSelectedGame] = useState<InteractiveGame | null>(null);
@@ -25,7 +27,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'QUESTS' | 'ACHIEVEMENTS' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'QUESTS' | 'SKILLS' | 'HISTORY' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
         loadData();
@@ -106,15 +108,16 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
                 {activeTab === 'QUESTS' && <StudentQuestSystem student={currentUser} />}
                 {activeTab === 'ACAD' && <StudentEvaluationView student={currentUser} performance={performance} />}
-                {activeTab === 'ACHIEVEMENTS' && <StudentAchievements student={currentUser} />}
+                {activeTab === 'SKILLS' && <KnowledgeTree student={currentUser} performance={performance} formsResults={formsResults} />}
+                {activeTab === 'HISTORY' && <StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
-                <NavBtn icon={<ListChecks/>} label="المهام" active={activeTab==='QUESTS'} onClick={()=>setActiveTab('QUESTS')}/>
-                <NavBtn icon={<Activity/>} label="أدائي" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
-                <NavBtn icon={<Medal/>} label="إنجازاتي" active={activeTab==='ACHIEVEMENTS'} onClick={()=>setActiveTab('ACHIEVEMENTS')}/>
+                <NavBtn icon={<Target/>} label="المهام" active={activeTab==='QUESTS'} onClick={()=>setActiveTab('QUESTS')}/>
+                <NavBtn icon={<Network/>} label="التمكن" active={activeTab==='SKILLS'} onClick={()=>setActiveTab('SKILLS')}/>
+                <NavBtn icon={<History/>} label="الفخر" active={activeTab==='HISTORY'} onClick={()=>setActiveTab('HISTORY')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
 
