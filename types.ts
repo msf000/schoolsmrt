@@ -14,6 +14,29 @@ export enum BehaviorStatus {
     NEUTRAL = 'NEUTRAL'
 }
 
+export interface AppNotification {
+    id: string;
+    userId: string;
+    title: string;
+    message: string;
+    type: 'SUCCESS' | 'WARNING' | 'INFO' | 'BADGE' | 'TASK';
+    isRead: boolean;
+    createdAt: string;
+    link?: string;
+}
+
+export interface TaskSubmission {
+    id: string;
+    taskId: string;
+    studentId: string;
+    studentName: string;
+    fileUrl: string;
+    submittedAt: string;
+    grade?: number;
+    feedback?: string;
+    status: 'PENDING' | 'GRADED';
+}
+
 export enum ExamType {
     DIAGNOSTIC = 'DIAGNOSTIC',
     PRE_TEST = 'PRE_TEST',

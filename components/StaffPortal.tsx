@@ -6,9 +6,10 @@ import {
     LayoutGrid, Users, CheckSquare, BarChart3, Calendar, 
     Monitor, PenTool, Database, Activity, Shield, Settings, 
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
-    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit, Medal
+    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit, Medal, Sparkles
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
+import NotificationsCenter from './NotificationsCenter';
 
 interface Props {
     currentUser: SystemUser;
@@ -86,6 +87,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/classroom', label: 'إدارة الفصل', icon: Monitor, roles: ['TEACHER'] },
                     { path: '/planning', label: 'التحضير الذكي', icon: PenTool, roles: ['TEACHER'] },
                     { path: '/behavior', label: 'السلوك', icon: ShieldAlert, roles: ['TEACHER'] },
+                    { path: '/lab', label: 'المختبر التعليمي', icon: Zap, roles: ['TEACHER'] },
                 ]
             },
             {
@@ -167,7 +169,8 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                         <div className="flex items-center gap-2">
                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
                                 currentUser.role === 'SUPER_ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                                currentUser.role === 'SCHOOL_MANAGER' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                                currentUser.role === 'SCHOOL_MANAGER' ? 'bg-emerald-100 text-emerald-700' :
+                                currentUser.role === 'PARENT' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
                              }`}>
                                 {currentUser.role}
                              </span>
@@ -179,7 +182,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                         <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-brand-500 transition-colors hidden md:block" title="البحث الشامل (Ctrl+K)">
                             <Search size={20} />
                         </button>
-                        <button className="p-2 text-slate-400 hover:text-brand-500 relative transition-colors"><Bell size={20} /><span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span></button>
+                        <NotificationsCenter userId={currentUser.id} />
                         <div className="flex items-center gap-3 cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200" onClick={() => navigate('/profile')}>
                             <div className="text-left hidden sm:block">
                                 <p className="text-xs font-black text-slate-900 leading-none">{currentUser.name}</p>
