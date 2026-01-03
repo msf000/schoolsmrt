@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Exam, ExamResult, Student, PerformanceRecord } from '../types';
 import { saveExamResult, addPerformance } from '../services/storageService';
-import { Clock, CheckCircle2, ChevronLeft, BrainCircuit, Star, Trophy, Sparkles, Loader2, Zap, X, ShieldCheck } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronLeft, BrainCircuit, Star, Trophy, Sparkles, Loader2, Zap, X, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface StudentQuizPlayerProps {
     exam: Exam;
@@ -13,9 +13,22 @@ interface StudentQuizPlayerProps {
 const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, onComplete }) => {
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
-    const [timeLeft, setTimeLeft] = useState(exam.durationMinutes * 60);
     const [isFinished, setIsFinished] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // حساب الوقت المتبقي بدقة
+    const [timeLeft, setTimeLeft] = useState(() => {
+        const now = new Date().getTime();
+        const individualLimit = exam.durationMinutes * 60;
+        
+        if (exam.endDate) {
+            const officialEnd = new Date(exam.endDate).getTime();
+            const timeUntilOfficialEnd = Math.max(0, Math.floor((officialEnd - now) / 1000));
+            // اختر الوقت الأقل لضمان عدم تجاوز الموعد الرسمي
+            return Math.min(individualLimit, timeUntilOfficialEnd);
+        }
+        return individualLimit;
+    });
 
     useEffect(() => {
         if (timeLeft <= 0 && !isFinished) {
@@ -34,6 +47,7 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
     };
 
     const handleSubmit = async () => {
+        if (isSubmitting || isFinished) return;
         setIsSubmitting(true);
         let score = 0;
         const totalPossible = exam.questions.reduce((a, b) => a + b.points, 0);
@@ -41,7 +55,7 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
         const processedAnswers = exam.questions.map(q => {
             const isCorrect = answers[q.id] === q.correctAnswer;
             if (isCorrect) score += q.points;
-            return { questionId: q.id, studentAnswer: answers[q.id], isCorrect };
+            return { questionId: q.id, studentAnswer: answers[q.id] || '', isCorrect };
         });
 
         const result: ExamResult = {
@@ -54,7 +68,6 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
             date: new Date().toISOString()
         };
 
-        // Save result and add to grades automatically
         await saveExamResult(result);
         
         const perfRecord: PerformanceRecord = {
@@ -66,7 +79,8 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
             maxScore: totalPossible,
             date: new Date().toISOString().split('T')[0],
             category: 'PLATFORM_EXAM',
-            createdById: exam.teacherId
+            createdById: exam.teacherId,
+            notes: exam.id // ربط الدرجة بمعرف الاختبار
         };
         await addPerformance([perfRecord]);
 
@@ -77,7 +91,7 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
     if (isFinished) {
         const total = exam.questions.reduce((a, b) => a + b.points, 0);
         const score = exam.questions.filter(q => answers[q.id] === q.correctAnswer).reduce((a, b) => a + b.points, 0);
-        const xpEarned = Math.floor((score / total) * 200);
+        const xpEarned = Math.floor((score / (total || 1)) * 200);
 
         return (
             <div className="fixed inset-0 z-[100] bg-[#020617] flex flex-col items-center justify-center p-6 font-tajawal text-white">
@@ -138,6 +152,13 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
             <main className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto custom-scrollbar">
                 <div className="w-full max-w-4xl bg-slate-900/60 p-12 md:p-20 rounded-[4rem] border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-md">
                     <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><ShieldCheck size={200}/></div>
+                    
+                    {timeLeft < 30 && (
+                        <div className="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black animate-bounce z-20 shadow-xl">
+                            <AlertCircle size={14}/> سيتم التسليم التلقائي بعد لحظات
+                        </div>
+                    )}
+
                     <div className="text-center relative z-10 mb-16">
                         <span className="text-indigo-400 font-black text-xs uppercase tracking-[0.4em] mb-4 block opacity-60">السؤال رقم {currentQIndex + 1}</span>
                         <h3 className="text-3xl md:text-5xl font-black text-white leading-tight">{currentQ.text}</h3>
@@ -175,7 +196,7 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
                     {currentQIndex === exam.questions.length - 1 ? (
                         <button 
                             onClick={handleSubmit}
-                            disabled={isSubmitting || Object.keys(answers).length < exam.questions.length}
+                            disabled={isSubmitting}
                             className="px-20 py-6 bg-emerald-600 text-white rounded-[2.5rem] font-black text-2xl shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-4 disabled:opacity-20"
                         >
                             {isSubmitting ? <Loader2 className="animate-spin" size={28}/> : <Sparkles size={28}/>} إنهاء وتسليم الإجابات
