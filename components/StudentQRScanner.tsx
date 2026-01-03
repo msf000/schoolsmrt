@@ -30,7 +30,7 @@ const StudentQRScanner: React.FC<Props> = ({ student, onClose }) => {
                     studentId: student.id,
                     date: today,
                     status: AttendanceStatus.PRESENT,
-                    behaviorNote: 'تحضير ذاتي عبر كود QR المباشر',
+                    behaviorNote: 'تحضير ذاتي عبر كود QR המباشر',
                     createdById: student.createdById
                 }]);
                 
@@ -87,7 +87,7 @@ const StudentQRScanner: React.FC<Props> = ({ student, onClose }) => {
                         </div>
                         <div className="flex items-center justify-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/10">
                             <ShieldCheck className="text-indigo-400" size={20}/>
-                            <span className="text-indigo-100 text-xs font-bold">اتصال آمن وموثق سحابياً</span>
+                            <span className="text-indigo-100 text-xs font-bold">اتصال آمن ומותק סحابياً</span>
                         </div>
                     </div>
                 )}

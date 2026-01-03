@@ -126,13 +126,13 @@ const VoiceObservation: React.FC<Props> = ({ students, teacherId, onClose }) => 
                     ) : (
                         <div className="w-full space-y-6 animate-slide-up">
                             <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                                <p className="text-xs text-slate-400 font-black uppercase mb-2 tracking-widest">النص المسجل:</p>
+                                <p className="text-xs text-slate-400 font-black uppercase mb-2 tracking-widest">النص המסجل:</p>
                                 <p className="text-slate-700 font-bold leading-relaxed italic">"{transcript}"</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase">اسم الطالب المكتشف</p>
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase">اسم الطالب המكتشف</p>
                                     <p className="text-indigo-900 font-black">{aiAnalysis.studentName}</p>
                                 </div>
                                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
