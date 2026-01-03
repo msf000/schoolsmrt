@@ -291,7 +291,7 @@ export const fetchAssignments = async (tid?: string): Promise<Assignment[]> => {
             sortOrder: a.sort_order,
             classId: a.class_id,
             subject: a.subject,
-            periodTag: a.period_tag,
+            period_tag: a.period_tag,
             link: a.link
         }));
         setLocal('assignments', mapped);
@@ -451,7 +451,7 @@ export const saveExam = (exam: Exam): void => setLocal('exams', [...getLocal('ex
 export const deleteExam = (id: string): void => setLocal('exams', getLocal('exams').filter((e: any) => e.id !== id));
 
 export const getTasks = (tid?: string): Task[] => (getLocal('tasks') || []).filter((t: any) => !tid || t.teacherId === tid);
-export const saveTask = (task: Task): void => setLocal('tasks', [...getLocal('tasks').filter((t: any) => t.id !== task.id), task]);
+export const saveTask = (task: Task): void => setLocal('tasks', [...getLocal('tasks').filter((x: any) => x.id !== task.id), task]);
 
 export const getCustomTables = (tid?: string): CustomTable[] => (getLocal('custom_tables') || []).filter((t: any) => !tid || t.teacherId === tid);
 export const addCustomTable = async (table: CustomTable): Promise<void> => setLocal('custom_tables', [...getLocal('custom_tables'), table]);
@@ -533,7 +533,13 @@ export const getLessonPlans = (tid?: string): StoredLessonPlan[] => (getLocal('l
 export const deleteLessonPlan = (id: string): void => setLocal('lesson_plans', getLocal('lesson_plans').filter((p: any) => p.id !== id));
 
 export const getExamResults = (examId?: string): ExamResult[] => (getLocal('exam_results') || []).filter((r: any) => !examId || r.examId === examId);
-export const saveExamResult = async (res: ExamResult): Promise<void> => setLocal('exam_results', [...getLocal('exam_results'), res]);
+export const saveExamResult = async (res: ExamResult): Promise<void> => {
+    const results = getLocal('exam_results');
+    setLocal('exam_results', [...results, res]);
+    
+    // Auto-grant XP for completing an exam
+    await adjustStudentXP(res.studentId, 100);
+};
 
 export const getQuestionBank = (tid: string): Question[] => (getLocal('question_bank') || []).filter((q: any) => q.teacherId === tid);
 export const saveQuestionToBank = (q: Question): void => {

@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Exam, ExamResult, Student, Question } from '../types';
-import { saveExamResult } from '../services/storageService';
-import { Clock, CheckCircle2, ChevronLeft, BrainCircuit, Star, Trophy, Sparkles, Loader2, AlertCircle, X, ShieldCheck, Zap } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Exam, ExamResult, Student, PerformanceRecord } from '../types';
+import { saveExamResult, addPerformance } from '../services/storageService';
+import { Clock, CheckCircle2, ChevronLeft, BrainCircuit, Star, Trophy, Sparkles, Loader2, Zap, X, ShieldCheck } from 'lucide-react';
 
 interface StudentQuizPlayerProps {
     exam: Exam;
@@ -12,7 +11,6 @@ interface StudentQuizPlayerProps {
 }
 
 const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, onComplete }) => {
-    const navigate = useNavigate();
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [timeLeft, setTimeLeft] = useState(exam.durationMinutes * 60);
@@ -38,6 +36,8 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
     const handleSubmit = async () => {
         setIsSubmitting(true);
         let score = 0;
+        const totalPossible = exam.questions.reduce((a, b) => a + b.points, 0);
+        
         const processedAnswers = exam.questions.map(q => {
             const isCorrect = answers[q.id] === q.correctAnswer;
             if (isCorrect) score += q.points;
@@ -49,12 +49,27 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
             examId: exam.id,
             studentId: student.id,
             score,
-            totalScore: exam.questions.reduce((a, b) => a + b.points, 0),
+            totalScore: totalPossible,
             answers: processedAnswers,
             date: new Date().toISOString()
         };
 
+        // Save result and add to grades automatically
         await saveExamResult(result);
+        
+        const perfRecord: PerformanceRecord = {
+            id: `perf_${Date.now()}`,
+            studentId: student.id,
+            subject: exam.subject,
+            title: exam.title,
+            score: score,
+            maxScore: totalPossible,
+            date: new Date().toISOString().split('T')[0],
+            category: 'PLATFORM_EXAM',
+            createdById: exam.teacherId
+        };
+        await addPerformance([perfRecord]);
+
         setIsFinished(true);
         setIsSubmitting(false);
     };
@@ -62,36 +77,35 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
     if (isFinished) {
         const total = exam.questions.reduce((a, b) => a + b.points, 0);
         const score = exam.questions.filter(q => answers[q.id] === q.correctAnswer).reduce((a, b) => a + b.points, 0);
-        const xpEarned = Math.floor((score / total) * 100);
+        const xpEarned = Math.floor((score / total) * 200); // Bonus for exams
 
         return (
-            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center h-full p-6 animate-fade-in font-tajawal">
-                <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border-4 border-indigo-50 text-center w-full relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-10 opacity-5"><Trophy size={200}/></div>
-                    
-                    <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
-                        <CheckCircle2 size={48} />
+            <div className="fixed inset-0 z-[100] bg-[#020617] flex flex-col items-center justify-center p-6 font-tajawal text-white">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/10 via-slate-900 to-purple-600/10 opacity-50"></div>
+                <div className="bg-slate-900/60 p-12 rounded-[4rem] border border-white/5 shadow-2xl text-center w-full max-w-2xl relative overflow-hidden backdrop-blur-3xl animate-bounce-in">
+                    <div className="absolute top-0 right-0 p-10 opacity-5"><Trophy size={250}/></div>
+                    <div className="w-24 h-24 bg-emerald-500 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-emerald-500/20 border-4 border-white/10">
+                        <CheckCircle2 size={48} className="text-white" />
                     </div>
-                    
-                    <h2 className="text-4xl font-black text-gray-800 mb-4">انتهى الاختبار!</h2>
-                    <p className="text-gray-500 mb-10 font-bold">بطلنا المبدع، لقد أتممت الاختبار بنجاح.</p>
+                    <h2 className="text-5xl font-black mb-4 tracking-tighter">أحسنت يا بطل! 🏆</h2>
+                    <p className="text-indigo-200 mb-10 text-xl font-bold">لقد أتممت الاختبار بنجاح وتم رصد النتيجة آلياً.</p>
                     
                     <div className="grid grid-cols-2 gap-6 mb-12">
-                        <div className="bg-indigo-50 p-8 rounded-[2rem] border-2 border-indigo-100 flex flex-col items-center">
-                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">درجة الإتقان</p>
-                            <h3 className="text-5xl font-black text-indigo-900">{score} <span className="text-lg text-indigo-300">/ {total}</span></h3>
+                        <div className="bg-white/5 p-8 rounded-[3rem] border border-white/10 flex flex-col items-center shadow-xl">
+                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-2">درجة الإتقان</p>
+                            <h3 className="text-5xl font-black text-white">{score} <span className="text-lg text-white/20">/ {total}</span></h3>
                         </div>
-                        <div className="bg-yellow-50 p-8 rounded-[2rem] border-2 border-yellow-100 flex flex-col items-center">
-                            <p className="text-[10px] font-black text-yellow-600 uppercase tracking-widest mb-2">النقاط المكتسبة</p>
-                            <h3 className="text-5xl font-black text-yellow-700 flex items-center gap-2"><Zap size={24} fill="currentColor"/> {xpEarned}</h3>
+                        <div className="bg-white/5 p-8 rounded-[3rem] border border-white/10 flex flex-col items-center shadow-xl">
+                            <p className="text-[10px] font-black text-amber-400 uppercase tracking-[0.3em] mb-2">XP المكتسبة</p>
+                            <h3 className="text-5xl font-black text-amber-400 flex items-center gap-2"><Zap size={24} fill="currentColor"/> {xpEarned}</h3>
                         </div>
                     </div>
 
                     <button 
                         onClick={onComplete}
-                        className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-xl shadow-xl hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-3"
+                        className="w-full py-6 bg-white text-slate-900 rounded-[2.5rem] font-black text-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
                     >
-                        العودة للرئيسية <ChevronLeft size={24}/>
+                        العودة للرئيسية <ChevronLeft size={28}/>
                     </button>
                 </div>
             </div>
@@ -99,48 +113,49 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
     }
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 font-tajawal animate-fade-in p-4 md:p-10">
-            <header className="max-w-4xl mx-auto w-full flex justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><BrainCircuit size={24}/></div>
+        <div className="fixed inset-0 z-[100] bg-[#020617] text-white h-full flex flex-col font-tajawal animate-fade-in">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 z-0"></div>
+            
+            <header className="relative z-10 px-8 py-6 flex justify-between items-center bg-black/30 backdrop-blur-3xl border-b border-white/5 shadow-2xl">
+                <div className="flex items-center gap-5">
+                    <div className="p-3 bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-600/20 border border-indigo-400/30"><BrainCircuit size={28}/></div>
                     <div>
-                        <h1 className="text-lg font-black text-gray-800">{exam.title}</h1>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">{exam.subject}</p>
+                        <h1 className="text-xl font-black text-white leading-none">{exam.title}</h1>
+                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em] mt-1">{exam.subject}</p>
                     </div>
                 </div>
-                <div className={`flex items-center gap-3 px-6 py-2 rounded-2xl font-mono font-black text-xl border-2 ${timeLeft < 60 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-800 border-slate-100'}`}>
-                    <Clock size={20}/> {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                <div className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] font-mono font-black text-2xl border-2 transition-all ${timeLeft < 60 ? 'bg-red-500 text-white border-red-400 animate-pulse' : 'bg-white/5 text-white border-white/10 shadow-inner'}`}>
+                    <Clock size={24}/> {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
                 </div>
             </header>
 
-            <div className="max-w-4xl mx-auto w-full mb-6">
-                <div className="flex justify-between mb-3 text-[10px] font-black uppercase text-indigo-400">
-                    <span>السؤال {currentQIndex + 1} من {exam.questions.length}</span>
-                    <span>{Math.round(progress)}%</span>
-                </div>
-                <div className="h-3 bg-white rounded-full overflow-hidden border p-0.5 shadow-inner">
-                    <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-700 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+            <div className="relative z-10 w-full mb-2">
+                <div className="h-2 bg-white/5 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_15px_rgba(79,70,229,0.5)] transition-all duration-700" style={{ width: `${progress}%` }}></div>
                 </div>
             </div>
 
-            <main className="max-w-4xl mx-auto w-full flex-1 flex flex-col gap-8 overflow-y-auto custom-scrollbar pb-10">
-                <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none"><ShieldCheck size={200}/></div>
-                    <h3 className="text-2xl md:text-3xl font-black text-gray-800 mb-12 text-center leading-relaxed relative z-10">{currentQ.text}</h3>
+            <main className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto custom-scrollbar">
+                <div className="w-full max-w-4xl bg-slate-900/60 p-12 md:p-20 rounded-[4rem] border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-md">
+                    <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><ShieldCheck size={200}/></div>
+                    <div className="text-center relative z-10 mb-16">
+                        <span className="text-indigo-400 font-black text-xs uppercase tracking-[0.4em] mb-4 block opacity-60">السؤال رقم {currentQIndex + 1}</span>
+                        <h3 className="text-3xl md:text-5xl font-black text-white leading-tight">{currentQ.text}</h3>
+                    </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
                         {currentQ.options.map((opt, i) => (
                             <button 
                                 key={i}
                                 onClick={() => handleSelect(opt)}
-                                className={`p-6 rounded-[2rem] border-4 text-right font-black text-lg transition-all flex items-center justify-between group ${
+                                className={`p-8 rounded-[2.5rem] border-4 text-right font-black text-xl transition-all duration-500 flex items-center justify-between group ${
                                     answers[currentQ.id] === opt 
-                                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl shadow-indigo-100 scale-[1.02]' 
-                                    : 'bg-slate-50 border-transparent text-slate-600 hover:bg-white hover:border-indigo-100'
+                                    ? 'bg-indigo-600 border-white shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-[1.02] z-10' 
+                                    : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:border-white/10 hover:text-white'
                                 }`}
                             >
-                                <span>{opt}</span>
-                                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${answers[currentQ.id] === opt ? 'bg-white border-white' : 'bg-white border-slate-200'}`}>
+                                <span className="flex-1">{opt}</span>
+                                <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center transition-all ${answers[currentQ.id] === opt ? 'bg-white border-white' : 'bg-white/5 border-white/10'}`}>
                                     {answers[currentQ.id] === opt && <div className="w-4 h-4 bg-indigo-600 rounded-full animate-zoom-in"></div>}
                                 </div>
                             </button>
@@ -148,34 +163,38 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center mt-auto">
+                <div className="w-full max-w-4xl flex justify-between items-center mt-12 px-4">
                     <button 
                         disabled={currentQIndex === 0}
                         onClick={() => setCurrentQIndex(currentQIndex - 1)}
-                        className="px-8 py-4 text-slate-400 font-black flex items-center gap-2 hover:text-slate-800 transition-all disabled:opacity-0"
+                        className="px-8 py-4 text-white/30 font-black flex items-center gap-3 hover:text-white transition-all disabled:opacity-0 active:scale-95"
                     >
-                        <ChevronLeft className="rotate-180" size={20}/> السابق
+                        <ChevronLeft className="rotate-180" size={24}/> السؤال السابق
                     </button>
 
                     {currentQIndex === exam.questions.length - 1 ? (
                         <button 
                             onClick={handleSubmit}
                             disabled={isSubmitting || Object.keys(answers).length < exam.questions.length}
-                            className="px-16 py-5 bg-green-600 text-white rounded-[2rem] font-black text-xl shadow-2xl hover:bg-green-700 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
+                            className="px-20 py-6 bg-emerald-600 text-white rounded-[2.5rem] font-black text-2xl shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-4 disabled:opacity-20"
                         >
-                            {isSubmitting ? <Loader2 className="animate-spin"/> : <Sparkles/>} إنهاء وتسليم الإجابات
+                            {isSubmitting ? <Loader2 className="animate-spin" size={28}/> : <Sparkles size={28}/>} إنهاء وتسليم الإجابات
                         </button>
                     ) : (
                         <button 
                             onClick={() => setCurrentQIndex(currentQIndex + 1)}
                             disabled={!answers[currentQ.id]}
-                            className="px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xl shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                            className="px-16 py-6 bg-indigo-600 text-white rounded-[2.5rem] font-black text-2xl shadow-[0_20px_50px_rgba(79,70,229,0.3)] hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-20"
                         >
-                            السؤال التالي <ChevronLeft size={24}/>
+                            التالي <ChevronLeft size={28}/>
                         </button>
                     )}
                 </div>
             </main>
+            
+            <footer className="relative z-10 p-6 bg-black/40 text-center border-t border-white/5">
+                <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.5em]">System Secure Exam Mode Active</p>
+            </footer>
         </div>
     );
 };
