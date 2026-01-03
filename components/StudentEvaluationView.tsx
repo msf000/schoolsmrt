@@ -36,7 +36,7 @@ const StudentEvaluationView: React.FC<Props> = ({ student, performance }) => {
   }, [myPerf]);
 
   if (selectedExam) {
-    return <StudentQuizPlayer exam={selectedExam} student={student} onComplete={() => { setSelectedExam(null); /* Reload data */ }} />;
+    return <StudentQuizPlayer exam={selectedExam} student={student} onComplete={() => { setSelectedExam(null); /* Reload logic here */ }} />;
   }
 
   return (

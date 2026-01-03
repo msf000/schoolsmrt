@@ -77,7 +77,7 @@ const StudentQuizPlayer: React.FC<StudentQuizPlayerProps> = ({ exam, student, on
     if (isFinished) {
         const total = exam.questions.reduce((a, b) => a + b.points, 0);
         const score = exam.questions.filter(q => answers[q.id] === q.correctAnswer).reduce((a, b) => a + b.points, 0);
-        const xpEarned = Math.floor((score / total) * 200); // Bonus for exams
+        const xpEarned = Math.floor((score / total) * 200);
 
         return (
             <div className="fixed inset-0 z-[100] bg-[#020617] flex flex-col items-center justify-center p-6 font-tajawal text-white">
