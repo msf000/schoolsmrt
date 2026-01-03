@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { InteractiveGame, Student, PerformanceRecord, FormsDetailedResult } from '../types';
+import { InteractiveGame, Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord } from '../types';
 import GamePlayer from './GamePlayer';
-import { getGames, fetchPerformance, getFormsDetailedResults } from '../services/storageService';
+import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
     Bell, ShieldCheck, Zap, Sparkles, Puzzle, Layers, User, Crown, 
     Rocket, ChevronLeft, Target, GraduationCap, BrainCircuit, Calendar,
-    RefreshCw, Heart, Award, ListChecks
+    RefreshCw, Heart, Award, ListChecks, Medal
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
@@ -16,13 +16,16 @@ import StudentShop from './StudentShop';
 import StudentDigitalID from './StudentDigitalID';
 import StudentQuestSystem from './StudentQuestSystem';
 import RemedialBridge from './RemedialBridge';
+import StudentAchievements from './StudentAchievements';
+import StudentAITutor from './StudentAITutor';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
     const [selectedGame, setSelectedGame] = useState<InteractiveGame | null>(null);
     const [availableGames, setAvailableGames] = useState<InteractiveGame[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
+    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'QUESTS' | 'SHOP' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'QUESTS' | 'ACHIEVEMENTS' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
         loadData();
@@ -31,8 +34,9 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const loadData = async () => {
         const allGames = getGames();
         setAvailableGames(allGames.filter((g: InteractiveGame) => !g.targetClass || g.targetClass === currentUser.className));
-        const res: PerformanceRecord[] = await fetchPerformance();
-        setPerformance(res.filter((p: PerformanceRecord) => p.studentId === currentUser.id));
+        const [perf, att] = await Promise.all([fetchPerformance(), fetchAttendance()]);
+        setPerformance(perf.filter((p: PerformanceRecord) => p.studentId === currentUser.id));
+        setAttendance(att.filter((a: AttendanceRecord) => a.studentId === currentUser.id));
         setFormsResults(getFormsDetailedResults(currentUser.createdById || ''));
     };
 
@@ -102,7 +106,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
                 {activeTab === 'QUESTS' && <StudentQuestSystem student={currentUser} />}
                 {activeTab === 'ACAD' && <StudentEvaluationView student={currentUser} performance={performance} />}
-                {activeTab === 'SHOP' && <StudentShop xp={currentUser.xp || 0} rewards={[]} student={currentUser} onPurchaseComplete={loadData} />}
+                {activeTab === 'ACHIEVEMENTS' && <StudentAchievements student={currentUser} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
             </main>
 
@@ -110,11 +114,12 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
                 <NavBtn icon={<ListChecks/>} label="المهام" active={activeTab==='QUESTS'} onClick={()=>setActiveTab('QUESTS')}/>
                 <NavBtn icon={<Activity/>} label="أدائي" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
-                <NavBtn icon={<Award/>} label="المتجر" active={activeTab==='SHOP'} onClick={()=>setActiveTab('SHOP')}/>
+                <NavBtn icon={<Medal/>} label="إنجازاتي" active={activeTab==='ACHIEVEMENTS'} onClick={()=>setActiveTab('ACHIEVEMENTS')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
 
             {selectedGame && <GamePlayer game={selectedGame} student={currentUser} onClose={() => setSelectedGame(null)} />}
+            <StudentAITutor student={currentUser} />
         </div>
     );
 };

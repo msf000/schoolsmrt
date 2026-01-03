@@ -1,21 +1,23 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam, StoredLessonPlan } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam, StoredLessonPlan, BehaviorIncident } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft, ArrowUpCircle, BarChart3, Zap, Heart
+    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft, ArrowUpCircle, BarChart3, Zap, Heart, MessageSquare
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
-import { getExams, getStudents, getExamResults, getLessonPlans } from '../services/storageService';
+import { getExams, getStudents, getExamResults, getLessonPlans, getBehaviorIncidents } from '../services/storageService';
 import { calculateGrowthMetrics, calculateClassHealth } from '../services/analysisService';
 import TeacherStats from './TeacherStats';
+import { formatDualDate } from '../services/dateService';
 
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const [liveExams, setLiveExams] = useState<Exam[]>([]);
   const [growthLeaders, setGrowthLeaders] = useState<any[]>([]);
   const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
+  const [recentIncidents, setRecentIncidents] = useState<BehaviorIncident[]>([]);
 
   const classStats = useMemo(() => {
       const total = students.length;
@@ -53,6 +55,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
         });
         setLiveExams(active);
         setLessonPlans(getLessonPlans(currentUser.id));
+        setRecentIncidents(getBehaviorIncidents(currentUser.id).slice(0, 5));
 
         const pre = allExams.find(e => e.type === 'PRE_TEST' || e.type === 'DIAGNOSTIC');
         const post = allExams.find(e => e.type === 'POST_TEST');
@@ -131,28 +134,37 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
           </div>
 
           <div className="flex flex-col gap-6">
-              <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden shrink-0 h-[240px] group">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-700"><ArrowUpCircle size={150}/></div>
+              <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden shrink-0 h-[300px] group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-700"><Activity size={180}/></div>
                   <div className="relative z-10 flex flex-col h-full">
-                    <h3 className="text-xl font-black flex items-center gap-3 mb-6"><Award size={24} className="text-yellow-400"/> أبطال قفزة النمو</h3>
-                    <div className="space-y-3 flex-1">
-                        {growthLeaders.length > 0 ? growthLeaders.map((leader, i) => (
-                            <div key={i} className="flex justify-between items-center bg-white/10 p-2.5 rounded-2xl border border-white/5 backdrop-blur-sm">
-                                <span className="text-xs font-black">{leader.studentName}</span>
-                                <div className="flex items-center gap-1 text-[10px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-lg shadow-lg">
-                                    <TrendingUp size={10}/> +{leader.growth}%
+                    <h3 className="text-xl font-black flex items-center gap-3 mb-6"><MessageSquare size={24} className="text-yellow-400"/> آخر النشاطات الصفيّة</h3>
+                    <div className="space-y-3 flex-1 overflow-y-auto no-scrollbar pr-1">
+                        {recentIncidents.length > 0 ? recentIncidents.map((incident, i) => {
+                            const student = students.find(s => s.id === incident.studentId);
+                            return (
+                                <div key={i} className="flex justify-between items-center bg-white/10 p-3 rounded-2xl border border-white/5 backdrop-blur-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center font-black text-xs">{student?.name.charAt(0)}</div>
+                                        <div>
+                                            <p className="text-xs font-black truncate max-w-[100px]">{student?.name.split(' ')[0]}</p>
+                                            <p className="text-[8px] opacity-60">{incident.category}</p>
+                                        </div>
+                                    </div>
+                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-500' : 'bg-rose-500'} text-white shadow-lg`}>
+                                        {incident.points > 0 ? '+' : ''}{incident.points}
+                                    </div>
                                 </div>
-                            </div>
-                        )) : (
+                            );
+                        }) : (
                             <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
-                                <p className="text-xs font-bold italic">بانتظار نتائج المقارنة...</p>
+                                <p className="text-xs font-bold italic">لا توجد نشاطات مؤخرة...</p>
                             </div>
                         )}
                     </div>
                   </div>
               </div>
 
-              <div className="bg-slate-900 rounded-[3rem] p-8 text-white flex flex-col shadow-2xl relative overflow-hidden flex-1 border border-white/5">
+              <div className="bg-slate-900 rounded-[3rem] p-8 text-white flex flex-col shadow-2xl relative overflow-hidden flex-1 border border-white/5 min-h-[350px]">
                   <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={150}/></div>
                   <div className="relative z-10 flex flex-col h-full">
                       <div className="flex items-center gap-3 mb-6">

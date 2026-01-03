@@ -4,7 +4,7 @@ import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser
 import { 
     Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Maximize, X, ChevronLeft, ChevronRight, 
     PenTool, Eraser, Trash2, Minimize, Sparkles, Star, Siren, BrainCircuit, Loader2, Plus, ArrowRight, 
-    QrCode, Zap, Ghost, MessageSquare, Lightbulb, Activity, BarChart2, CheckCircle2, HelpCircle, FileText, Swords
+    QrCode, Zap, Ghost, MessageSquare, Lightbulb, Activity, BarChart2, CheckCircle2, HelpCircle, FileText, Swords, Mic
 } from 'lucide-react';
 import { getTeacherAssignments, getExams } from '../services/storageService';
 import { analyzeClassroomVibe, generateBrainstormingIdea } from '../services/geminiService';
@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import ActivityWheel from './ActivityWheel';
 import QuizBattle from './QuizBattle';
+import VoiceObservation from './VoiceObservation';
 
 interface ClassroomScreenProps {
     students: Student[];
@@ -28,6 +29,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isWheelOpen, setIsWheelOpen] = useState(false);
     const [isBattleOpen, setIsBattleOpen] = useState(false);
+    const [isVoiceOpen, setIsVoiceOpen] = useState(false);
     
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -80,6 +82,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
                 <div className="flex items-center gap-1 overflow-x-auto p-1 bg-black/20 rounded-xl max-w-[65%] no-scrollbar">
                     <TabBtn icon={<PenTool size={18}/>} label="السبورة" active={activeTool === 'PRESENTATION'} onClick={() => setActiveTool('PRESENTATION')} />
                     <TabBtn icon={<Swords size={18}/>} label="المسابقة" active={activeTool === 'BATTLE'} onClick={() => setIsBattleOpen(true)} />
+                    <TabBtn icon={<Mic size={18}/>} label="رصد صوتي" active={false} onClick={() => setIsVoiceOpen(true)} />
                     <TabBtn icon={<FileText size={18}/>} label="بطاقات AI" active={activeTool === 'FLASHCARDS'} onClick={() => setActiveTool('FLASHCARDS')} />
                     <TabBtn icon={<HelpCircle size={18}/>} label="تصويت" active={activeTool === 'POLL'} onClick={() => setActiveTool('POLL')} />
                     <TabBtn icon={<Star size={18}/>} label="تحفيز" active={activeTool === 'REWARDS'} onClick={() => setActiveTool('REWARDS')} />
@@ -104,6 +107,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
             </div>
 
             {isWheelOpen && <ActivityWheel students={presentStudents} onClose={() => setIsWheelOpen(false)} />}
+            {isVoiceOpen && currentUser && <VoiceObservation students={students} teacherId={currentUser.id} onClose={() => setIsVoiceOpen(false)} />}
             {isBattleOpen && (
                 <QuizBattleSelection 
                     exams={availableExams} 
