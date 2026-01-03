@@ -4,7 +4,7 @@ import { Student, AttendanceRecord, PerformanceRecord, SystemUser, Teacher } fro
 import { 
     Shield, Users, GraduationCap, TrendingUp, AlertTriangle, 
     Sparkles, Bot, BarChart3, PieChart, Activity, CheckCircle, 
-    ArrowUpRight, Target, Zap, Clock, Briefcase, ChevronLeft
+    ArrowUpRight, Target, Zap, Clock, Briefcase, ChevronLeft, Filter, Search
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { generateNarrativeInsights } from '../services/geminiService';
@@ -19,6 +19,7 @@ interface PrincipalDashboardProps {
 const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ students, attendance, performance, teachers }) => {
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const stats = useMemo(() => {
         const totalStudents = students.length;
@@ -35,7 +36,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ students, atten
             const auditData = {
                 schoolStats: stats,
                 teacherCount: teachers.length,
-                atRiskCount: students.length * 0.1 // Simulated for prompt
+                atRiskCount: students.length * 0.1 
             };
             const res = await generateNarrativeInsights(auditData);
             setAiSummary(res);
@@ -47,91 +48,109 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ students, atten
     };
 
     return (
-        <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal overflow-hidden">
-            <div className="mb-8 flex justify-between items-center shrink-0">
-                <div>
-                    <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-                        <Shield className="text-indigo-600" size={36}/> مركز قيادة المنشأة
-                    </h2>
-                    <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">نظام الرقابة الذكي (School Health Monitor)</p>
+        <div className="space-y-8 page-enter font-tajawal">
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 flex flex-col md:flex-row justify-between items-center shadow-sm gap-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-full bg-brand-500/5 -skew-x-12 translate-x-10"></div>
+                <div className="relative z-10">
+                    <h1 className="text-2xl font-black text-slate-900">نظام الرقابة المدرسية الشامل</h1>
+                    <p className="text-slate-500 mt-1 font-medium italic">أهلاً بك سعادة القائد، إليك ملخص أداء المنشأة اليوم.</p>
                 </div>
                 <button 
                     onClick={handleRunAudit}
                     disabled={loading}
-                    className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-sm shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    className="relative z-10 px-8 py-3 bg-brand-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-brand-500/20 hover:bg-brand-600 transition-all flex items-center gap-2"
                 >
-                    {loading ? <Bot className="animate-bounce" size={18}/> : <Sparkles size={18}/>} 
-                    {loading ? 'جاري التدقيق...' : 'تدقيق ذكي للمدرسة (AI Audit)'}
+                    {loading ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} 
+                    {loading ? 'جاري التدقيق...' : 'تدقيق الذكاء الاصطناعي'}
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pb-20 pr-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <PrincipalStatCard label="إجمالي الطلاب" value={stats.totalStudents} sub="طلاب نشطون" icon={<Users/>} color="text-indigo-600" bg="bg-indigo-50"/>
-                    <PrincipalStatCard label="الكادر التعليمي" value={stats.totalTeachers} sub="معلمين معتمدين" icon={<Briefcase/>} color="text-emerald-600" bg="bg-emerald-50"/>
-                    <PrincipalStatCard label="معدل الانضباط" value={`${stats.attRate}%`} sub="حضور سحابي" icon={<Clock/>} color="text-amber-600" bg="bg-amber-50"/>
-                    <PrincipalStatCard label="كفاءة التعلم" value={`${stats.avgGrade}%`} sub="متوسط الإتقان" icon={<Target/>} color="text-rose-600" bg="bg-rose-50"/>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                 <PrincipalStat label="طلاب المدرسة" value={stats.totalStudents} icon={Users} color="indigo" />
+                 <PrincipalStat label="المعلمين" value={stats.totalTeachers} icon={Briefcase} color="emerald" />
+                 <PrincipalStat label="انضباط الطلاب" value={`${stats.attRate}%`} icon={Clock} color="amber" />
+                 <PrincipalStat label="جودة التعليم" value={`${stats.avgGrade}%`} icon={Target} color="rose" />
+            </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 bg-white p-10 rounded-[3.5rem] border shadow-sm h-[500px] flex flex-col">
-                        <div className="flex justify-between items-center mb-10">
-                            <h3 className="text-xl font-black text-slate-800">تحليل النمو الأكاديمي السنوي</h3>
-                            <div className="flex gap-4">
-                                <div className="flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest"><TrendingUp size={14}/> مباشر</div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="font-black text-slate-800 flex items-center gap-2"><TrendingUp size={20} className="text-brand-500"/> التفاعل المدرسي اليومي</h3>
+                            <div className="flex bg-slate-50 p-1 rounded-lg text-[10px] font-black border border-slate-100">
+                                <span className="px-3 py-1 bg-white rounded shadow-sm text-brand-600">LIVE</span>
                             </div>
                         </div>
-                        <div className="flex-1">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-[300px]">
+                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={[
-                                    { name: 'أكتوبر', value: 75 }, { name: 'نوفمبر', value: 78 },
-                                    { name: 'ديسمبر', value: 82 }, { name: 'يناير', value: 85 },
-                                    { name: 'فبراير', value: 88 }, { name: 'مارس', value: 92 }
+                                    { name: '7ص', v: 40 }, { name: '8ص', v: 85 }, { name: '9ص', v: 92 },
+                                    { name: '10ص', v: 88 }, { name: '11ص', v: 75 }, { name: '12م', v: 60 }
                                 ]}>
                                     <defs>
-                                        <linearGradient id="principalPulse" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient>
+                                        <linearGradient id="pColor" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/><stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/></linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 'bold'}} />
+                                    <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
                                     <YAxis hide domain={[0, 100]} />
-                                    <Tooltip contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)'}} />
-                                    <Area type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#principalPulse)" />
+                                    <Area type="monotone" dataKey="v" stroke="#4f46e5" fillOpacity={1} fill="url(#pColor)" strokeWidth={3} />
                                 </AreaChart>
-                            </ResponsiveContainer>
+                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    <div className="bg-slate-900 rounded-[3.5rem] p-10 text-white relative overflow-hidden flex flex-col shadow-2xl">
-                        <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12 pointer-events-none"><Sparkles size={200}/></div>
-                        <div className="relative z-10">
-                            <div className="bg-white/10 w-fit p-3 rounded-2xl mb-6 backdrop-blur-md border border-white/10 flex items-center gap-2">
-                                <Bot className="text-indigo-400" size={24}/>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">توصية المدير الذكية</span>
-                            </div>
-                            {aiSummary ? (
-                                <div className="space-y-6 animate-slide-up">
-                                    <p className="text-xl font-medium leading-relaxed italic text-indigo-50">"{aiSummary}"</p>
-                                    <div className="pt-6 border-t border-white/10 space-y-4">
-                                        <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest">الأولويات المقترحة:</h4>
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-3 text-xs font-bold text-white/70 bg-white/5 p-3 rounded-xl border border-white/5">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                                                تكريم أفضل 3 معلمين نشاطاً سحابياً
-                                            </div>
-                                            <div className="flex items-center gap-3 text-xs font-bold text-white/70 bg-white/5 p-3 rounded-xl border border-white/5">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#ef4444]"></div>
-                                                مراجعة كشوف غياب طلاب الصف الثاني
-                                            </div>
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                        <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
+                            <h3 className="font-black text-slate-800 text-sm">المعلمين الأكثر نشاطاً سحابياً</h3>
+                            <button className="text-brand-600 text-xs font-bold hover:underline">عرض الكل</button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            {teachers.slice(0, 3).map((t, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-2xl transition-colors border border-transparent hover:border-slate-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 border border-slate-200">{t.name.charAt(0)}</div>
+                                        <div>
+                                            <p className="font-bold text-slate-800 text-sm">{t.name}</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">{t.subjectSpecialty}</p>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-[10px] font-black border border-emerald-100">
+                                        <CheckCircle size={12}/> موثق
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl flex flex-col min-h-[400px]">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={180}/></div>
+                        <div className="relative z-10 flex flex-col h-full">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-white/10 rounded-lg border border-white/10"><Bot size={20} className="text-indigo-400"/></div>
+                                <h3 className="font-bold text-lg">تحليل Gemini للمدرسة</h3>
+                            </div>
+                            {aiSummary ? (
+                                <div className="flex-1 space-y-4 animate-fade-in text-sm text-indigo-50 leading-relaxed font-medium">
+                                    {aiSummary}
                                 </div>
                             ) : (
-                                <div className="py-20 text-center opacity-30">
-                                    <Activity size={80} className="mx-auto mb-4"/>
-                                    <p className="font-black text-xl">اضغط على التدقيق لبدء التحليل المؤسسي</p>
+                                <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
+                                    <Activity size={64} className="mb-4"/>
+                                    <p className="font-bold">اضغط على زر "تدقيق" للحصول على تحليل ذكي لمستوى المدرسة.</p>
                                 </div>
                             )}
+                            <button className="mt-8 w-full py-3 bg-white text-slate-900 rounded-xl text-xs font-black hover:bg-slate-100 transition-all">تصدير تقرير القيادة</button>
                         </div>
+                    </div>
+
+                    <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100 space-y-4">
+                        <div className="flex items-center gap-3 text-rose-700 font-black">
+                             <AlertTriangle size={18}/>
+                             <span>تنبيهات انضباطية حرجة</span>
+                        </div>
+                        <p className="text-xs text-rose-600 leading-relaxed">هناك تراجع بنسبة 12% في حضور طلاب الصف الثالث هذا الأسبوع. يرجى مراجعة المعلمين المعنيين.</p>
                     </div>
                 </div>
             </div>
@@ -139,17 +158,26 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ students, atten
     );
 };
 
-const PrincipalStatCard = ({ label, value, sub, icon, color, bg }: any) => (
-    <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
-        <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-            <h3 className={`text-3xl font-black ${color}`}>{value}</h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-1">{sub}</p>
+const PrincipalStat = ({ label, value, icon: Icon, color }: any) => {
+    const colors: any = {
+        indigo: 'text-indigo-600 bg-indigo-50',
+        emerald: 'text-emerald-600 bg-emerald-50',
+        amber: 'text-amber-600 bg-amber-50',
+        rose: 'text-rose-600 bg-rose-50'
+    };
+    return (
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-brand-500 transition-all">
+            <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                <h4 className="text-2xl font-black text-slate-900">{value}</h4>
+            </div>
+            <div className={`p-4 rounded-2xl ${colors[color]} group-hover:scale-110 transition-transform`}>
+                <Icon size={24} />
+            </div>
         </div>
-        <div className={`p-4 ${bg} ${color} rounded-2xl group-hover:scale-110 transition-transform shadow-inner`}>
-            {React.cloneElement(icon, { size: 28 })}
-        </div>
-    </div>
-);
+    );
+};
+
+const Loader2 = ({ size, className }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 
 export default PrincipalDashboard;
