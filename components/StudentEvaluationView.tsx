@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Student, PerformanceRecord, Exam, ExamResult } from '../types';
 import { getExams, getExamResults } from '../services/storageService';
-import { BarChart, Activity, TrendingUp, Star, Target, Calendar, ClipboardList, ChevronLeft, BrainCircuit, Clock, Play, CheckCircle2, Award } from 'lucide-react';
+import { BarChart, Activity, TrendingUp, Star, Target, Calendar, ClipboardList, ChevronLeft, BrainCircuit, Clock, Play, CheckCircle2, Award, Video, Globe, AlertTriangle } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import StudentQuizPlayer from './StudentQuizPlayer';
 
@@ -35,8 +35,19 @@ const StudentEvaluationView: React.FC<Props> = ({ student, performance }) => {
     return { avg, count: myPerf.length, highest };
   }, [myPerf]);
 
+  const getExamStatus = (exam: Exam) => {
+    if (!exam.startDate || !exam.endDate) return 'AVAILABLE';
+    const now = new Date();
+    const start = new Date(exam.startDate);
+    const end = new Date(exam.endDate);
+
+    if (now < start) return 'SCHEDULED';
+    if (now > end) return 'EXPIRED';
+    return 'LIVE';
+  };
+
   if (selectedExam) {
-    return <StudentQuizPlayer exam={selectedExam} student={student} onComplete={() => { setSelectedExam(null); /* Reload logic here */ }} />;
+    return <StudentQuizPlayer exam={selectedExam} student={student} onComplete={() => { setSelectedExam(null); window.location.reload(); }} />;
   }
 
   return (
@@ -46,13 +57,13 @@ const StudentEvaluationView: React.FC<Props> = ({ student, performance }) => {
         <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Activity size={180}/></div>
         <div className="relative z-10 text-center md:text-right">
             <h2 className="text-3xl font-black text-white flex items-center justify-center md:justify-start gap-4">
-                <TrendingUp className="text-indigo-400" size={32}/> مركز الأداء الأكاديمي
+                <TrendingUp className="text-indigo-400" size={32}/> مركز التميز الأكاديمي
             </h2>
             <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-2">تحليل المهارات ونتائج الاختبارات الذكية</p>
         </div>
         <div className="flex gap-4 relative z-10">
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-8 py-4 rounded-3xl text-center shadow-2xl">
-            <p className="text-[10px] font-black text-indigo-400 uppercase mb-1 tracking-[0.2em]">متوسط التمكن</p>
+            <p className="text-[10px] font-black text-indigo-400 uppercase mb-1 tracking-[0.2em]">نسبة التمكن</p>
             <p className="text-3xl font-black text-white">{stats.avg}%</p>
           </div>
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-8 py-4 rounded-3xl text-center shadow-2xl">
@@ -63,67 +74,87 @@ const StudentEvaluationView: React.FC<Props> = ({ student, performance }) => {
       </div>
 
       {/* Active Exams Section */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         <h3 className="text-2xl font-black text-white px-4 flex items-center gap-3">
-            <BrainCircuit className="text-purple-400" size={24}/> الاختبارات الإلكترونية النشطة
+            <BrainCircuit className="text-purple-400" size={24}/> الاختبارات والمهام النشطة
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeExams.map(exam => {
                 const result = examResults.find(r => r.examId === exam.id && r.studentId === student.id);
+                const status = getExamStatus(exam);
+                const canStart = status === 'LIVE' || status === 'AVAILABLE';
+
                 return (
-                    <div key={exam.id} className="bg-slate-900/60 p-8 rounded-[3rem] border border-white/5 shadow-xl relative group overflow-hidden transition-all hover:border-indigo-500/50">
-                        <div className="flex justify-between items-start mb-8">
-                            <div className="p-4 bg-indigo-500/10 rounded-2xl text-indigo-400 group-hover:scale-110 transition-transform">
+                    <div key={exam.id} className={`bg-slate-900/60 p-8 rounded-[3rem] border-2 shadow-xl relative group overflow-hidden transition-all ${status === 'LIVE' ? 'border-emerald-500 shadow-emerald-500/20' : 'border-white/5'}`}>
+                        {status === 'LIVE' && (
+                            <div className="absolute top-0 right-0 bg-emerald-500 text-white px-4 py-1 text-[9px] font-black animate-pulse flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 bg-white rounded-full"></div> جارٍ الآن
+                            </div>
+                        )}
+                        
+                        <div className="flex justify-between items-start mb-6">
+                            <div className={`p-4 rounded-2xl transition-transform group-hover:scale-110 ${status === 'LIVE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
                                 <Award size={32}/>
                             </div>
                             {result ? (
-                                <span className="bg-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 flex items-center gap-2">
-                                    <CheckCircle2 size={12}/> مكتمل ({result.score}/{result.totalScore})
+                                <span className="bg-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-emerald-500/20 flex items-center gap-2">
+                                    <CheckCircle2 size={12}/> {result.score}/{result.totalScore}
+                                </span>
+                            ) : status === 'SCHEDULED' ? (
+                                <span className="bg-amber-500/20 text-amber-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-amber-500/20 flex items-center gap-2">
+                                    <Clock size={12}/> مجدول
                                 </span>
                             ) : (
-                                <span className="bg-indigo-500/20 text-indigo-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
-                                    متاح الآن
+                                <span className="bg-indigo-500/20 text-indigo-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-indigo-500/20">
+                                    متاح
                                 </span>
                             )}
                         </div>
+
                         <h4 className="text-xl font-black text-white mb-2 truncate">{exam.title}</h4>
-                        <div className="flex gap-4 mb-10">
-                            <div className="flex items-center gap-1.5 text-slate-500">
+                        
+                        <div className="space-y-2 mb-8">
+                            {exam.startDate && (
+                                <div className="flex items-center gap-2 text-slate-400">
+                                    <Calendar size={14}/>
+                                    <span className="text-[10px] font-bold">البدء: {new Date(exam.startDate).toLocaleString('ar-SA')}</span>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-2 text-slate-400">
                                 <Clock size={14}/>
-                                <span className="text-xs font-bold">{exam.durationMinutes} دقيقة</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-slate-500">
-                                <ClipboardList size={14}/>
-                                <span className="text-xs font-bold">{exam.questions.length} سؤال</span>
+                                <span className="text-[10px] font-bold">المدة: {exam.durationMinutes} دقيقة</span>
                             </div>
                         </div>
-                        <button 
-                            disabled={!!result}
-                            onClick={() => setSelectedExam(exam)}
-                            className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all ${
-                                result 
-                                ? 'bg-white/5 text-white/20 cursor-default' 
-                                : 'bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 active:scale-95'
-                            }`}
-                        >
-                            {result ? 'تم إرسال الإجابة' : <><Play size={18}/> ابدأ التحدي الآن</>}
-                        </button>
+
+                        <div className="flex flex-col gap-2">
+                            {exam.isLive && exam.streamUrl && status === 'LIVE' && !result && (
+                                <a href={exam.streamUrl} target="_blank" rel="noreferrer" className="w-full py-3 bg-rose-600/20 text-rose-400 border border-rose-600/30 rounded-xl font-black text-[10px] flex items-center justify-center gap-2 hover:bg-rose-600 hover:text-white transition-all">
+                                    <Video size={14}/> دخول بث المراقبة (Live)
+                                </a>
+                            )}
+                            
+                            <button 
+                                disabled={!!result || !canStart}
+                                onClick={() => setSelectedExam(exam)}
+                                className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all ${
+                                    result ? 'bg-white/5 text-white/20 cursor-default' :
+                                    !canStart ? 'bg-white/5 text-slate-600 cursor-default border border-white/5' :
+                                    'bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 active:scale-95'
+                                }`}
+                            >
+                                {result ? 'اكتملت الإجابة' : status === 'SCHEDULED' ? 'بانتظار الموعد' : status === 'EXPIRED' ? 'انتهى الوقت' : <><Play size={18}/> ابدأ التحدي الآن</>}
+                            </button>
+                        </div>
                     </div>
                 );
             })}
-            {activeExams.length === 0 && (
-                <div className="col-span-full py-20 text-center text-white/10 font-black border-4 border-dashed border-white/5 rounded-[4rem]">
-                    <Clock size={80} className="mx-auto mb-4 opacity-5"/>
-                    <p className="text-xl">لا توجد اختبارات إلكترونية مجدولة حالياً</p>
-                </div>
-            )}
         </div>
       </div>
 
-      {/* Legacy Performance List */}
+      {/* Performance History List */}
       <div className="bg-white/5 rounded-[3rem] border border-white/5 shadow-2xl overflow-hidden flex flex-col">
         <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/20">
-          <h3 className="font-black text-white flex items-center gap-3 text-lg"><ClipboardList size={20} className="text-indigo-400"/> سجل الدرجات العام</h3>
+          <h3 className="font-black text-white flex items-center gap-3 text-lg"><ClipboardList size={20} className="text-indigo-400"/> سجل الرصد العام</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse">

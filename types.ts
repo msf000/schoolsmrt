@@ -157,6 +157,10 @@ export interface Exam {
     isActive: boolean;
     createdAt: string;
     teacherId: string;
+    startDate?: string;
+    endDate?: string;
+    isLive?: boolean;
+    streamUrl?: string;
 }
 
 export interface Question {
