@@ -61,7 +61,7 @@ const TeacherStats: React.FC<Props> = ({ students, performance, attendance, plan
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 'bold', fill: '#64748b'}} />
                                 <YAxis hide />
-                                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'}} />
                                 <Bar dataKey="val" radius={[4, 4, 0, 0]} barSize={40}>
                                     <Cell fill="#2563eb" />
                                     <Cell fill="#10b981" />
