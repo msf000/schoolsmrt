@@ -43,7 +43,9 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().then(() => setIsFullscreen(true));
         } else {
-            document.exitFullscreen().then(() => setIsFullscreen(false));
+            if (document.exitFullscreen) {
+                document.exitFullscreen().then(() => setIsFullscreen(false));
+            }
         }
     };
 
@@ -106,7 +108,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
                 <QuizBattleSelection 
                     exams={availableExams} 
                     students={presentStudents} 
-                    onStart={(exam) => { setIsBattleOpen(false); setActiveTool('BATTLE'); }} 
+                    onStart={(exam: Exam) => { setIsBattleOpen(false); setActiveTool('BATTLE'); }} 
                     onClose={() => setIsBattleOpen(false)} 
                 />
             )}
@@ -143,12 +145,9 @@ const QuizBattleSelection = ({ exams, students, onStart, onClose }: any) => {
     );
 };
 
-// ... Rest of existing components (PresentationBoard, AIFlashcardsView, etc.)
-// (Assume existing code for components like PresentationBoard, AIFlashcardsView, LivePollView, VibeMonitor, QrAttendanceDisplay, ClassroomTimer, GroupGenerator, RewardsView is kept as is from previous response)
-
 const AIFlashcardsView = () => {
     const [topic, setTopic] = useState('');
-    const [cards, setCards] = useState<{q: string, a: string}[]>([]);
+    const [cards, setCards] = useState<{q: string, b: string}[]>([]);
     const [loading, setLoading] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
@@ -158,7 +157,7 @@ const AIFlashcardsView = () => {
         setLoading(true);
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const prompt = `أنت خبير تعليمي. ولد 5 بطاقات مراجعة (سؤال وجواب) عن موضوع: ${topic}. أرجع النتيجة بتنسيق JSON فقط: {"cards": [{"q": "السؤال", "a": "الجواب"}]}`;
+            const prompt = `أنت خبير تعليمي. ولد 5 بطاقات مراجعة (سؤال وجواب) عن موضوع: ${topic}. أرجع النتيجة بتنسيق JSON فقط: {"cards": [{"q": "السؤال", "b": "الجواب"}]}`;
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
@@ -200,7 +199,7 @@ const AIFlashcardsView = () => {
                             </div>
                             <div className="absolute inset-0 backface-hidden rotate-y-180 bg-emerald-600 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center p-10 text-center border-4 border-white/10">
                                 <span className="text-emerald-200 text-xs font-black uppercase mb-4 tracking-widest">الإجابة النموذجية</span>
-                                <h4 className="text-2xl md:text-3xl font-black leading-relaxed">{cards[currentIndex].a}</h4>
+                                <h4 className="text-2xl md:text-3xl font-black leading-relaxed">{cards[currentIndex].b}</h4>
                             </div>
                         </div>
                     </div>
@@ -454,7 +453,7 @@ const ClassroomTimer = () => {
     const [active, setActive] = useState(false);
     useEffect(() => {
         let t: any;
-        if(active && sec > 0) t = setInterval(()=>setSec(s=>s-1), 1000);
+        if(active && sec > 0) t = setInterval(()=>setSec((s:number)=>s-1), 1000);
         return () => clearInterval(t);
     }, [active, sec]);
     return (

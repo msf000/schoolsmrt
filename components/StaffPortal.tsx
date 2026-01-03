@@ -6,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, BarChart3, Calendar, 
     Monitor, PenTool, Database, Activity, Shield, Settings, 
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
-    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit
+    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit, Medal
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 
@@ -64,6 +64,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/analytics', label: 'مركز التنبؤات (AI)', icon: BrainCircuit, roles: ['TEACHER'] },
                     { path: '/reports', label: 'التقارير الشاملة', icon: TrendingUp, roles: ['TEACHER'] },
+                    { path: '/deep-dive', label: 'تحليل الارتباط', icon: Activity, roles: ['TEACHER'] },
                 ]
             },
             {
@@ -84,7 +85,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/classroom', label: 'إدارة الفصل', icon: Monitor, roles: ['TEACHER'] },
                     { path: '/planning', label: 'التحضير الذكي', icon: PenTool, roles: ['TEACHER'] },
                     { path: '/behavior', label: 'السلوك', icon: ShieldAlert, roles: ['TEACHER'] },
-                    { path: '/lab', label: 'مختبر VARK', icon: Zap, roles: ['TEACHER'] },
+                    { path: '/badges', label: 'مصنع الأوسمة', icon: Medal, roles: ['TEACHER'] },
                 ]
             },
             {
