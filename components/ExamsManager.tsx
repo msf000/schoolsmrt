@@ -165,7 +165,7 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                         })}
                     </div>
                 </>
-            ) : editingExam && view === 'EDITOR' && (
+            ) : view === 'EDITOR' && editingExam ? (
                 <div className="bg-white rounded-[3.5rem] border border-slate-200 shadow-2xl flex flex-col h-[850px] overflow-hidden animate-slide-up">
                     <div className="p-8 border-b bg-slate-50 flex flex-wrap justify-between items-center px-12 shrink-0 gap-6">
                         <div className="flex items-center gap-6">
@@ -301,7 +301,7 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                         </div>
                     </div>
                 </div>
-            ) : selectedExamId && view === 'LIVE_MONITOR' ? null : null}
+            ) : null}
         </div>
     );
 };
@@ -366,7 +366,6 @@ const LiveMonitor: React.FC<{ exam: Exam, onBack: () => void }> = ({ exam, onBac
                 <div className="flex justify-between items-center mb-8">
                     <h4 className="font-black text-slate-800 flex items-center gap-3"><Users size={20} className="text-brand-500"/> حالة الطلاب الآن</h4>
                     <span className="text-[10px] font-black text-slate-400 flex items-center gap-2 bg-white px-3 py-1 rounded-full border shadow-sm">
-                        {/* Fix: Imported RefreshCw from lucide-react and added it here */}
                         <RefreshCw size={12} className="animate-spin-slow"/> آخر تحديث: {lastUpdate.toLocaleTimeString('ar-SA')}
                     </span>
                 </div>
