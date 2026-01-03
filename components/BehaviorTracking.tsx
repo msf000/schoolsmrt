@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, BehaviorIncident, SystemUser } from '../types';
-import { getBehaviorIncidents, saveBehaviorIncident, getStudents } from '../services/storageService';
+import { getBehaviorIncidents, saveBehaviorIncident } from '../services/storageService';
 import { 
     ShieldAlert, Star, Trophy, Trash2, Plus, Search, User, ArrowRight, TrendingUp, Sparkles, 
     Smile, Frown, Ghost, MessageSquare, CheckCircle, Zap, ShieldCheck, AlertTriangle, Filter, ChevronLeft
@@ -37,8 +37,11 @@ const BehaviorTracking: React.FC<{ students: Student[], currentUser?: SystemUser
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
 
     useEffect(() => {
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
-    }, [uniqueClasses]);
+        // Fix: Explicitly handle undefined or empty strings for TS safety
+        if (uniqueClasses.length > 0 && !selectedClass) {
+            setSelectedClass(uniqueClasses[0] || '');
+        }
+    }, [uniqueClasses, selectedClass]);
 
     const handleAddIncident = (cat: any, type: 'POSITIVE' | 'NEGATIVE') => {
         if (!selectedStudentId || !currentUser) return alert('الرجاء اختيار الطالب أولاً.');
@@ -82,7 +85,6 @@ const BehaviorTracking: React.FC<{ students: Student[], currentUser?: SystemUser
 
             {view === 'ADD' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px] min-h-0">
-                    {/* Students List */}
                     <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                         <div className="p-4 border-b bg-slate-50 flex flex-col gap-3">
                             <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand-500">
@@ -103,7 +105,6 @@ const BehaviorTracking: React.FC<{ students: Student[], currentUser?: SystemUser
                         </div>
                     </div>
 
-                    {/* Actions Grid */}
                     <div className="lg:col-span-2 space-y-6 overflow-y-auto custom-scrollbar pr-1">
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                             <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 text-emerald-600"><Star size={18} fill="currentColor"/> تعزيز إيجابي (XP+)</h3>
@@ -119,7 +120,6 @@ const BehaviorTracking: React.FC<{ students: Student[], currentUser?: SystemUser
                                 ))}
                             </div>
                         </div>
-
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                             <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 text-rose-600"><AlertTriangle size={18} fill="currentColor"/> تنبيهات انضباطية (XP-)</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -176,9 +176,6 @@ const BehaviorTracking: React.FC<{ students: Student[], currentUser?: SystemUser
                                         </tr>
                                     );
                                 })}
-                                {filteredIncidents.length === 0 && (
-                                    <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-bold">لا توجد سجلات سلوكية لهذا الفصل.</td></tr>
-                                )}
                             </tbody>
                         </table>
                     </div>

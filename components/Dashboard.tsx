@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight
+    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -15,86 +15,79 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       const total = students.length;
       const attRate = attendance.length > 0 ? (attendance.filter(a => a.status === AttendanceStatus.PRESENT).length / attendance.length) * 100 : 0;
       const perfAvg = performance.length > 0 ? (performance.reduce((a, b) => a + (b.score / b.maxScore), 0) / performance.length) * 100 : 0;
-      const alerts = 4; // Placeholder
-
-      return { total, attRate: Math.round(attRate), perfAvg: Math.round(perfAvg), alerts };
+      return { total, attRate: Math.round(attRate), perfAvg: Math.round(perfAvg) };
   }, [students, attendance, performance]);
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* SaaS Welcome Banner */}
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
+    <div className="space-y-8 pb-10 page-enter font-tajawal">
+      <div className="bg-white p-8 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-center shadow-sm gap-6">
         <div>
-            <h1 className="text-2xl font-bold text-slate-900">مرحباً، {currentUser?.name.split(' ')[0]}</h1>
-            <p className="text-slate-500 mt-1">إليك ملخص سريع لأداء طلابك وفصولك اليوم.</p>
+            <h1 className="text-2xl font-black text-slate-900">أهلاً بك، {currentUser?.name.split(' ')[0]} 👋</h1>
+            <p className="text-slate-500 mt-1 font-medium">نظام المتابع الذكي يساعدك على إدارة فصولك بفعالية أكبر.</p>
         </div>
-        <div className="flex gap-2">
-            <button onClick={() => navigate('/attendance')} className="px-5 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-bold hover:bg-brand-600 transition-all shadow-sm">
+        <div className="flex gap-3">
+            <button onClick={() => navigate('/attendance')} className="px-6 py-3 bg-brand-500 text-white rounded-xl text-sm font-bold hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20">
                 رصد الحضور
             </button>
-            <button onClick={() => navigate('/works')} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all">
-                رصد الدرجات
+            <button onClick={() => navigate('/works')} className="px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all">
+                سجل الدرجات
             </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
            <KPIStat label="إجمالي الطلاب" value={stats.total} icon={Users} color="blue" />
            <KPIStat label="نسبة الحضور" value={`${stats.attRate}%`} icon={Activity} color="emerald" />
            <KPIStat label="متوسط الإتقان" value={`${stats.perfAvg}%`} icon={Target} color="amber" />
-           <KPIStat label="تنبيهات عاجلة" value={stats.alerts} icon={ShieldAlert} color="rose" />
+           <KPIStat label="أدوات نشطة" value="12" icon={Sparkles} color="rose" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Chart */}
           <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[400px]">
               <div className="flex justify-between items-center mb-8">
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} className="text-brand-500"/> مؤشر التقدم الأكاديمي</h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">آخر 30 يوم</span>
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} className="text-brand-500"/> النشاط الأكاديمي الأسبوعي</h3>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded">Live Data</span>
               </div>
               <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={[
-                        {name: '1', val: 65}, {name: '2', val: 70}, {name: '3', val: 68}, 
-                        {name: '4', val: 82}, {name: '5', val: 85}
-                    ]}>
+                    <AreaChart data={[{name: 'الأحد', v: 70}, {name: 'الاثنين', v: 85}, {name: 'الثلاثاء', v: 78}, {name: 'الأربعاء', v: 92}, {name: 'الخميس', v: 88}]}>
                         <defs>
-                            <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                            <linearGradient id="colorDashboard" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
                                 <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" hide />
+                        <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
                         <YAxis hide domain={[0, 100]} />
-                        <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)'}} />
-                        <Area type="monotone" dataKey="val" stroke="#4f46e5" fillOpacity={1} fill="url(#colorVal)" strokeWidth={3} />
+                        <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                        <Area type="monotone" dataKey="v" stroke="#4f46e5" fillOpacity={1} fill="url(#colorDashboard)" strokeWidth={3} />
                     </AreaChart>
                 </ResponsiveContainer>
               </div>
           </div>
 
-          {/* Quick Actions / Notifications */}
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Sparkles size={18} className="text-brand-500"/> مساعد Gemini</h3>
-              <div className="flex-1 space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs text-slate-600 leading-relaxed italic">"تم اكتشاف تحسن بنسبة 15% في أداء طلاب الفصل 1/أ في مادة الرياضيات مقارنة بالشهر الماضي."</p>
+          <div className="bg-slate-900 rounded-2xl p-8 text-white flex flex-col shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={150}/></div>
+              <div className="relative z-10 flex flex-col h-full">
+                  <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-white/10 rounded-lg border border-white/10"><Bot size={20} className="text-indigo-400"/></div>
+                      <h3 className="font-bold text-lg">موجز Gemini الذكي</h3>
                   </div>
-                  <div className="space-y-2">
-                      {students.slice(0, 3).map(s => (
-                          <div key={s.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer group">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-xs">{s.name.charAt(0)}</div>
-                                  <span className="text-xs font-medium text-slate-700">{s.name}</span>
-                              </div>
-                              <ArrowUpRight size={14} className="text-slate-300 group-hover:text-brand-500 transition-colors" />
+                  <div className="flex-1 space-y-4">
+                      <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic">
+                        "يظهر الطلاب تحسناً ملحوظاً في التفاعل الصفي هذا الأسبوع، نوصي بتكريم الطلاب الأكثر انضباطاً غداً."
+                      </div>
+                      <div className="space-y-3">
+                          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">تنبيهات سريعة</p>
+                          <div className="flex items-center gap-3 text-xs bg-white/5 p-3 rounded-lg border border-white/5">
+                              <Calendar size={14} className="text-amber-400"/>
+                              <span>موعد اختبار دوري للفصل 1/أ غداً</span>
                           </div>
-                      ))}
+                      </div>
                   </div>
+                  <button onClick={() => navigate('/ai-config')} className="mt-8 w-full py-3 bg-white text-slate-900 rounded-xl text-xs font-black hover:bg-slate-100 transition-all">تخصيص شخصية المساعد</button>
               </div>
-              <button onClick={() => navigate('/students')} className="mt-6 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-all">عرض كافة الطلاب</button>
           </div>
       </div>
     </div>
@@ -109,13 +102,13 @@ const KPIStat = ({ label, value, icon: Icon, color }: any) => {
         rose: 'text-rose-600 bg-rose-50'
     };
     return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-5">
-            <div className={`p-3 rounded-xl ${colors[color]}`}>
-                <Icon size={24} />
-            </div>
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-brand-300 transition-all">
             <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                <h4 className="text-2xl font-bold text-slate-900">{value}</h4>
+                <h4 className="text-2xl font-black text-slate-900">{value}</h4>
+            </div>
+            <div className={`p-4 rounded-2xl ${colors[color]} group-hover:scale-110 transition-transform`}>
+                <Icon size={24} />
             </div>
         </div>
     );
