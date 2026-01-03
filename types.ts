@@ -81,6 +81,7 @@ export interface Student {
     activeTitle?: string;
     schoolId?: string;
     streak?: number;
+    avatarUrl?: string;
 }
 
 export interface Badge {
@@ -381,6 +382,7 @@ export interface WeeklyChallenge {
     targetClass: string;
     isActive: boolean;
     type: 'ATTENDANCE' | 'ACADEMIC' | 'BEHAVIOR';
+    teacherId?: string;
 }
 
 export interface MessageLog {

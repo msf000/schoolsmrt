@@ -128,7 +128,7 @@ const StudentAvatarGen: React.FC<Props> = ({ student, onUpdate }) => {
                                 )}
                                 
                                 <img 
-                                    src={tempAvatar || (student.email?.startsWith('data:image') ? student.email : null) || 'https://via.placeholder.com/300?text=Student'} 
+                                    src={tempAvatar || (student.avatarUrl?.startsWith('data:image') ? student.avatarUrl : null) || 'https://via.placeholder.com/300?text=Student'} 
                                     alt="Avatar" 
                                     className={`w-80 h-80 rounded-[3.5rem] border-[12px] shadow-2xl relative z-10 transition-all duration-500 ${
                                         student.auraColor === 'gold' ? 'border-yellow-400/50' :
@@ -146,8 +146,8 @@ const StudentAvatarGen: React.FC<Props> = ({ student, onUpdate }) => {
                                 <button 
                                     onClick={async () => {
                                         setIsSaving(true);
-                                        await updateStudent({ ...student, email: tempAvatar });
-                                        onUpdate({ ...student, email: tempAvatar });
+                                        await updateStudent({ ...student, avatarUrl: tempAvatar });
+                                        onUpdate({ ...student, avatarUrl: tempAvatar });
                                         setIsSaving(false);
                                         setTempAvatar(null);
                                         alert('تم تحديث صورتك بنجاح!');
