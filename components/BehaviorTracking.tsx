@@ -37,10 +37,8 @@ const BehaviorTracking: React.FC<{ students: Student[], currentUser?: SystemUser
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
 
     useEffect(() => {
-        // Fix for TS2345: Explicitly handle potential undefined from array access
         if (uniqueClasses.length > 0 && !selectedClass) {
-            const firstClass = uniqueClasses[0];
-            if (firstClass) setSelectedClass(firstClass);
+            setSelectedClass(uniqueClasses[0] || '');
         }
     }, [uniqueClasses, selectedClass]);
 

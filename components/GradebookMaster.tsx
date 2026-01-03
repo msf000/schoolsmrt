@@ -24,7 +24,9 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
     const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
     
     useEffect(() => {
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+        if (uniqueClasses.length > 0 && !selectedClass) {
+            setSelectedClass(uniqueClasses[0] || '');
+        }
     }, [uniqueClasses, selectedClass]);
 
     const filteredStudents = useMemo(() => {
