@@ -2,19 +2,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Exam, Question, SystemUser, Subject, ExamResult, Student, ExamType, AchievementMethod } from '../types';
 import { getExams, saveExam, deleteExam, getSubjects, getExamResults, getStudents } from '../services/storageService';
+import { calculateGrowthMetrics } from '../services/analysisService';
 import { 
     Plus, Trash2, Edit, Save, ArrowRight, Printer, 
     BarChart2, CheckCircle, Sparkles, Loader2, Calendar, Video, 
-    TrendingUp, Download, RefreshCw, Layers, Target, Info, FileText, Activity, Clock
+    TrendingUp, Download, RefreshCw, Layers, Target, Info, FileText, Activity, Clock, ArrowUpRight, ArrowDownRight, GitCompare
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) => {
-    const [view, setView] = useState<'LIST' | 'EDITOR' | 'RESULTS'>('LIST');
+    const [view, setView] = useState<'LIST' | 'EDITOR' | 'RESULTS' | 'GROWTH'>('LIST');
     const [exams, setExams] = useState<Exam[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [editingExam, setEditingExam] = useState<Exam | null>(null);
     const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+
+    // Growth Comparison State
+    const [preExamId, setPreExamId] = useState('');
+    const [postExamId, setPostExamId] = useState('');
 
     useEffect(() => {
         if(currentUser?.id) {
@@ -49,6 +54,17 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
         if (exam) return <ExamItemAnalysis exam={exam} onBack={() => setView('LIST')} />;
     }
 
+    if (view === 'GROWTH') {
+        return <GrowthComparison 
+            exams={exams} 
+            preId={preExamId} 
+            postId={postExamId} 
+            onPreChange={setPreExamId} 
+            onPostChange={setPostExamId}
+            onBack={() => setView('LIST')} 
+        />;
+    }
+
     return (
         <div className="space-y-6 page-enter font-tajawal pb-20">
             {view === 'LIST' ? (
@@ -58,9 +74,14 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                             <h1 className="text-3xl font-black text-slate-900">منظومة الاختبارات الذكية</h1>
                             <p className="text-slate-500 text-sm font-medium">إدارة أنواع التقييمات المتعددة وتحليل نتائج الطلاب.</p>
                         </div>
-                        <button onClick={startNew} className="px-8 py-4 bg-brand-500 text-white rounded-2xl text-sm font-black hover:bg-brand-600 shadow-xl shadow-brand-500/20 flex items-center gap-2 transition-all active:scale-95">
-                            <Plus size={20}/> إنشاء اختبار جديد
-                        </button>
+                        <div className="flex gap-3">
+                            <button onClick={() => setView('GROWTH')} className="px-6 py-4 bg-indigo-50 text-indigo-700 rounded-2xl text-sm font-black border border-indigo-100 hover:bg-indigo-100 transition-all flex items-center gap-2">
+                                <GitCompare size={20}/> مقارنة قبلي/بعدي
+                            </button>
+                            <button onClick={startNew} className="px-8 py-4 bg-brand-500 text-white rounded-2xl text-sm font-black hover:bg-brand-600 shadow-xl shadow-brand-500/20 flex items-center gap-2 transition-all active:scale-95">
+                                <Plus size={20}/> إنشاء اختبار جديد
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -106,7 +127,7 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                         ))}
                     </div>
                 </>
-            ) : editingExam && (
+            ) : editingExam && view === 'EDITOR' ? (
                 <div className="bg-white rounded-[3.5rem] border border-slate-200 shadow-2xl flex flex-col h-[850px] overflow-hidden animate-slide-up">
                     <div className="p-8 border-b bg-slate-50 flex justify-between items-center px-12 shrink-0">
                         <div className="flex items-center gap-6">
@@ -178,7 +199,109 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                         </div>
                     </div>
                 </div>
-            )}
+            ) : null}
+        </div>
+    );
+};
+
+// واجهة مقارنة النمو (Growth Comparison Engine)
+const GrowthComparison: React.FC<{ exams: Exam[], preId: string, postId: string, onPreChange: (id: string) => void, onPostChange: (id: string) => void, onBack: () => void }> = ({ exams, preId, postId, onPreChange, onPostChange, onBack }) => {
+    const students = useMemo(() => getStudents(), []);
+    
+    const preResults = useMemo(() => preId ? getExamResults(preId) : [], [preId]);
+    const postResults = useMemo(() => postId ? getExamResults(postId) : [], [postId]);
+
+    const { comparison, avgGrowth } = useMemo(() => {
+        return calculateGrowthMetrics(preResults, postResults, students);
+    }, [preResults, postResults, students]);
+
+    const exportToExcel = () => {
+        const data = comparison.map(c => ({
+            'اسم الطالب': c.studentName,
+            'درجة القبلي %': `${c.prePct}%`,
+            'درجة البعدي %': `${c.postPct}%`,
+            'معدل النمو': `${c.growth}%`,
+            'الحالة': c.isPositive ? 'تحسن' : 'تراجع'
+        }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "مقارنة النمو");
+        XLSX.writeFile(wb, `تحليل_نمو_الطلاب.xlsx`);
+    };
+
+    return (
+        <div className="bg-white rounded-[3.5rem] border border-slate-200 shadow-2xl flex flex-col h-[850px] overflow-hidden animate-slide-up font-tajawal">
+            <div className="p-8 border-b bg-indigo-900 text-white flex justify-between items-center px-12 shrink-0">
+                <div className="flex items-center gap-6">
+                    <button onClick={onBack} className="p-3 hover:bg-white/10 rounded-2xl border border-white/10"><ArrowRight/></button>
+                    <div>
+                        <h3 className="text-2xl font-black">محرك مقارنة نواتج التعلم</h3>
+                        <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest">Pre/Post Test Growth Engine</p>
+                    </div>
+                </div>
+                <button onClick={exportToExcel} disabled={comparison.length === 0} className="px-8 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
+                    <Download size={18}/> تصدير التقرير
+                </button>
+            </div>
+
+            <div className="p-8 bg-slate-50 border-b flex flex-wrap gap-8 items-center px-12 shrink-0">
+                <div className="space-y-1 flex-1">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">1. اختر الاختبار القبلي</label>
+                    <select className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={preId} onChange={e=>onPreChange(e.target.value)}>
+                        <option value="">-- اختر اختباراً --</option>
+                        {exams.filter(e => e.type === ExamType.PRE_TEST || e.type === ExamType.DIAGNOSTIC).map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                    </select>
+                </div>
+                <div className="text-slate-300 pt-5"><ArrowRight size={24}/></div>
+                <div className="space-y-1 flex-1">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">2. اختر الاختبار البعدي</label>
+                    <select className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={postId} onChange={e=>onPostChange(e.target.value)}>
+                        <option value="">-- اختر اختباراً --</option>
+                        {exams.filter(e => e.type === ExamType.POST_TEST || e.type === ExamType.PERIODIC).map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                    </select>
+                </div>
+                <div className="bg-indigo-600 text-white p-6 rounded-[2rem] shadow-xl text-center min-w-[150px]">
+                    <p className="text-[8px] font-black uppercase opacity-60">متوسط نمو الفصل</p>
+                    <h4 className="text-3xl font-black">{avgGrowth}%</h4>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-white">
+                {comparison.length > 0 ? (
+                    <table className="w-full text-right border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest h-14">
+                                <th className="px-8 border-l border-slate-100 w-16 text-center">#</th>
+                                <th className="px-8 border-l border-slate-100">اسم الطالب</th>
+                                <th className="px-8 border-l border-slate-100 text-center">القبلي %</th>
+                                <th className="px-8 border-l border-slate-100 text-center">البعدي %</th>
+                                <th className="px-8 text-center">معدل النمو</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {comparison.map((c, i) => (
+                                <tr key={i} className="hover:bg-slate-50 transition-colors h-14 font-bold text-sm">
+                                    <td className="px-8 text-center text-slate-300 font-mono text-xs border-l">{i + 1}</td>
+                                    <td className="px-8 text-slate-700 border-l">{c.studentName}</td>
+                                    <td className="px-8 text-center text-slate-400 border-l">{c.prePct}%</td>
+                                    <td className="px-8 text-center text-indigo-600 font-black border-l">{c.postPct}%</td>
+                                    <td className="px-8 text-center">
+                                        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-black ${c.isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                            {c.isPositive ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
+                                            {Math.abs(c.growth)}%
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-200 gap-6">
+                        <GitCompare size={120} strokeWidth={1} className="opacity-20"/>
+                        <p className="text-2xl font-black opacity-30">اختر الاختبارين للمقارنة</p>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

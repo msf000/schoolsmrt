@@ -1,5 +1,5 @@
 
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, LearningStyle, BehaviorIncident } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, LearningStyle, BehaviorIncident, ExamResult } from '../types';
 
 /**
  * محرك التوقعات والتحليلات المتقدمة (SaaS Analytics Engine)
@@ -35,17 +35,32 @@ export const predictNextScore = (studentId: string, performance: PerformanceReco
     return Math.round(prediction);
 };
 
-// 3. كشف الارتباط بين السلوك والدرجات
-export const analyzeBehaviorGradeCorrelation = (studentId: string, incidents: BehaviorIncident[], performance: PerformanceRecord[]) => {
-    const myIncidents = incidents.filter(i => i.studentId === studentId);
-    const myPerf = performance.filter(p => p.studentId === studentId);
+// 3. حساب معدل النمو بين اختبارين (Growth Engine)
+export const calculateGrowthMetrics = (preResults: ExamResult[], postResults: ExamResult[], students: Student[]) => {
+    const comparison = students.map(s => {
+        const pre = preResults.find(r => r.studentId === s.id);
+        const post = postResults.find(r => r.studentId === s.id);
+        
+        if (!pre || !post) return null;
+        
+        const prePct = (pre.score / pre.totalScore) * 100;
+        const postPct = (post.score / post.totalScore) * 100;
+        const growth = postPct - prePct;
+        
+        return {
+            studentName: s.name,
+            prePct: Math.round(prePct),
+            postPct: Math.round(postPct),
+            growth: Math.round(growth),
+            isPositive: growth >= 0
+        };
+    }).filter(item => item !== null);
     
-    const behaviorScore = myIncidents.reduce((acc, curr) => acc + curr.points, 0);
-    const academicScore = myPerf.length > 0 ? (myPerf.reduce((a, b) => a + (b.score/b.maxScore), 0) / myPerf.length) * 100 : 0;
-    
-    if (behaviorScore < 0 && academicScore > 80) return "طالب متفوق بقدرات عالية، لكن السلوك قد يعيق الاستمرارية.";
-    if (behaviorScore > 50 && academicScore < 60) return "سلوك ممتاز واجتهاد واضح، الطالب يحتاج لدعم أكاديمي تخصصي فقط.";
-    return "لا يوجد ارتباط استثنائي بين السلوك والدرجات حالياً.";
+    const avgGrowth = comparison.length > 0 
+        ? comparison.reduce((acc, curr) => acc + curr!.growth, 0) / comparison.length 
+        : 0;
+        
+    return { comparison, avgGrowth: Math.round(avgGrowth) };
 };
 
 // 4. تحديد الطلاب تحت الخطر (Early Warning System)
@@ -83,11 +98,7 @@ export const calculateStudentConsistency = (studentId: string, performance: Perf
  * 6. تقسيم الطلاب لمجموعات متوازنة بناءً على نمط التعلم (VARK Balanced Groups)
  */
 export const generateVarkBalancedGroups = (students: Student[], groupSize: number): Student[][] => {
-    // Fix: Added missing function generateVarkBalancedGroups to balance groups by learning style
-    // Shuffle students first for randomness
     const shuffled = [...students].sort(() => Math.random() - 0.5);
-    
-    // Group by learning style
     const byStyle: Record<string, Student[]> = {
         VISUAL: [], AUDITORY: [], READ_WRITE: [], KINESTHETIC: [], UNKNOWN: []
     };
@@ -106,7 +117,6 @@ export const generateVarkBalancedGroups = (students: Student[], groupSize: numbe
     
     const groups: Student[][] = Array.from({ length: numGroups }, () => []);
 
-    // Round-robin distribution of students across styles to groups to ensure diversity in each group
     const stylesOrder = ['VISUAL', 'AUDITORY', 'READ_WRITE', 'KINESTHETIC', 'UNKNOWN'];
     let gIdx = 0;
     
