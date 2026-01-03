@@ -14,18 +14,20 @@ export enum BehaviorStatus {
     NEUTRAL = 'NEUTRAL'
 }
 
-export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC' | 'UNKNOWN';
-
-export interface StudentGoal {
-    id: string;
-    studentId: string;
-    title: string;
-    targetValue: number;
-    category: 'GRADE' | 'ATTENDANCE' | 'XP';
-    deadline: string;
-    status: 'ACTIVE' | 'ACHIEVED' | 'FAILED';
-    createdAt: string;
+export enum ExamType {
+    DIAGNOSTIC = 'DIAGNOSTIC',
+    PRE_TEST = 'PRE_TEST',
+    POST_TEST = 'POST_TEST',
+    QUIZ = 'QUIZ',
+    PERIODIC = 'PERIODIC'
 }
+
+export enum AchievementMethod {
+    COMPLETION = 'COMPLETION',
+    SCORE_THRESHOLD = 'SCORE_THRESHOLD'
+}
+
+export type LearningStyle = 'VISUAL' | 'AUDITORY' | 'READ_WRITE' | 'KINESTHETIC' | 'UNKNOWN';
 
 export interface SystemUser {
     id: string;
@@ -41,9 +43,21 @@ export interface SystemUser {
 
 export interface Teacher extends SystemUser {
     subjectSpecialty?: string;
-    managerId?: string;
     subscriptionStatus?: 'FREE' | 'PRO' | 'ENTERPRISE';
     subscriptionEndDate?: string;
+    managerId?: string;
+}
+
+export interface School {
+    id: string;
+    name: string;
+    ministryCode: string;
+    managerName?: string;
+    managerNationalId?: string;
+    educationAdministration?: string;
+    type?: 'PUBLIC' | 'PRIVATE';
+    phone?: string;
+    studentCount?: number;
 }
 
 export interface Student {
@@ -52,27 +66,46 @@ export interface Student {
     role: 'STUDENT';
     nationalId: string;
     classId?: string;
-    gradeLevel?: string;
     className?: string;
-    email?: string;
-    phone?: string;
-    parentName?: string;
-    parentPhone?: string;
-    parentEmail?: string;
-    password?: string;
-    schoolId?: string;
-    createdById?: string;
-    behaviorPoints?: number;
+    gradeLevel?: string;
     xp?: number;
     level?: number;
-    streak?: number;
+    createdById?: string;
+    parentPhone?: string;
+    badges?: Badge[];
     purchasedRewards?: string[];
     auraColor?: string;
-    activeTitle?: string;
     seatIndex?: number;
     learningStyle?: LearningStyle;
-    badges?: Badge[];
+    behaviorPoints?: number;
+    activeTitle?: string;
+    schoolId?: string;
+    streak?: number;
 }
+
+export interface Badge {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    description: string;
+    unlockedAt: string;
+}
+
+export interface PerformanceRecord {
+    id: string;
+    studentId: string;
+    subject: string;
+    title: string;
+    score: number;
+    maxScore: number;
+    date: string;
+    category?: PerformanceCategory;
+    notes?: string;
+    createdById?: string;
+}
+
+export type PerformanceCategory = 'ACTIVITY' | 'HOMEWORK' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'ALL' | 'OTHER';
 
 export interface AttendanceRecord {
     id: string;
@@ -87,54 +120,6 @@ export interface AttendanceRecord {
     createdById?: string;
 }
 
-export interface PerformanceRecord {
-    id: string;
-    studentId: string;
-    subject: string;
-    title: string;
-    score: number;
-    maxScore: number;
-    date: string;
-    category?: string;
-    notes?: string;
-    createdById?: string;
-}
-
-export interface ScheduleItem {
-    id: string;
-    classId: string;
-    subjectName: string;
-    day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
-    period: number;
-    teacherId: string;
-}
-
-export interface Subject {
-    id: string;
-    name: string;
-    teacherId: string;
-}
-
-export interface Badge {
-    id: string;
-    name: string;
-    icon: string;
-    color: string;
-    description: string;
-    unlockedAt: string;
-}
-
-export interface CustomTable {
-    id: string;
-    name: string;
-    createdAt: string;
-    columns: string[];
-    rows: any[];
-    sourceUrl?: string;
-    lastUpdated?: string;
-    teacherId?: string;
-}
-
 export interface BehaviorIncident {
     id: string;
     studentId: string;
@@ -145,22 +130,6 @@ export interface BehaviorIncident {
     date: string;
     note?: string;
     actionTaken?: string;
-}
-
-export interface Exam {
-    id: string;
-    title: string;
-    subject: string;
-    gradeLevel: string;
-    durationMinutes: number;
-    questions: Question[];
-    isActive: boolean;
-    createdAt: string;
-    teacherId: string;
-    startDate?: string;
-    endDate?: string;
-    isLive?: boolean;
-    streamUrl?: string;
 }
 
 export interface Question {
@@ -175,21 +144,45 @@ export interface Question {
     gradeLevel?: string;
 }
 
-export interface Assignment {
+export interface Exam {
     id: string;
     title: string;
-    category: PerformanceCategory;
-    maxScore: number;
-    isVisible: boolean;
+    subject: string;
+    gradeLevel: string;
+    type: ExamType;
+    achievementMethod: AchievementMethod;
+    passingScore?: number;
+    durationMinutes: number;
+    questions: Question[];
+    isActive: boolean;
+    createdAt: string;
     teacherId: string;
-    sortOrder?: number;
-    classId?: string;
-    subject?: string;
-    periodTag?: 'P1' | 'P2' | 'ALL';
-    link?: string;
+    startDate?: string;
+    endDate?: string;
+    isLive?: boolean;
+    streamUrl?: string;
 }
 
-export type PerformanceCategory = 'ACTIVITY' | 'HOMEWORK' | 'PLATFORM_EXAM' | 'YEAR_WORK' | 'OTHER' | 'ALL';
+export interface ExamResult {
+    id: string;
+    examId: string;
+    studentId: string;
+    score: number;
+    totalScore: number;
+    isAchieved: boolean;
+    answers: {
+        questionId: string;
+        studentAnswer: string;
+        isCorrect: boolean;
+    }[];
+    date: string;
+}
+
+export interface Subject {
+    id: string;
+    name: string;
+    teacherId: string;
+}
 
 export interface AcademicTerm {
     id: string;
@@ -198,50 +191,54 @@ export interface AcademicTerm {
     endDate: string;
     isCurrent: boolean;
     teacherId: string;
-    periods?: TermPeriod[];
 }
 
-export interface TermPeriod {
+export interface Assignment {
     id: string;
-    name: string;
-    startDate: string;
-    endDate: string;
-}
-
-export interface TeacherAssignment {
-    id: string;
-    classId: string;
-    subjectName: string;
     teacherId: string;
+    title: string;
+    category: PerformanceCategory;
+    maxScore: number;
+    isVisible: boolean;
+    sortOrder: number;
+    classId?: string;
+    subject?: string;
+    periodTag?: 'P1' | 'P2' | 'ALL';
+    link?: string;
 }
 
-export interface School {
+export interface WallPost {
+    id: string;
+    userId: string;
+    userName: string;
+    content: string;
+    type: 'ACHIEVEMENTS' | 'NEWS';
+    schoolId: string;
+    createdAt: string;
+    likes: number;
+    imageUrl?: string;
+}
+
+export interface ParentRequest {
+    id: string;
+    parentId: string;
+    studentId: string;
+    teacherId: string;
+    type: 'MEETING' | 'QUERY';
+    content: string;
+    status: 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'REJECTED';
+    date: string;
+}
+
+export interface CustomTable {
     id: string;
     name: string;
-    ministryCode: string;
-    managerName: string;
-    managerNationalId: string;
-    educationAdministration?: string;
-    type: 'PUBLIC' | 'PRIVATE';
-    phone?: string;
-    studentCount?: number;
-}
-
-export interface ReportHeaderConfig {
+    createdAt: string;
+    columns: string[];
+    rows: any[];
     teacherId?: string;
-    schoolName: string;
-    educationAdmin: string;
-    teacherName: string;
-    schoolManager: string;
-    academicYear: string;
-    term: string;
-    signatureBase64: string;
-    logoBase64?: string;
-}
-
-export interface UserTheme {
-    mode: 'LIGHT' | 'DARK';
-    backgroundStyle: 'FLAT' | 'GRADIENT';
+    sourceUrl?: string;
+    lastUpdated?: string;
 }
 
 export interface FormsDetailedResult {
@@ -255,7 +252,7 @@ export interface FormsDetailedResult {
         text: string;
         learningOutcome: string;
         successRate: number;
-        difficulty: string;
+        difficulty: 'EASY' | 'MEDIUM' | 'HARD';
         commonErrors: string[];
     }[];
     studentResponses: Record<string, {
@@ -265,18 +262,7 @@ export interface FormsDetailedResult {
     }>;
 }
 
-export interface MessageLog {
-    id: string;
-    studentId: string;
-    studentName: string;
-    parentPhone?: string;
-    type: 'WHATSAPP' | 'EMAIL' | 'SMS' | 'PORTAL' | 'ANNOUNCEMENT';
-    content: string;
-    status: 'SENT' | 'FAILED';
-    date: string;
-    sentBy: string;
-    teacherId?: string;
-}
+export type GameType = 'MATCHING' | 'SORTING';
 
 export interface InteractiveGame {
     id: string;
@@ -290,49 +276,21 @@ export interface InteractiveGame {
     createdAt: string;
 }
 
-export type GameType = 'MATCHING' | 'SORTING';
-
-export interface EnvironmentRecord {
+export interface RemedialPlan {
     id: string;
+    studentId: string;
     teacherId: string;
-    classId: string;
+    subject: string;
+    topic: string;
+    content: string;
     date: string;
-    lighting: number;
-    noiseLevel: number;
-    mood: 'HAPPY' | 'TIRED' | 'FOCUSED' | 'BORED';
 }
 
 export interface LessonBlock {
     id: string;
-    type: 'CONTENT' | 'MEDIA' | 'ACTIVITY';
+    type: 'CONTENT' | 'ACTIVITY' | 'MEDIA';
     title: string;
     content: string;
-}
-
-export interface StoredLessonPlan {
-    id: string;
-    teacherId: string;
-    subject: string;
-    topic: string;
-    contentJson: string;
-    resources: any[];
-    createdAt: string;
-    isShared?: boolean;
-    schoolId?: string;
-}
-
-export interface ExamResult {
-    id: string;
-    examId: string;
-    studentId: string;
-    score: number;
-    totalScore: number;
-    answers: {
-        questionId: string;
-        studentAnswer: string;
-        isCorrect: boolean;
-    }[];
-    date: string;
 }
 
 export interface CurriculumUnit {
@@ -367,12 +325,18 @@ export interface WeeklyPlanItem {
     teacherId: string;
     classId: string;
     subjectName: string;
-    day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+    day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday';
     period: number;
     weekStartDate: string;
     lessonTopic: string;
     homework: string;
     gradeLevel?: string;
+}
+
+export interface TrackingColumn {
+    id: string;
+    title: string;
+    type: 'TEXT' | 'RATING' | 'CHECKBOX';
 }
 
 export interface TrackingSheet {
@@ -386,10 +350,83 @@ export interface TrackingSheet {
     scores: Record<string, Record<string, any>>;
 }
 
-export interface TrackingColumn {
+export interface Reward {
     id: string;
     title: string;
-    type: 'TEXT' | 'RATING' | 'CHECKBOX';
+    cost: number;
+    icon: string;
+    description: string;
+    category: 'PRIVILEGE' | 'TITLE' | 'ITEM';
+}
+
+export interface PurchaseRequest {
+    id: string;
+    studentId: string;
+    studentName: string;
+    rewardId: string;
+    rewardTitle: string;
+    cost: number;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    date: string;
+    teacherId: string;
+}
+
+export interface WeeklyChallenge {
+    id: string;
+    title: string;
+    description: string;
+    rewardXp: number;
+    startDate: string;
+    endDate: string;
+    targetClass: string;
+    isActive: boolean;
+    type: 'ATTENDANCE' | 'ACADEMIC' | 'BEHAVIOR';
+}
+
+export interface MessageLog {
+    id: string;
+    studentId: string;
+    studentName: string;
+    parentPhone?: string;
+    type: 'WHATSAPP' | 'EMAIL' | 'ANNOUNCEMENT';
+    content: string;
+    status: 'SENT' | 'FAILED';
+    date: string;
+    sentBy: string;
+    teacherId?: string;
+}
+
+export interface UserTheme {
+    mode: 'LIGHT' | 'DARK';
+    backgroundStyle: 'FLAT' | 'GRADIENT' | 'TEXTURED';
+}
+
+export interface TeacherAssignment {
+    id: string;
+    classId: string;
+    subjectName: string;
+    teacherId: string;
+}
+
+export interface StoredLessonPlan {
+    id: string;
+    teacherId: string;
+    subject: string;
+    topic: string;
+    contentJson: string;
+    resources: string[];
+    createdAt: string;
+    isShared?: boolean;
+    schoolId?: string;
+}
+
+export interface ScheduleItem {
+    id: string;
+    teacherId: string;
+    classId: string;
+    subjectName: string;
+    day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday';
+    period: number;
 }
 
 export interface Task {
@@ -405,68 +442,34 @@ export interface Task {
     submissions: string[];
 }
 
-export interface RemedialPlan {
+export interface EnvironmentRecord {
     id: string;
-    studentId: string;
-    teacherId: string;
-    subject: string;
-    topic: string;
-    content: string;
+    classId: string;
     date: string;
+    noiseLevel: number;
+    mood: string;
+    temperature?: number;
+    humidity?: number;
 }
 
-export interface PurchaseRequest {
-    id: string;
-    studentId: string;
-    studentName: string;
-    rewardId: string;
-    rewardTitle: string;
-    cost: number;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    date: string;
-    teacherId: string;
+export interface ReportHeaderConfig {
+    teacherId?: string;
+    schoolName: string;
+    educationAdmin: string;
+    teacherName: string;
+    schoolManager: string;
+    academicYear: string;
+    term: string;
+    signatureBase64: string;
 }
 
-export interface Reward {
+export interface StudentGoal {
     id: string;
+    studentId: string;
     title: string;
-    cost: number;
-    icon: string;
-    description: string;
-    category: 'PRIVILEGE' | 'TITLE' | 'ITEM';
-}
-
-export interface WallPost {
-    id: string;
-    userId: string;
-    userName: string;
-    content: string;
-    type: 'NEWS' | 'ACHIEVEMENTS';
-    imageUrl?: string;
-    likes: number;
-    schoolId: string;
+    targetValue: number;
+    category: 'GRADE' | 'ATTENDANCE' | 'XP';
+    deadline: string;
+    status: 'ACTIVE' | 'ACHIEVED' | 'FAILED';
     createdAt: string;
-}
-
-export interface ParentRequest {
-    id: string;
-    parentId: string;
-    studentId: string;
-    teacherId: string;
-    type: 'MEETING' | 'QUERY';
-    content: string;
-    status: 'PENDING' | 'ACCEPTED' | 'COMPLETED';
-    date: string;
-}
-
-export interface WeeklyChallenge {
-    id: string;
-    title: string;
-    description: string;
-    rewardXp: number;
-    startDate: string;
-    endDate: string;
-    targetClass: string;
-    isActive: boolean;
-    type: 'ATTENDANCE' | 'PERFORMANCE' | 'BEHAVIOR';
 }
