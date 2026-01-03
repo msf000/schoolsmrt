@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Command, User, Users, CheckCircle, PenTool, FileText, Zap, Sparkles, X, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Student, SystemUser } from '../types';
+import { Student } from '../types';
 
 interface Props {
     isOpen: boolean;
@@ -50,13 +50,13 @@ const OmniSearch: React.FC<Props> = ({ isOpen, onClose, students }) => {
         };
         window.addEventListener('keydown', handleDown);
         return () => window.removeEventListener('keydown', handleDown);
-    }, []);
+    }, [onClose]);
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[300] bg-slate-950/60 backdrop-blur-md flex items-start justify-center pt-20 p-4 font-tajawal animate-fade-in">
-            <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col border border-white/20 animate-zoom-in">
+        <div className="fixed inset-0 z-[300] bg-slate-950/60 backdrop-blur-md flex items-start justify-center pt-20 p-4 font-tajawal animate-fade-in" onClick={onClose}>
+            <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col border border-white/20 animate-zoom-in" onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b flex items-center gap-4 bg-slate-50">
                     <Search className="text-indigo-500" size={24}/>
                     <input 

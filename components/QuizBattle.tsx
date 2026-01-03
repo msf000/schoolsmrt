@@ -20,12 +20,13 @@ const QuizBattle: React.FC<QuizBattleProps> = ({ students, questions, onClose })
     const [turn, setTurn] = useState<'A' | 'B'>('A');
 
     useEffect(() => {
+        let t: any;
         if (step === 'PLAYING' && timer > 0 && !isPaused) {
-            const t = setInterval(() => setTimer(v => v - 1), 1000);
-            return () => clearInterval(t);
+            t = setInterval(() => setTimer(v => v - 1), 1000);
         } else if (timer === 0 && step === 'PLAYING') {
             handleAnswer(false);
         }
+        return () => clearInterval(t);
     }, [timer, step, isPaused]);
 
     const setupTeams = () => {

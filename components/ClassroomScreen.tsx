@@ -1,17 +1,18 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, TeacherAssignment } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, TeacherAssignment, Exam } from '../types';
 import { 
     Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Maximize, X, ChevronLeft, ChevronRight, 
     PenTool, Eraser, Trash2, Minimize, Sparkles, Star, Siren, BrainCircuit, Loader2, Plus, ArrowRight, 
-    QrCode, Zap, Ghost, MessageSquare, Lightbulb, Activity, BarChart2, CheckCircle2, HelpCircle, FileText
+    QrCode, Zap, Ghost, MessageSquare, Lightbulb, Activity, BarChart2, CheckCircle2, HelpCircle, FileText, Swords
 } from 'lucide-react';
-import { getTeacherAssignments } from '../services/storageService';
+import { getTeacherAssignments, getExams } from '../services/storageService';
 import { analyzeClassroomVibe, generateBrainstormingIdea } from '../services/geminiService';
 import { GoogleGenAI } from "@google/genai";
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import ActivityWheel from './ActivityWheel';
+import QuizBattle from './QuizBattle';
 
 interface ClassroomScreenProps {
     students: Student[];
@@ -23,9 +24,10 @@ interface ClassroomScreenProps {
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance, onSaveAttendance, currentUser }) => {
     const navigate = useNavigate();
     const [selectedClass, setSelectedClass] = useState('');
-    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'VIBE' | 'QR' | 'POLL' | 'FLASHCARDS'>('PRESENTATION');
+    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'VIBE' | 'QR' | 'POLL' | 'FLASHCARDS' | 'BATTLE'>('PRESENTATION');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isWheelOpen, setIsWheelOpen] = useState(false);
+    const [isBattleOpen, setIsBattleOpen] = useState(false);
     
     const uniqueClasses = useMemo(() => {
         const classes = new Set(students.map(s => s.className).filter(Boolean));
@@ -53,6 +55,11 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
         });
     }, [selectedClass, students, attendance]);
 
+    const availableExams = useMemo(() => {
+        if (!currentUser) return [];
+        return getExams(currentUser.id).filter(e => e.questions.length > 0);
+    }, [currentUser]);
+
     return (
         <div className="fixed inset-0 h-screen w-screen flex flex-col bg-slate-900 text-white animate-fade-in z-[100] overflow-hidden font-tajawal">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 z-0"></div>
@@ -70,6 +77,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
 
                 <div className="flex items-center gap-1 overflow-x-auto p-1 bg-black/20 rounded-xl max-w-[65%] no-scrollbar">
                     <TabBtn icon={<PenTool size={18}/>} label="السبورة" active={activeTool === 'PRESENTATION'} onClick={() => setActiveTool('PRESENTATION')} />
+                    <TabBtn icon={<Swords size={18}/>} label="المسابقة" active={activeTool === 'BATTLE'} onClick={() => setIsBattleOpen(true)} />
                     <TabBtn icon={<FileText size={18}/>} label="بطاقات AI" active={activeTool === 'FLASHCARDS'} onClick={() => setActiveTool('FLASHCARDS')} />
                     <TabBtn icon={<HelpCircle size={18}/>} label="تصويت" active={activeTool === 'POLL'} onClick={() => setActiveTool('POLL')} />
                     <TabBtn icon={<Star size={18}/>} label="تحفيز" active={activeTool === 'REWARDS'} onClick={() => setActiveTool('REWARDS')} />
@@ -94,9 +102,49 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
             </div>
 
             {isWheelOpen && <ActivityWheel students={presentStudents} onClose={() => setIsWheelOpen(false)} />}
+            {isBattleOpen && (
+                <QuizBattleSelection 
+                    exams={availableExams} 
+                    students={presentStudents} 
+                    onStart={(exam) => { setIsBattleOpen(false); setActiveTool('BATTLE'); }} 
+                    onClose={() => setIsBattleOpen(false)} 
+                />
+            )}
+            {activeTool === 'BATTLE' && availableExams.length > 0 && (
+                <QuizBattle 
+                    students={presentStudents} 
+                    questions={availableExams[0].questions} 
+                    onClose={() => setActiveTool('PRESENTATION')} 
+                />
+            )}
         </div>
     );
 };
+
+const QuizBattleSelection = ({ exams, students, onStart, onClose }: any) => {
+    return (
+        <div className="fixed inset-0 z-[250] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6 font-tajawal">
+            <div className="bg-white text-slate-900 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl animate-zoom-in">
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-2xl font-black flex items-center gap-3"><Swords className="text-indigo-600"/> اختر مادة المسابقة</h3>
+                    <button onClick={onClose}><X/></button>
+                </div>
+                <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar p-2">
+                    {exams.map((e: Exam) => (
+                        <button key={e.id} onClick={() => onStart(e)} className="w-full p-6 border-2 border-slate-100 rounded-[2rem] hover:border-indigo-600 hover:bg-indigo-50 transition-all text-right group">
+                            <h4 className="font-black text-lg group-hover:text-indigo-700">{e.title}</h4>
+                            <p className="text-xs text-slate-400 font-bold uppercase mt-1">{e.subject} • {e.questions.length} سؤال</p>
+                        </button>
+                    ))}
+                    {exams.length === 0 && <p className="text-center py-10 text-slate-400 font-bold">لا توجد اختبارات بأسئلة جاهزة حالياً.</p>}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ... Rest of existing components (PresentationBoard, AIFlashcardsView, etc.)
+// (Assume existing code for components like PresentationBoard, AIFlashcardsView, LivePollView, VibeMonitor, QrAttendanceDisplay, ClassroomTimer, GroupGenerator, RewardsView is kept as is from previous response)
 
 const AIFlashcardsView = () => {
     const [topic, setTopic] = useState('');
@@ -397,30 +445,6 @@ const QrAttendanceDisplay = ({ selectedClass }: any) => {
                     <span className="text-xs font-black opacity-60">الكود يتغير كل 30 ثانية للأمان</span>
                 </div>
             </div>
-        </div>
-    );
-};
-
-const RandomPicker = ({ students }: any) => {
-    const [name, setName] = useState('؟؟؟');
-    const [rolling, setRolling] = useState(false);
-    const start = () => {
-        if (students.length === 0) return;
-        setRolling(true);
-        let i = 0;
-        const timer = setInterval(() => {
-            setName(students[Math.floor(Math.random() * students.length)]?.name || 'فارغ');
-            if (i++ > 15) { clearInterval(timer); setRolling(false); }
-        }, 100);
-    };
-    return (
-        <div className="text-center">
-            <div className={`w-80 h-48 bg-white/5 rounded-[3rem] border-4 border-dashed border-white/20 flex items-center justify-center mb-8 px-10 transition-all ${rolling ? 'scale-110 border-yellow-500 shadow-[0_0_50px_rgba(250,204,21,0.2)]' : ''}`}>
-                <h1 className="text-4xl font-black text-center">{name}</h1>
-            </div>
-            <button onClick={start} disabled={rolling} className="bg-yellow-500 text-black px-12 py-4 rounded-3xl font-black text-xl shadow-xl flex items-center gap-3 mx-auto active:scale-95 transition-all">
-                <Shuffle size={24}/> سحب عشوائي
-            </button>
         </div>
     );
 };

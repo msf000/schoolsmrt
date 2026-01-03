@@ -1,13 +1,14 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SystemUser } from '../types';
+import { SystemUser, Student } from '../types';
 import { 
     LayoutGrid, Users, CheckSquare, BarChart3, Calendar, 
     Monitor, PenTool, Database, Activity, Shield, Settings, 
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
     Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit
 } from 'lucide-react';
+import OmniSearch from './OmniSearch';
 
 interface Props {
     currentUser: SystemUser;
@@ -19,6 +20,18 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                setIsSearchOpen(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const menuGroups = useMemo(() => {
         const role = currentUser.role;
@@ -116,6 +129,8 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
 
     return (
         <div className="flex h-screen bg-[#f8fafc] font-tajawal text-slate-800 overflow-hidden" dir="rtl">
+            <OmniSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} students={[]} />
+            
             <aside className={`flex flex-col border-l border-slate-200 bg-white shadow-xl transition-all duration-300 z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
                 <div className="h-16 flex items-center px-6 border-b border-slate-50 shrink-0">
                     <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30 shrink-0">
@@ -160,6 +175,9 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     </div>
                     
                     <div className="flex items-center gap-4">
+                        <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-brand-500 transition-colors hidden md:block" title="البحث الشامل (Ctrl+K)">
+                            <Search size={20} />
+                        </button>
                         <button className="p-2 text-slate-400 hover:text-brand-500 relative transition-colors"><Bell size={20} /><span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span></button>
                         <div className="flex items-center gap-3 cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200" onClick={() => navigate('/profile')}>
                             <div className="text-left hidden sm:block">
