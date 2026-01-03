@@ -6,7 +6,7 @@ import {
     LayoutGrid, Users, CheckSquare, BarChart3, Calendar, 
     Monitor, PenTool, Database, Activity, Shield, Settings, 
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
-    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp
+    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit
 } from 'lucide-react';
 
 interface Props {
@@ -45,6 +45,15 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 ]
             },
             {
+                id: 'intelligence',
+                label: 'الذكاء والتحليل',
+                roles: ['TEACHER'],
+                items: [
+                    { path: '/analytics', label: 'مركز التنبؤات (AI)', icon: BrainCircuit, roles: ['TEACHER'] },
+                    { path: '/reports', label: 'التقارير الشاملة', icon: TrendingUp, roles: ['TEACHER'] },
+                ]
+            },
+            {
                 id: 'management',
                 label: 'الإدارة المدرسية',
                 roles: ['SCHOOL_MANAGER'],
@@ -79,8 +88,8 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 label: 'الإعدادات',
                 roles: ['TEACHER', 'SCHOOL_MANAGER', 'SUPER_ADMIN'],
                 items: [
-                    { path: '/reports', label: 'التقارير', icon: Table, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
                     { path: '/profile', label: 'الملف الشخصي', icon: Settings, roles: ['TEACHER', 'SCHOOL_MANAGER', 'SUPER_ADMIN'] },
+                    { path: '/school-mgmt', label: 'إعدادات المنظومة', icon: Table, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
                 ]
             }
         ];

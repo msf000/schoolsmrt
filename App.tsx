@@ -29,6 +29,7 @@ import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from 
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
 import AIChatBot from './components/AIChatBot';
+import PredictiveAnalytics from './components/PredictiveAnalytics';
 
 const App: React.FC = () => {
     const navigate = useNavigate();
@@ -94,6 +95,7 @@ const App: React.FC = () => {
                         <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                         <Route path="/gradebook" element={<GradebookMaster students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
+                        <Route path="/analytics" element={<PredictiveAnalytics students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={loadInitialData} onImportAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                         <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
                         <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />

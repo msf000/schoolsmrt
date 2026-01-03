@@ -52,6 +52,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 />
             )}
             
+            {/* نظام التحديات اليومية الذكي */}
             <DailyQuestTrigger student={currentUser} onAccept={() => setActiveTab('DASHBOARD')} />
 
             <header className="bg-slate-900/40 backdrop-blur-3xl border-b border-white/5 px-6 lg:px-12 py-5 lg:py-6 flex justify-between items-center sticky top-0 z-50 shadow-2xl">
@@ -86,7 +87,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                              <SummaryPortalCard icon={BrainCircuit} label="تمكني" desc="تحليل المهارات" color="text-blue-400" bg="bg-blue-500/10" onClick={()=>setActiveTab('TREE')}/>
                         </div>
 
-                        <section className="bg-white/5 p-8 lg:p-16 rounded-5xl border border-white/5 shadow-2xl overflow-hidden relative group">
+                        <section className="bg-white/5 p-8 lg:p-16 rounded-[4rem] border border-white/5 shadow-2xl overflow-hidden relative group">
                             <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 group-hover:scale-110 transition-transform duration-1000 pointer-events-none"><Gamepad2 size={300}/></div>
                             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 relative z-10 gap-6">
                                 <div>

@@ -2,9 +2,10 @@
 import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, LearningStyle, BehaviorIncident } from '../types';
 
 /**
- * خدمة التحليل الإحصائي والتربوي المتقدم
+ * محرك التوقعات والتحليلات المتقدمة (SaaS Analytics Engine)
  */
 
+// 1. حساب "مؤشر صحة الفصل" - يجمع بين الانضباط والتحصيل
 export const calculateClassHealth = (className: string, students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
     const classStudents = students.filter(s => s.className === className);
     if (classStudents.length === 0) return 0;
@@ -16,169 +17,55 @@ export const calculateClassHealth = (className: string, students: Student[], att
     const attRate = classAtt.length > 0 ? (classAtt.filter(a => a.status === AttendanceStatus.PRESENT).length / classAtt.length) : 1;
     const perfRate = classPerf.length > 0 ? (classPerf.reduce((a, b) => a + (b.score / b.maxScore), 0) / classPerf.length) : 0.8;
     
+    // معادلة الترجيح: 40% انضباط، 60% تحصيل
     return Math.round(((attRate * 0.4) + (perfRate * 0.6)) * 100);
 };
 
+// 2. التنبؤ بالدرجة القادمة للطالب بناءً على الاتجاه الحالي (Trend Analysis)
 export const predictNextScore = (studentId: string, performance: PerformanceRecord[]) => {
     const sPerf = performance.filter(p => p.studentId === studentId).sort((a, b) => a.date.localeCompare(b.date));
-    if (sPerf.length < 2) return 80; // افتراضي
+    if (sPerf.length < 2) return 80; // افتراضي في غياب البيانات التراكمية
     
     const percentages = sPerf.map(p => (p.score / (p.maxScore || 1)) * 100);
     const last = percentages[percentages.length - 1];
     const prev = percentages[percentages.length - 2];
     
-    const trend = last - prev;
-    const prediction = Math.min(100, Math.max(0, last + (trend * 0.5)));
+    const momentum = last - prev; // الزخم (Momentum)
+    const prediction = Math.min(100, Math.max(0, last + (momentum * 0.4)));
     return Math.round(prediction);
 };
 
-export const getClassPulseData = (attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
-    const last7Days = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(now.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        
-        const dayAtt = attendance.filter(a => a.date === dateStr);
-        const dayPerf = performance.filter(p => p.date === dateStr);
-        
-        const part = dayAtt.length > 0 ? (dayAtt.filter(a=>a.status===AttendanceStatus.PRESENT).length / dayAtt.length) * 100 : 0;
-        const perf = dayPerf.length > 0 ? (dayPerf.reduce((a,b)=>a+(b.score/(b.maxScore||1)),0)/dayPerf.length)*100 : null;
-
-        last7Days.push({
-            name: dateStr.slice(5),
-            participation: Math.round(part),
-            grades: perf !== null ? Math.round(perf) : 0
-        });
-    }
-    return last7Days;
-};
-
-export const getUrgentAlerts = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
-    const alerts: string[] = [];
-    if (!students || students.length === 0) return alerts;
-
-    const dangerAbsence = students.map(s => {
-        const sAtt = attendance.filter(a => a.studentId === s.id);
-        const absentCount = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-        return { student: s, count: absentCount };
-    }).filter(x => x.count >= 3).slice(0, 2);
+// 3. كشف الارتباط بين السلوك والدرجات
+export const analyzeBehaviorGradeCorrelation = (studentId: string, incidents: BehaviorIncident[], performance: PerformanceRecord[]) => {
+    const myIncidents = incidents.filter(i => i.studentId === studentId);
+    const myPerf = performance.filter(p => p.studentId === studentId);
     
-    dangerAbsence.forEach(x => alerts.push(`الطالب ${x.student.name.split(' ')[0]} غاب ${x.count} أيام متتالية.`));
-
-    return alerts;
+    const behaviorScore = myIncidents.reduce((acc, curr) => acc + curr.points, 0);
+    const academicScore = myPerf.length > 0 ? (myPerf.reduce((a, b) => a + (b.score/b.maxScore), 0) / myPerf.length) * 100 : 0;
+    
+    if (behaviorScore < 0 && academicScore > 80) return "طالب متفوق بقدرات عالية، لكن السلوك قد يعيق الاستمرارية.";
+    if (behaviorScore > 50 && academicScore < 60) return "سلوك ممتاز واجتهاد واضح، الطالب يحتاج لدعم أكاديمي تخصصي فقط.";
+    return "لا يوجد ارتباط استثنائي بين السلوك والدرجات حالياً.";
 };
 
+// 4. تحديد الطلاب تحت الخطر (Early Warning System)
 export const detectAtRiskStudents = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
     return students.map(s => {
         const sAtt = attendance.filter(a => a.studentId === s.id);
         const sPerf = performance.filter(p => p.studentId === s.id);
+        
         const absentRate = sAtt.length > 0 ? (sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length / sAtt.length) * 100 : 0;
         const avgScore = sPerf.length > 0 ? (sPerf.reduce((a, b) => a + (b.score / b.maxScore), 0) / sPerf.length) * 100 : 100;
+        
         const risks = [];
-        if (absentRate > 20) risks.push(`غياب مرتفع (${Math.round(absentRate)}%)`);
-        if (avgScore < 60) risks.push(`ضعف في نواتج التعلم (${Math.round(avgScore)}%)`);
+        if (absentRate > 25) risks.push(`غياب حرج (${Math.round(absentRate)}%)`);
+        if (avgScore < 50) risks.push(`تعثر أكاديمي حاد (${Math.round(avgScore)}%)`);
+        
         return risks.length > 0 ? { student: s, risks } : null;
     }).filter(item => item !== null) as { student: Student, risks: string[] }[];
 };
 
-export const getDailyFocusStudents = (students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[]) => {
-    return students.map(s => {
-        const sPerf = performance.filter(p => p.studentId === s.id).sort((a,b) => b.date.localeCompare(a.date));
-        const sAtt = attendance.filter(a => a.studentId === s.id).slice(-5);
-        
-        let priority = 0;
-        
-        // 1. تراجع في آخر درجة
-        if (sPerf.length >= 2) {
-            const last = sPerf[0].score / sPerf[0].maxScore;
-            const prev = sPerf[1].score / sPerf[1].maxScore;
-            if (last < prev - 0.2) priority += 5; // هبوط حاد
-        }
-        
-        // 2. غياب متكرر مؤخراً
-        const recentAbsences = sAtt.filter(a => a.status === AttendanceStatus.ABSENT).length;
-        if (recentAbsences >= 2) priority += 3;
-        
-        return priority > 0 ? { student: s, priority } : null;
-    }).filter(x => x !== null).sort((a, b) => b!.priority - a!.priority).slice(0, 4);
-};
-
-export const generateVarkBalancedGroups = (students: Student[], groupSize: number): Student[][] => {
-    const groupsByStyle: Record<string, Student[]> = {
-        VISUAL: [], AUDITORY: [], READ_WRITE: [], KINESTHETIC: [], UNKNOWN: []
-    };
-    
-    students.forEach(s => {
-        const style = s.learningStyle || 'UNKNOWN';
-        if (groupsByStyle[style]) groupsByStyle[style].push(s);
-        else groupsByStyle['UNKNOWN'].push(s);
-    });
-
-    Object.values(groupsByStyle).forEach(arr => {
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-    });
-
-    const balancedList: Student[] = [];
-    const styles = Object.keys(groupsByStyle);
-    const styleCounters = styles.reduce((acc, s) => ({ ...acc, [s]: 0 }), {} as Record<string, number>);
-
-    let addedInThisCycle = true;
-    while (addedInThisCycle) {
-        addedInThisCycle = false;
-        styles.forEach(style => {
-            if (styleCounters[style] < groupsByStyle[style].length) {
-                balancedList.push(groupsByStyle[style][styleCounters[style]]);
-                styleCounters[style]++;
-                addedInThisCycle = true;
-            }
-        });
-    }
-
-    const result: Student[][] = [];
-    for (let i = 0; i < balancedList.length; i += groupSize) {
-        result.push(balancedList.slice(i, i + groupSize));
-    }
-    return result;
-};
-
-export const generateLocalSeatingPlan = (students: any[], criterion: string) => {
-    const cols = 5;
-    const sorted = [...students];
-    
-    if (criterion.includes('المستويات')) {
-        sorted.sort((a, b) => (b.stats?.gradeAvg || 0) - (a.stats?.gradeAvg || 0));
-        
-        const mixed: any[] = [];
-        let low = 0;
-        let high = sorted.length - 1;
-        while (low <= high) {
-            mixed.push(sorted[high--]);
-            if (low <= high) mixed.push(sorted[low++]);
-        }
-        
-        return {
-            seating: mixed.map((s, i) => ({
-                studentId: s.id,
-                row: Math.floor(i / cols),
-                col: i % cols
-            }))
-        };
-    }
-
-    return {
-        seating: sorted.map((s, i) => ({
-            studentId: s.id,
-            row: Math.floor(i / cols),
-            col: i % cols
-        }))
-    };
-};
-
+// 5. حساب مؤشر الثبات (Consistency Index)
 export const calculateStudentConsistency = (studentId: string, performance: PerformanceRecord[]) => {
     const sPerf = performance.filter(p => p.studentId === studentId);
     if (sPerf.length < 3) return 100;
@@ -186,8 +73,49 @@ export const calculateStudentConsistency = (studentId: string, performance: Perf
     const scores = sPerf.map(p => (p.score / p.maxScore) * 100);
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
-    const stdDev = Math.sqrt(variance);
+    const stdDev = Math.sqrt(variance); // الانحراف المعياري
     
-    // Stability score (100 - standard deviation)
-    return Math.round(Math.max(0, 100 - stdDev));
+    // كلما قل الانحراف، زاد الثبات
+    return Math.round(Math.max(0, 100 - (stdDev * 2)));
+};
+
+/**
+ * 6. تقسيم الطلاب لمجموعات متوازنة بناءً على نمط التعلم (VARK Balanced Groups)
+ */
+export const generateVarkBalancedGroups = (students: Student[], groupSize: number): Student[][] => {
+    // Fix: Added missing function generateVarkBalancedGroups to balance groups by learning style
+    // Shuffle students first for randomness
+    const shuffled = [...students].sort(() => Math.random() - 0.5);
+    
+    // Group by learning style
+    const byStyle: Record<string, Student[]> = {
+        VISUAL: [], AUDITORY: [], READ_WRITE: [], KINESTHETIC: [], UNKNOWN: []
+    };
+    
+    shuffled.forEach(s => {
+        const style = s.learningStyle || 'UNKNOWN';
+        if (byStyle[style]) {
+            byStyle[style].push(s);
+        } else {
+            byStyle['UNKNOWN'].push(s);
+        }
+    });
+
+    const numGroups = Math.ceil(students.length / groupSize);
+    if (numGroups === 0) return [];
+    
+    const groups: Student[][] = Array.from({ length: numGroups }, () => []);
+
+    // Round-robin distribution of students across styles to groups to ensure diversity in each group
+    const stylesOrder = ['VISUAL', 'AUDITORY', 'READ_WRITE', 'KINESTHETIC', 'UNKNOWN'];
+    let gIdx = 0;
+    
+    stylesOrder.forEach(style => {
+        byStyle[style].forEach(student => {
+            groups[gIdx].push(student);
+            gIdx = (gIdx + 1) % numGroups;
+        });
+    });
+
+    return groups;
 };
