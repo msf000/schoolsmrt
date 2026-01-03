@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Exam, Question, SystemUser, Subject, ExamResult, Student, ExamType, AchievementMethod } from '../types';
-import { getExams, saveExam, deleteExam, getSubjects, getExamResults, getStudents } from '../services/storageService';
+import { Exam, Question, SystemUser, Subject, ExamResult, Student, ExamType, AchievementMethod, Badge } from '../types';
+import { getExams, saveExam, deleteExam, getSubjects, getExamResults, getStudents, awardBadgeToStudent } from '../services/storageService';
 import { calculateGrowthMetrics } from '../services/analysisService';
 import { 
     Plus, Trash2, Edit, Save, ArrowRight, Printer, 
     BarChart2, CheckCircle, Sparkles, Loader2, Calendar, Video, 
-    TrendingUp, Download, RefreshCw, Layers, Target, Info, FileText, Activity, Clock, ArrowUpRight, ArrowDownRight, GitCompare
+    TrendingUp, Download, RefreshCw, Layers, Target, Info, FileText, Activity, Clock, ArrowUpRight, ArrowDownRight, GitCompare, Award, Medal
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -207,6 +207,7 @@ const ExamsManager: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
 // واجهة مقارنة النمو (Growth Comparison Engine)
 const GrowthComparison: React.FC<{ exams: Exam[], preId: string, postId: string, onPreChange: (id: string) => void, onPostChange: (id: string) => void, onBack: () => void }> = ({ exams, preId, postId, onPreChange, onPostChange, onBack }) => {
     const students = useMemo(() => getStudents(), []);
+    const [isAwarding, setIsAwarding] = useState(false);
     
     const preResults = useMemo(() => preId ? getExamResults(preId) : [], [preId]);
     const postResults = useMemo(() => postId ? getExamResults(postId) : [], [postId]);
@@ -214,6 +215,41 @@ const GrowthComparison: React.FC<{ exams: Exam[], preId: string, postId: string,
     const { comparison, avgGrowth } = useMemo(() => {
         return calculateGrowthMetrics(preResults, postResults, students);
     }, [preResults, postResults, students]);
+
+    const handleAwardBadges = async () => {
+        if (comparison.length === 0) return;
+        setIsAwarding(true);
+        let count = 0;
+        
+        for (const item of comparison) {
+            if (item.growth >= 30) {
+                const badge: Badge = {
+                    id: `growth_hero_${Date.now()}_${item.studentId}`,
+                    name: 'بطل النمو الأسطوري',
+                    icon: '🚀',
+                    color: 'text-indigo-600',
+                    description: `حقق قفزة نوعية في المستوى بنسبة ${item.growth}%`,
+                    unlockedAt: new Date().toISOString()
+                };
+                await awardBadgeToStudent(item.studentId, badge);
+                count++;
+            } else if (item.growth >= 15) {
+                const badge: Badge = {
+                    id: `growth_star_${Date.now()}_${item.studentId}`,
+                    name: 'نجم المثابرة',
+                    icon: '🌟',
+                    color: 'text-emerald-600',
+                    description: `أظهر تحسناً ملحوظاً في التحصيل بنسبة ${item.growth}%`,
+                    unlockedAt: new Date().toISOString()
+                };
+                await awardBadgeToStudent(item.studentId, badge);
+                count++;
+            }
+        }
+        
+        alert(`تم منح أوسمة التميز لـ ${count} طالب حققوا معدلات نمو إيجابية!`);
+        setIsAwarding(false);
+    };
 
     const exportToExcel = () => {
         const data = comparison.map(c => ({
@@ -239,9 +275,14 @@ const GrowthComparison: React.FC<{ exams: Exam[], preId: string, postId: string,
                         <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest">Pre/Post Test Growth Engine</p>
                     </div>
                 </div>
-                <button onClick={exportToExcel} disabled={comparison.length === 0} className="px-8 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
-                    <Download size={18}/> تصدير التقرير
-                </button>
+                <div className="flex gap-3">
+                    <button onClick={handleAwardBadges} disabled={isAwarding || comparison.length === 0} className="px-8 py-3 bg-amber-500 text-white rounded-2xl text-xs font-black shadow-lg hover:bg-amber-600 transition-all flex items-center gap-2">
+                        {isAwarding ? <Loader2 className="animate-spin" size={18}/> : <Medal size={18}/>} توزيع أوسمة النمو
+                    </button>
+                    <button onClick={exportToExcel} disabled={comparison.length === 0} className="px-8 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
+                        <Download size={18}/> تصدير التقرير
+                    </button>
+                </div>
             </div>
 
             <div className="p-8 bg-slate-50 border-b flex flex-wrap gap-8 items-center px-12 shrink-0">
@@ -289,6 +330,7 @@ const GrowthComparison: React.FC<{ exams: Exam[], preId: string, postId: string,
                                         <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-black ${c.isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                                             {c.isPositive ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
                                             {Math.abs(c.growth)}%
+                                            {c.growth >= 30 && <Award size={14} className="text-amber-500 animate-bounce"/>}
                                         </div>
                                     </td>
                                 </tr>

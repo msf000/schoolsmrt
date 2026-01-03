@@ -3,15 +3,17 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft
+    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft, ArrowUpCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { getExams } from '../services/storageService';
+import { getExams, getStudents, getExamResults } from '../services/storageService';
+import { calculateGrowthMetrics } from '../services/analysisService';
 
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const [liveExams, setLiveExams] = useState<Exam[]>([]);
+  const [growthLeaders, setGrowthLeaders] = useState<any[]>([]);
 
   const stats = useMemo(() => {
       const total = students.length;
@@ -22,15 +24,25 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
 
   useEffect(() => {
     if (currentUser?.id) {
-        const all = getExams(currentUser.id);
+        const allExams = getExams(currentUser.id);
         const now = new Date();
-        const active = all.filter(e => {
+        const active = allExams.filter(e => {
             if (!e.isActive || !e.startDate || !e.endDate) return false;
             return now >= new Date(e.startDate) && now <= new Date(e.endDate);
         });
         setLiveExams(active);
+
+        // حساب أبطال النمو تلقائياً لأحدث اختبارين قبلي وبعدي
+        const pre = allExams.find(e => e.type === 'PRE_TEST' || e.type === 'DIAGNOSTIC');
+        const post = allExams.find(e => e.type === 'POST_TEST');
+        if (pre && post) {
+            const preRes = getExamResults(pre.id);
+            const postRes = getExamResults(post.id);
+            const { comparison } = calculateGrowthMetrics(preRes, postRes, students);
+            setGrowthLeaders(comparison.sort((a,b) => b.growth - a.growth).slice(0, 4));
+        }
     }
-  }, [currentUser]);
+  }, [currentUser, students]);
 
   return (
     <div className="space-y-8 pb-10 page-enter font-tajawal">
@@ -91,7 +103,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[400px]">
+          <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[450px]">
               <div className="flex justify-between items-center mb-8">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp size={18} className="text-brand-500"/> النشاط الأكاديمي الأسبوعي</h3>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded">Live Data</span>
@@ -115,26 +127,42 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
               </div>
           </div>
 
-          <div className="bg-slate-900 rounded-2xl p-8 text-white flex flex-col shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={150}/></div>
-              <div className="relative z-10 flex flex-col h-full">
-                  <div className="flex items-center gap-3 mb-6">
-                      <div className="p-2 bg-white/10 rounded-lg border border-white/10"><Bot size={20} className="text-indigo-400"/></div>
-                      <h3 className="font-bold text-lg">موجز Gemini الذكي</h3>
+          <div className="flex flex-col gap-6">
+              {/* بطاقة أبطال النمو */}
+              <div className="bg-indigo-600 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden shrink-0 h-[220px]">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12"><ArrowUpCircle size={120}/></div>
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-black flex items-center gap-2 mb-4"><Award size={20} className="text-yellow-400"/> أبطال قفزة النمو</h3>
+                    <div className="space-y-3">
+                        {growthLeaders.length > 0 ? growthLeaders.map((leader, i) => (
+                            <div key={i} className="flex justify-between items-center bg-white/10 p-2 rounded-xl border border-white/5">
+                                <span className="text-xs font-bold">{leader.studentName}</span>
+                                <span className="text-[10px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-lg">+{leader.growth}%</span>
+                            </div>
+                        )) : (
+                            <div className="text-xs text-indigo-200 italic">بانتظار إجراء اختبار بعدي للمقارنة...</div>
+                        )}
+                    </div>
                   </div>
-                  <div className="flex-1 space-y-4">
-                      <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic">
-                        "يظهر الطلاب تحسناً ملحوظاً في التفاعل الصفي هذا الأسبوع، نوصي بتكريم الطلاب الأكثر انضباطاً غداً."
+              </div>
+
+              <div className="bg-slate-900 rounded-3xl p-8 text-white flex flex-col shadow-2xl relative overflow-hidden flex-1">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={150}/></div>
+                  <div className="relative z-10 flex flex-col h-full">
+                      <div className="flex items-center gap-3 mb-6">
+                          <div className="p-2 bg-white/10 rounded-lg border border-white/10"><Bot size={20} className="text-indigo-400"/></div>
+                          <h3 className="font-bold text-lg">موجز Gemini الذكي</h3>
                       </div>
-                      <div className="space-y-3">
-                          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">تنبيهات سريعة</p>
-                          <div className="flex items-center gap-3 text-xs bg-white/5 p-3 rounded-lg border border-white/5">
-                              <Calendar size={14} className="text-amber-400"/>
-                              <span>موعد اختبار دوري للفصل 1/أ غداً</span>
+                      <div className="flex-1 space-y-4">
+                          <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic">
+                            {growthLeaders.length > 0 ? 
+                                `"لقد سجل الطلاب في فصلك قفزة نمو مذهلة بمتوسط ${Math.round(growthLeaders.reduce((a,b)=>a+b.growth,0)/growthLeaders.length)}%، نوصي باستمرار نفس الاستراتيجية."` :
+                                `"يظهر الطلاب تحسناً ملحوظاً في التفاعل الصفي هذا الأسبوع، نوصي بتكريم الطلاب الأكثر انضباطاً غداً."`
+                            }
                           </div>
                       </div>
+                      <button onClick={() => navigate('/analytics')} className="mt-8 w-full py-3 bg-white text-slate-900 rounded-xl text-xs font-black hover:bg-slate-100 transition-all">التحليل التنبؤي العميق</button>
                   </div>
-                  <button onClick={() => navigate('/planning')} className="mt-8 w-full py-3 bg-white text-slate-900 rounded-xl text-xs font-black hover:bg-slate-100 transition-all">تخصيص شخصية المساعد</button>
               </div>
           </div>
       </div>

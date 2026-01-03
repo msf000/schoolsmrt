@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, BehaviorIncident } from '../types';
-import { getBehaviorIncidents, updateStudent, saveRemedialPlan } from '../services/storageService';
+import { Student, PerformanceRecord, AttendanceRecord, AttendanceStatus, SystemUser, BehaviorIncident, Exam } from '../types';
+import { getBehaviorIncidents, updateStudent, saveRemedialPlan, getExams, getExamResults } from '../services/storageService';
 import { generateStudentAnalysis, generateSmartRemedialPlan } from '../services/geminiService';
+import { calculateGrowthMetrics } from '../services/analysisService';
 import { 
     Search, TrendingUp, Loader2, Bot, ArrowRight, Star, Radar as RadarIcon, 
-    BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle, FileText, LayoutGrid, Activity, ChevronLeft, ShieldCheck, Target
+    BookOpen, BrainCircuit, Zap, AlertTriangle, Trophy, Sparkles, User, Heart, Crown, LineChart as LineIcon, Printer, CheckCircle, FileText, LayoutGrid, Activity, ChevronLeft, ShieldCheck, Target, ArrowUpCircle
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, AreaChart, Area } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -31,12 +32,24 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
     const incidents = useMemo(() => getBehaviorIncidents().filter(i => i.studentId === selectedStudentId), [selectedStudentId]);
 
     const stats = useMemo(() => {
-        if (!student) return null;
+        if (!student || !currentUser) return null;
         const sAtt = attendance.filter(a => a.studentId === student.id);
         const sPerf = performance.filter(p => p.studentId === student.id);
 
         const attRate = sAtt.length > 0 ? (sAtt.filter(a => a.status === AttendanceStatus.PRESENT).length / sAtt.length) * 100 : 100;
         const gradeAvg = sPerf.length > 0 ? (sPerf.reduce((a, b) => a + (b.score / b.maxScore), 0) / sPerf.length) * 100 : 0;
+
+        // حساب النمو الفردي
+        const allExams = getExams(currentUser.id);
+        const pre = allExams.find(e => e.type === 'PRE_TEST' || e.type === 'DIAGNOSTIC');
+        const post = allExams.find(e => e.type === 'POST_TEST');
+        let growthVal = 0;
+        if (pre && post) {
+            const preRes = getExamResults(pre.id);
+            const postRes = getExamResults(post.id);
+            const { comparison } = calculateGrowthMetrics(preRes, postRes, [student]);
+            growthVal = comparison[0]?.growth || 0;
+        }
 
         const radarData = [
             { subject: 'الانضباط', A: attRate },
@@ -48,8 +61,8 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
 
         const trendData = sPerf.slice(-6).map(p => ({ date: p.date, val: (p.score/p.maxScore)*100 }));
 
-        return { attRate: Math.round(attRate), gradeAvg: Math.round(gradeAvg), radarData, trendData };
-    }, [student, attendance, performance]);
+        return { attRate: Math.round(attRate), gradeAvg: Math.round(gradeAvg), growthVal, radarData, trendData };
+    }, [student, attendance, performance, currentUser]);
 
     const handleAiAnalysis = async () => {
         if (!student) return;
@@ -63,7 +76,6 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
         <div className="space-y-6 page-enter font-tajawal">
             {isReportOpen && student && <ReportCard student={student} performance={performance} attendance={attendance} onClose={() => setIsReportOpen(false)} />}
             
-            {/* SaaS Profile Header */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex items-center gap-5">
                     <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 border border-slate-200 font-bold text-xl">
@@ -94,11 +106,10 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
 
             {student && stats ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Metrics column */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <SmallMetric label="التمكن" value={`${stats.gradeAvg}%`} color="blue" />
-                            <SmallMetric label="الحضور" value={`${stats.attRate}%`} color="emerald" />
+                            <SmallMetric label="النمو" value={`${stats.growthVal > 0 ? '+' : ''}${stats.growthVal}%`} color={stats.growthVal >= 10 ? "emerald" : "indigo"} icon={stats.growthVal > 0 ? <ArrowUpCircle size={14}/> : null} />
                             <SmallMetric label="النقاط" value={student.xp || 0} color="amber" />
                             <SmallMetric label="السلوك" value={student.behaviorPoints || 0} color="rose" />
                         </div>
@@ -136,7 +147,6 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
                         )}
                     </div>
 
-                    {/* Behavior and Details column */}
                     <div className="space-y-6">
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                             <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2"><Star size={16} className="text-brand-500"/> آخر الملاحظات السلوكية</h3>
@@ -178,17 +188,21 @@ const StudentFollowUp: React.FC<{ students: Student[], performance: PerformanceR
     );
 };
 
-const SmallMetric = ({ label, value, color }: any) => {
+const SmallMetric = ({ label, value, color, icon }: any) => {
     const colors: any = {
         blue: 'text-blue-600 bg-blue-50 border-blue-100',
         emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100',
         amber: 'text-amber-600 bg-amber-50 border-amber-100',
-        rose: 'text-rose-600 bg-rose-50 border-rose-100'
+        rose: 'text-rose-600 bg-rose-50 border-rose-100',
+        indigo: 'text-indigo-600 bg-indigo-50 border-indigo-100'
     };
     return (
         <div className={`p-4 rounded-xl border ${colors[color]} text-center`}>
             <p className="text-[10px] font-bold opacity-60 uppercase mb-1">{label}</p>
-            <p className="text-lg font-black">{value}</p>
+            <div className="flex items-center justify-center gap-1">
+                {icon}
+                <p className="text-lg font-black">{value}</p>
+            </div>
         </div>
     );
 }

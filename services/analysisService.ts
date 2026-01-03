@@ -48,6 +48,7 @@ export const calculateGrowthMetrics = (preResults: ExamResult[], postResults: Ex
         const growth = postPct - prePct;
         
         return {
+            studentId: s.id,
             studentName: s.name,
             prePct: Math.round(prePct),
             postPct: Math.round(postPct),
@@ -60,7 +61,7 @@ export const calculateGrowthMetrics = (preResults: ExamResult[], postResults: Ex
         ? comparison.reduce((acc, curr) => acc + curr!.growth, 0) / comparison.length 
         : 0;
         
-    return { comparison, avgGrowth: Math.round(avgGrowth) };
+    return { comparison: comparison as any[], avgGrowth: Math.round(avgGrowth) };
 };
 
 // 4. تحديد الطلاب تحت الخطر (Early Warning System)

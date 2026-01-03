@@ -43,7 +43,8 @@ const mapStudentFromDB = (s: any): Student => ({
     createdById: s.created_by_id,
     badges: s.badges || [],
     purchasedRewards: s.purchased_rewards || [],
-    seatIndex: s.seat_index || 0
+    seatIndex: s.seat_index || 0,
+    avatarUrl: s.avatar_url
 });
 
 // --- محرك النقاط والمستويات (XP Engine) ---
@@ -113,7 +114,8 @@ export const updateStudent = async (student: Student): Promise<void> => {
         aura_color: student.auraColor,
         active_title: student.activeTitle,
         badges: student.badges,
-        purchased_rewards: student.purchasedRewards
+        purchased_rewards: student.purchasedRewards,
+        avatar_url: student.avatarUrl
     }).eq('id', student.id);
     if (error) throw error;
     await fetchStudents();
@@ -122,6 +124,18 @@ export const updateStudent = async (student: Student): Promise<void> => {
 export const deleteStudent = async (id: string): Promise<void> => {
     await supabase.from('students').delete().eq('id', id);
     await fetchStudents();
+};
+
+export const awardBadgeToStudent = async (studentId: string, badge: Badge): Promise<void> => {
+    const students = getStudents();
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const hasBadge = student.badges?.some(b => b.name === badge.name);
+    if (hasBadge) return;
+
+    const updatedBadges = [...(student.badges || []), badge];
+    await updateStudent({ ...student, badges: updatedBadges });
 };
 
 // --- الحضور (Attendance) ---
@@ -214,6 +228,7 @@ export const addPerformance = async (records: PerformanceRecord[]): Promise<void
         date: r.date,
         category: r.category,
         notes: r.notes,
+        // Fix: Use createdById instead of created_by_id on r (PerformanceRecord instance)
         created_by_id: r.createdById
     }));
     
@@ -291,7 +306,8 @@ export const fetchAssignments = async (tid?: string): Promise<Assignment[]> => {
             sortOrder: a.sort_order,
             classId: a.class_id,
             subject: a.subject,
-            period_tag: a.period_tag,
+            // Fix: Map period_tag from database to periodTag in Assignment object
+            periodTag: a.period_tag,
             link: a.link
         }));
         setLocal('assignments', mapped);
