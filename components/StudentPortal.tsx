@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { InteractiveGame, Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord } from '../types';
+import { InteractiveGame, Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident } from '../types';
 import GamePlayer from './GamePlayer';
-import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance } from '../services/storageService';
+import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
     Bell, ShieldCheck, Zap, Sparkles, Puzzle, Layers, User, Crown, 
@@ -20,14 +20,16 @@ import StudentAchievements from './StudentAchievements';
 import StudentAITutor from './StudentAITutor';
 import KnowledgeTree from './KnowledgeTree';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
+import StudentTaskView from './StudentTaskView';
+import SoftSkillsRadar from './SoftSkillsRadar';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
-    const [selectedGame, setSelectedGame] = useState<InteractiveGame | null>(null);
     const [availableGames, setAvailableGames] = useState<InteractiveGame[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+    const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'QUESTS' | 'SKILLS' | 'HISTORY' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'TASKS' | 'SKILLS' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
         loadData();
@@ -36,9 +38,10 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const loadData = async () => {
         const allGames = getGames();
         setAvailableGames(allGames.filter((g: InteractiveGame) => !g.targetClass || g.targetClass === currentUser.className));
-        const [perf, att] = await Promise.all([fetchPerformance(), fetchAttendance()]);
+        const [perf, att, beh] = await Promise.all([fetchPerformance(), fetchAttendance(), getBehaviorIncidents()]);
         setPerformance(perf.filter((p: PerformanceRecord) => p.studentId === currentUser.id));
         setAttendance(att.filter((a: AttendanceRecord) => a.studentId === currentUser.id));
+        setBehaviorLog(beh.filter((i: BehaviorIncident) => i.studentId === currentUser.id));
         setFormsResults(getFormsDetailedResults(currentUser.createdById || ''));
     };
 
@@ -70,13 +73,20 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                     <div className="space-y-10 animate-fade-in">
                         <StudentJourney xp={currentUser.xp || 0} level={currentUser.level || 1} />
                         
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2">
+                                <RemedialBridge student={currentUser} formsResults={formsResults} />
+                            </div>
+                            <div className="lg:col-span-1">
+                                <SoftSkillsRadar student={currentUser} incidents={behaviorLog} />
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <RemedialBridge student={currentUser} formsResults={formsResults} />
-                            
-                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('QUESTS')}>
+                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('TASKS')}>
                                 <div>
-                                    <h3 className="text-2xl font-black mb-2 flex items-center gap-3"><Target className="text-rose-500"/> مهامي الأسبوعية</h3>
-                                    <p className="text-slate-400 text-sm">لديك تحديات جديدة بانتظارك للحصول على XP إضافي.</p>
+                                    <h3 className="text-2xl font-black mb-2 flex items-center gap-3"><BookOpen className="text-indigo-400"/> حقيبة الواجبات</h3>
+                                    <p className="text-slate-400 text-sm">ارفع حلولك وتابع تصحيح المعلم لمهامك.</p>
                                 </div>
                                 <div className="mt-8 flex justify-end">
                                     <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-indigo-600 transition-all">
@@ -84,44 +94,36 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <section className="space-y-6">
-                            <h3 className="text-2xl font-black flex items-center gap-3"><Gamepad2 className="text-indigo-400"/> تحديات التعلم التفاعلية</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {availableGames.map(game => (
-                                    <div key={game.id} className="bg-slate-900/60 p-6 rounded-[2.5rem] border border-white/5 hover:border-indigo-500 transition-all cursor-pointer" onClick={() => setSelectedGame(game)}>
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="p-3 bg-white/5 rounded-xl text-indigo-400">
-                                                {game.type === 'MATCHING' ? <Puzzle size={24}/> : <Layers size={24}/>}
-                                            </div>
-                                            <span className="text-[10px] font-black text-amber-400">+{game.xpReward} XP</span>
-                                        </div>
-                                        <h4 className="font-bold text-white mb-1">{game.title}</h4>
-                                        <p className="text-[10px] text-slate-500 uppercase tracking-widest">{game.subject}</p>
+                            
+                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('ACAD')}>
+                                <div>
+                                    <h3 className="text-2xl font-black mb-2 flex items-center gap-3"><Target className="text-rose-500"/> الاختبارات الذكية</h3>
+                                    <p className="text-slate-400 text-sm">لديك تحديات جديدة بانتظارك للحصول على XP إضافي.</p>
+                                </div>
+                                <div className="mt-8 flex justify-end">
+                                    <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-rose-600 transition-all">
+                                        <ChevronLeft/>
                                     </div>
-                                ))}
+                                </div>
                             </div>
-                        </section>
+                        </div>
                     </div>
                 )}
 
-                {activeTab === 'QUESTS' && <StudentQuestSystem student={currentUser} />}
+                {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
                 {activeTab === 'ACAD' && <StudentEvaluationView student={currentUser} performance={performance} />}
                 {activeTab === 'SKILLS' && <KnowledgeTree student={currentUser} performance={performance} formsResults={formsResults} />}
-                {activeTab === 'HISTORY' && <StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
-                <NavBtn icon={<Target/>} label="المهام" active={activeTab==='QUESTS'} onClick={()=>setActiveTab('QUESTS')}/>
-                <NavBtn icon={<Network/>} label="التمكن" active={activeTab==='SKILLS'} onClick={()=>setActiveTab('SKILLS')}/>
-                <NavBtn icon={<History/>} label="الفخر" active={activeTab==='HISTORY'} onClick={()=>setActiveTab('HISTORY')}/>
+                <NavBtn icon={<BookOpen/>} label="الواجبات" active={activeTab==='TASKS'} onClick={()=>setActiveTab('TASKS')}/>
+                <NavBtn icon={<Target/>} label="الاختبارات" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
+                <NavBtn icon={<Network/>} label="نواتج التعلم" active={activeTab==='SKILLS'} onClick={()=>setActiveTab('SKILLS')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
 
-            {selectedGame && <GamePlayer game={selectedGame} student={currentUser} onClose={() => setSelectedGame(null)} />}
             <StudentAITutor student={currentUser} />
         </div>
     );

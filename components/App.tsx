@@ -24,6 +24,7 @@ import TeacherProfile from './TeacherProfile';
 import AdminDashboard from './AdminDashboard';
 import PrincipalDashboard from './PrincipalDashboard';
 import HallOfFame from './HallOfFame';
+import TeacherTaskGrader from './TeacherTaskGrader';
 import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from '../services/storageService';
 import Login from './Login';
 import ReloadPrompt from './ReloadPrompt';
@@ -109,6 +110,7 @@ const App: React.FC = () => {
                         <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
                         <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/pro-impact" element={<TeacherStats students={students} performance={performance} attendance={attendance} plans={[]} />} />
+                        <Route path="/grading" element={<TeacherTaskGrader currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
 
