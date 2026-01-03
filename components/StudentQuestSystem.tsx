@@ -102,6 +102,9 @@ const StudentQuestSystem: React.FC<StudentQuestSystemProps> = ({ student }) => {
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-6">
                 <div className="w-16 h-16 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-inner">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <Flame size={120}/>
+                    </div>
                     <Flame size={32}/>
                 </div>
                 <div className="flex-1 text-center md:text-right">
@@ -119,5 +122,7 @@ const StudentQuestSystem: React.FC<StudentQuestSystemProps> = ({ student }) => {
         </div>
     );
 };
+
+const Flame = ({ size }: any) => <svg width={size||24} height={size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.292 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>;
 
 export default StudentQuestSystem;
