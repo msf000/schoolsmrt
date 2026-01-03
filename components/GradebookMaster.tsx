@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, PerformanceRecord, Assignment, SystemUser } from '../types';
-import { fetchAssignments, fetchPerformance } from '../services/storageService';
+import { fetchAssignments, fetchPerformance, getWorksMasterUrl, saveWorksMasterUrl } from '../services/storageService';
 import { 
     Table, Search, Download, Filter, Printer, RefreshCw, 
     ChevronLeft, ChevronRight, Star, AlertCircle, CheckCircle, TrendingUp, Save,
-    Trophy, AlertTriangle, Activity, Target, Sparkles
+    Trophy, AlertTriangle, Activity, Target, Sparkles, Globe, X, Link as LinkIcon
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -13,11 +13,14 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
     const [selectedClass, setSelectedClass] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [showCloudConfig, setShowCloudConfig] = useState(false);
+    const [cloudUrl, setCloudUrl] = useState('');
 
     useEffect(() => {
         const load = async () => {
             const data = await fetchAssignments(currentUser.id);
             setAssignments(data.filter(a => a.isVisible));
+            setCloudUrl(getWorksMasterUrl());
         };
         load();
     }, [currentUser]);
@@ -38,10 +41,8 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
         }).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [students, selectedClass, searchTerm]);
 
-    // حساب إحصائيات سريعة للفصل المختار
     const classInsights = useMemo(() => {
         if (filteredStudents.length === 0) return null;
-        
         const studentsTotals = filteredStudents.map(s => {
             let total = 0;
             assignments.forEach(a => {
@@ -50,13 +51,17 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
             });
             return { name: s.name, total };
         });
-
         const topStudent = [...studentsTotals].sort((a,b) => b.total - a.total)[0];
         const lowStudent = [...studentsTotals].sort((a,b) => a.total - b.total)[0];
         const classAvg = studentsTotals.reduce((a,b) => a + b.total, 0) / filteredStudents.length;
-
         return { topStudent, lowStudent, classAvg: Math.round(classAvg) };
     }, [filteredStudents, assignments, performance]);
+
+    const handleSaveCloudConfig = () => {
+        saveWorksMasterUrl(cloudUrl);
+        setShowCloudConfig(false);
+        alert('تم ربط سجل الرصد بملف Google Sheets بنجاح!');
+    };
 
     const handleExport = () => {
         const data = filteredStudents.map((s, idx) => {
@@ -85,20 +90,50 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
         <div className="space-y-6 page-enter font-tajawal pb-10">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900">سجل الرصد المركزي الذكي</h1>
-                    <p className="text-slate-500 text-sm mt-1">عرض شامل لكافة درجات الطلاب ومستويات الإتقان.</p>
+                    <h1 className="text-3xl font-black text-slate-900">سجل الرصد المركزي</h1>
+                    <p className="text-slate-500 text-sm mt-1">المزامنة مع Google Sheets مفعلة.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={handleExport} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-black hover:bg-emerald-700 shadow-xl shadow-emerald-500/20 flex items-center gap-2 transition-all">
-                        <Download size={18}/> تصدير Excel (نور)
+                    <button onClick={() => setShowCloudConfig(true)} className="px-5 py-3 bg-white border-2 border-slate-100 text-indigo-600 rounded-2xl text-sm font-black hover:bg-indigo-50 shadow-sm flex items-center gap-2 transition-all">
+                        <Globe size={18}/> ربط Google Sheets
                     </button>
-                    <button onClick={() => window.print()} className="px-6 py-3 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-black flex items-center gap-2 shadow-xl transition-all">
-                        <Printer size={18}/> طباعة الكشف
+                    <button onClick={handleExport} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-black hover:bg-emerald-700 shadow-xl flex items-center gap-2 transition-all">
+                        <Download size={18}/> تصدير Excel
                     </button>
                 </div>
             </div>
 
-            {/* لوحة الرؤى السريعة */}
+            {/* نافذة إعدادات Google Sheets */}
+            {showCloudConfig && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 animate-zoom-in">
+                        <div className="p-8 bg-indigo-600 text-white flex justify-between items-center relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12"><Globe size={120}/></div>
+                             <h3 className="text-xl font-black relative z-10 flex items-center gap-3"><LinkIcon size={20}/> ربط قوقل شيت (Google Sheets)</h3>
+                             <button onClick={() => setShowCloudConfig(false)} className="p-2 hover:bg-white/10 rounded-full relative z-10"><X/></button>
+                        </div>
+                        <div className="p-10 space-y-6">
+                            <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 flex items-start gap-4">
+                                <AlertCircle className="text-indigo-600 shrink-0" size={20}/>
+                                <p className="text-xs text-indigo-800 font-bold leading-relaxed">
+                                    الصق رابط ملف Google Sheets الخاص بك هنا. تأكد من أن الملف "عام" (Anyone with the link) ليتمكن النظام من جلب الدرجات آلياً.
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">رابط ملف الرصد السحابي</label>
+                                <input 
+                                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm outline-none focus:border-indigo-500 dir-ltr text-left" 
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                    value={cloudUrl}
+                                    onChange={e => setCloudUrl(e.target.value)}
+                                />
+                            </div>
+                            <button onClick={handleSaveCloudConfig} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg shadow-xl hover:bg-indigo-700 active:scale-95 transition-all">تفعيل المزامنة اللحظية</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {classInsights && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-slide-up">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-5">
@@ -134,9 +169,6 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
                     <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} className="flex-1 md:w-48 p-2.5 bg-white border-2 border-slate-100 rounded-2xl text-xs font-black outline-none cursor-pointer hover:border-brand-500 transition-colors">
                         {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                    <div className="px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black border border-indigo-100 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">
-                        <Table size={14}/> {assignments.length} عمود رصد
-                    </div>
                 </div>
             </div>
 
@@ -182,21 +214,6 @@ const GradebookMaster: React.FC<{ students: Student[], performance: PerformanceR
                             })}
                         </tbody>
                     </table>
-                </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 flex items-center gap-6 shadow-sm">
-                    <div className="p-4 bg-white rounded-3xl text-indigo-600 shadow-lg"><Sparkles size={28}/></div>
-                    <div>
-                        <h4 className="font-black text-indigo-900 text-xl">نظام الربط السحابي (Live)</h4>
-                        <p className="text-sm text-indigo-700 font-bold opacity-80 mt-1">يتم تحديث هذه الدرجات فوراً في بوابات الطلاب وأولياء الأمور بمجرد رصدها من قبلك.</p>
-                    </div>
-                </div>
-                <div className="bg-slate-100 p-8 rounded-[2.5rem] border border-slate-200 flex items-center justify-center text-center">
-                    <p className="text-xs text-slate-500 font-black leading-relaxed italic">
-                        "سجل الرصد الكلي يعطيك القوة لاتخاذ قرارات تربوية مبنية على البيانات اللحظية."
-                    </p>
                 </div>
             </div>
         </div>
