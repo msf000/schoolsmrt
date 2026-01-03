@@ -31,6 +31,7 @@ import AIChatBot from './AIChatBot';
 import PredictiveAnalytics from './PredictiveAnalytics';
 import SmartBadges from './SmartBadges';
 import AdvancedAnalytics from './AdvancedAnalytics';
+import CertificatesCenter from './CertificatesCenter';
 
 const App: React.FC = () => {
     const navigate = useNavigate();
@@ -103,6 +104,7 @@ const App: React.FC = () => {
                         <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />
                         <Route path="/badges" element={<SmartBadges students={students} />} />
+                        <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
                     </>
                 )}
 

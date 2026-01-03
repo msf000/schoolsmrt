@@ -55,6 +55,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/attendance', label: 'التحضير', icon: CheckSquare, roles: ['TEACHER'] },
                     { path: '/gradebook', label: 'سجل الرصد الكلي', icon: ClipboardList, roles: ['TEACHER'] },
                     { path: '/exams', label: 'الاختبارات', icon: FileText, roles: ['TEACHER'] },
+                    { path: '/certificates', label: 'مركز الشهادات', icon: Medal, roles: ['TEACHER'] },
                 ]
             },
             {
@@ -85,7 +86,6 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/classroom', label: 'إدارة الفصل', icon: Monitor, roles: ['TEACHER'] },
                     { path: '/planning', label: 'التحضير الذكي', icon: PenTool, roles: ['TEACHER'] },
                     { path: '/behavior', label: 'السلوك', icon: ShieldAlert, roles: ['TEACHER'] },
-                    { path: '/badges', label: 'مصنع الأوسمة', icon: Medal, roles: ['TEACHER'] },
                 ]
             },
             {

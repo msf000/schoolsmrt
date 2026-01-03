@@ -1,19 +1,21 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam, StoredLessonPlan } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft, ArrowUpCircle, BarChart3, Zap
+    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft, ArrowUpCircle, BarChart3, Zap, Heart
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
-import { getExams, getStudents, getExamResults } from '../services/storageService';
+import { getExams, getStudents, getExamResults, getLessonPlans } from '../services/storageService';
 import { calculateGrowthMetrics, calculateClassHealth } from '../services/analysisService';
+import TeacherStats from './TeacherStats';
 
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const [liveExams, setLiveExams] = useState<Exam[]>([]);
   const [growthLeaders, setGrowthLeaders] = useState<any[]>([]);
+  const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
 
   const classStats = useMemo(() => {
       const total = students.length;
@@ -21,7 +23,6 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       const perfAvg = performance.length > 0 ? (performance.reduce((a, b) => a + (b.score / b.maxScore), 0) / performance.length) * 100 : 0;
       const health = calculateClassHealth('عام', students, attendance, performance);
       
-      // حساب توزيع المستويات
       const ranges = [
           { name: 'ممتاز', min: 90, count: 0, color: '#10b981' },
           { name: 'جيد جداً', min: 80, count: 0, color: '#3b82f6' },
@@ -51,6 +52,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
             return now >= new Date(e.startDate) && now <= new Date(e.endDate);
         });
         setLiveExams(active);
+        setLessonPlans(getLessonPlans(currentUser.id));
 
         const pre = allExams.find(e => e.type === 'PRE_TEST' || e.type === 'DIAGNOSTIC');
         const post = allExams.find(e => e.type === 'POST_TEST');
@@ -65,7 +67,6 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
 
   return (
     <div className="space-y-8 pb-10 page-enter font-tajawal">
-      {/* Header مع إجراءات سريعة */}
       <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 flex flex-col md:flex-row justify-between items-center shadow-xl gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-full bg-brand-500/5 -skew-x-12 translate-x-20"></div>
         <div className="relative z-10 flex items-center gap-6">
@@ -87,7 +88,6 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
         </div>
       </div>
 
-      {/* KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
            <KPIStat label="إجمالي الطلاب" value={classStats.total} icon={Users} color="blue" />
            <KPIStat label="الانضباط العام" value={`${classStats.attRate}%`} icon={Activity} color="emerald" />
@@ -96,34 +96,41 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* مخطط التوزيع الأكاديمي */}
-          <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col h-[480px]">
-              <div className="flex justify-between items-center mb-8 px-2">
-                  <div>
-                    <h3 className="font-black text-slate-800 text-xl flex items-center gap-2"><BarChart3 size={22} className="text-brand-500"/> توزيع مستويات الإتقان</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Class Achievement Distribution</p>
+          <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col h-[480px]">
+                  <div className="flex justify-between items-center mb-8 px-2">
+                      <div>
+                        <h3 className="font-black text-slate-800 text-xl flex items-center gap-2"><BarChart3 size={22} className="text-brand-500"/> توزيع مستويات الإتقان</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Class Achievement Distribution</p>
+                      </div>
+                      <button onClick={()=>navigate('/reports')} className="text-xs font-black text-brand-600 hover:underline flex items-center gap-1">التقارير التفصيلية <ChevronLeft size={14}/></button>
                   </div>
-                  <button onClick={()=>navigate('/reports')} className="text-xs font-black text-brand-600 hover:underline flex items-center gap-1">التقارير التفصيلية <ChevronLeft size={14}/></button>
+                  <div className="flex-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={classStats.distribution}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" fontSize={11} fontWeight="bold" axisLine={false} tickLine={false} />
+                            <YAxis hide domain={[0, 'dataMax + 2']} />
+                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -3px rgb(0 0 0 / 0.1)'}} />
+                            <Bar dataKey="count" radius={[12, 12, 0, 0]} barSize={50}>
+                                {classStats.distribution.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                  </div>
               </div>
-              <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={classStats.distribution}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" fontSize={11} fontWeight="bold" axisLine={false} tickLine={false} />
-                        <YAxis hide domain={[0, 'dataMax + 2']} />
-                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                        <Bar dataKey="count" radius={[12, 12, 0, 0]} barSize={50}>
-                            {classStats.distribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
-              </div>
+
+              <TeacherStats 
+                students={students} 
+                performance={performance} 
+                attendance={attendance} 
+                plans={lessonPlans} 
+              />
           </div>
 
           <div className="flex flex-col gap-6">
-              {/* بطاقة أبطال النمو */}
               <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden shrink-0 h-[240px] group">
                   <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-700"><ArrowUpCircle size={150}/></div>
                   <div className="relative z-10 flex flex-col h-full">
@@ -145,7 +152,6 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                   </div>
               </div>
 
-              {/* مساعد Gemini الذكي */}
               <div className="bg-slate-900 rounded-[3rem] p-8 text-white flex flex-col shadow-2xl relative overflow-hidden flex-1 border border-white/5">
                   <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={150}/></div>
                   <div className="relative z-10 flex flex-col h-full">
@@ -192,7 +198,5 @@ const KPIStat = ({ label, value, icon: Icon, color }: any) => {
         </div>
     );
 };
-
-const Heart = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>;
 
 export default Dashboard;

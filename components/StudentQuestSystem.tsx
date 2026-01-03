@@ -5,7 +5,7 @@ import { generateWeeklyQuests } from '../services/geminiService';
 import { updateStudent } from '../services/storageService';
 import { 
     Zap, Trophy, Sparkles, Loader2, CheckCircle2, 
-    ArrowLeft, Target, Flame, Ghost, BookOpen, ChevronLeft
+    ArrowLeft, Target, Ghost, BookOpen, ChevronLeft
 } from 'lucide-react';
 
 interface StudentQuestSystemProps {
