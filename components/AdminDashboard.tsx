@@ -224,49 +224,6 @@ const CloudTableInspector = () => {
                 { name: 'category', type: 'text' },
                 { name: 'date', type: 'date' }
             ]
-        },
-        { 
-            name: 'behavior_incidents', 
-            label: 'مخالفات السلوك (Behavior)', 
-            desc: 'سجل رصد المواقف السلوكية',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'student_id', type: 'text (FK)' },
-                { name: 'teacher_id', type: 'text (FK)' },
-                { name: 'type', type: 'text' },
-                { name: 'category', type: 'text' },
-                { name: 'points', type: 'integer' },
-                { name: 'note', type: 'text' }
-            ]
-        },
-        { 
-            name: 'wall_posts', 
-            label: 'الحائط المدرسي (Wall Posts)', 
-            desc: 'الأخبار والتكريمات والفعاليات المنشورة',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'user_id', type: 'text' },
-                { name: 'user_name', type: 'text' },
-                { name: 'content', type: 'text' },
-                { name: 'type', type: 'text' },
-                { name: 'likes', type: 'integer' },
-                { name: 'school_id', type: 'text (FK)' },
-                { name: 'created_at', type: 'timestamp' }
-            ]
-        },
-        { 
-            name: 'assignments', 
-            label: 'التكليفات (Assignments)', 
-            desc: 'تعريف أعمدة سجل الرصد والمعايير',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'teacher_id', type: 'text (FK)' },
-                { name: 'title', type: 'text' },
-                { name: 'category', type: 'text' },
-                { name: 'max_score', type: 'numeric' },
-                { name: 'is_visible', type: 'boolean' },
-                { name: 'sort_order', type: 'integer' }
-            ]
         }
     ];
 
@@ -411,47 +368,6 @@ CREATE TABLE IF NOT EXISTS performance (
     notes TEXT,
     date DATE,
     created_by_id TEXT REFERENCES system_users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 6. مخالفات السلوك
-CREATE TABLE IF NOT EXISTS behavior_incidents (
-    id TEXT PRIMARY KEY,
-    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
-    teacher_id TEXT REFERENCES system_users(id),
-    type TEXT,
-    category TEXT,
-    points INTEGER,
-    note TEXT,
-    action_taken TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 7. حائط المدرسة
-CREATE TABLE IF NOT EXISTS wall_posts (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    user_name TEXT,
-    content TEXT NOT NULL,
-    type TEXT DEFAULT 'NEWS',
-    likes INTEGER DEFAULT 0,
-    school_id TEXT REFERENCES schools(id),
-    image_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 8. التكليفات وهيكلة الرصد
-CREATE TABLE IF NOT EXISTS assignments (
-    id TEXT PRIMARY KEY,
-    teacher_id TEXT REFERENCES system_users(id),
-    title TEXT,
-    category TEXT,
-    max_score NUMERIC,
-    is_visible BOOLEAN DEFAULT TRUE,
-    sort_order INTEGER,
-    class_id TEXT,
-    subject TEXT,
-    period_tag TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );`;
 
