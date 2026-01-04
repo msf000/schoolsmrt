@@ -13,9 +13,11 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
-        // Fix: Added fallback for createdById to avoid TS2345 error
+        // تصحيح: استخدام قيمة افتراضية لتجنب خطأ TS2345
         const teacherId = student.createdById || '';
-        setTasks(getTasks(teacherId).filter(t => t.classId === student.className));
+        const className = student.className || '';
+        
+        setTasks(getTasks(teacherId).filter(t => t.classId === className));
         setSubmissions(getSubmissions().filter(s => s.studentId === student.id));
     }, [student]);
 
