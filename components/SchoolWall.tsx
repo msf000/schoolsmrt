@@ -20,6 +20,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
     const [isPosting, setIsPosting] = useState(false);
     const [filter, setFilter] = useState<'ALL' | 'ACHIEVEMENTS' | 'NEWS'>('ALL');
 
+    // تحديد معرف المدرسة بناءً على المستخدم الحالي
     const schoolId = (currentUser as any).schoolId || 'GLOBAL';
 
     useEffect(() => {
@@ -72,7 +73,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
     return (
         <div className="p-4 md:p-8 h-full flex flex-col lg:flex-row gap-8 bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden" dir="rtl">
             <div className="flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-32 lg:pb-10">
-                {/* Create Post Area */}
+                {/* منطقة إنشاء منشور جديد */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shrink-0 group transition-all">
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg">
@@ -80,7 +81,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                         </div>
                         <div className="flex-1 space-y-4">
                             <textarea 
-                                className="w-full bg-slate-50 border-none rounded-3xl p-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 min-h-[100px] resize-none"
+                                className="w-full bg-slate-50 border-none rounded-3xl p-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 min-h-[100px] resize-none text-right"
                                 placeholder={`بمَ تشعر اليوم يا ${currentUser.name.split(' ')[0]}؟ شاركنا خبراً أو إنجازاً...`}
                                 value={newPostContent}
                                 onChange={e => setNewPostContent(e.target.value)}
@@ -102,14 +103,14 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     </div>
                 </div>
 
-                {/* Filter Tabs */}
+                {/* تبويبات الفلترة */}
                 <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm self-start overflow-x-auto no-scrollbar max-w-full">
                     <button onClick={()=>setFilter('ALL')} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${filter==='ALL'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>الكل</button>
                     <button onClick={()=>setFilter('ACHIEVEMENTS')} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${filter==='ACHIEVEMENTS'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>تكريم</button>
                     <button onClick={()=>setFilter('NEWS')} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${filter==='NEWS'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>أخبار</button>
                 </div>
 
-                {/* News Feed */}
+                {/* تغذية المنشورات */}
                 <div className="space-y-6">
                     {filteredPosts.map(post => (
                         <div key={post.id} className="bg-white p-8 rounded-[3rem] border border-slate-50 shadow-sm hover:shadow-xl transition-all animate-slide-up group">
@@ -118,14 +119,14 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                                     <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl shadow-inner">
                                         {post.userName.charAt(0)}
                                     </div>
-                                    <div>
+                                    <div className="text-right">
                                         <h4 className="font-black text-slate-800">{post.userName}</h4>
                                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{formatDualDate(post.createdAt)}</p>
                                     </div>
                                 </div>
                                 <button className="p-2 text-slate-300 hover:bg-slate-50 rounded-xl transition-all"><MoreHorizontal size={20}/></button>
                             </div>
-                            <div className="prose prose-indigo max-w-none text-slate-700 leading-relaxed font-medium mb-8">
+                            <div className="prose prose-indigo max-w-none text-slate-700 leading-relaxed font-medium mb-8 text-right">
                                 {post.content}
                             </div>
                             <div className="pt-6 border-t flex justify-between items-center">
@@ -150,7 +151,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                 </div>
             </div>
 
-            {/* Widgets Sidebar */}
+            {/* الجوانب (Widgets) */}
             <div className="w-full lg:w-96 space-y-6">
                 {studentOfTheMonth && (
                     <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl group">
@@ -171,9 +172,8 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     </div>
                 )}
 
-                {/* Upcoming Events */}
                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
-                    <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Calendar className="text-indigo-600"/> أجندة الفعاليات</h3>
+                    <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 justify-end">أجندة الفعاليات <Calendar className="text-indigo-600"/></h3>
                     <div className="space-y-4">
                         <EventCard date="25" month="أكتوبر" title="معرض الابتكار المدرسي" />
                         <EventCard date="02" month="نوفمبر" title="الاختبارات الدورية 1" />
@@ -186,12 +186,12 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
 };
 
 const EventCard = ({ date, month, title }: any) => (
-    <div className="flex items-center gap-5 group cursor-pointer">
+    <div className="flex items-center gap-5 group cursor-pointer justify-end">
+        <p className="text-xs font-black text-slate-600 leading-tight group-hover:text-indigo-600 transition-colors text-right">{title}</p>
         <div className="bg-slate-50 p-3 rounded-2xl text-center min-w-[60px] group-hover:bg-indigo-600 group-hover:text-white transition-all">
             <p className="text-xl font-black leading-none">{date}</p>
             <p className="text-[8px] font-black uppercase mt-1 opacity-60">{month}</p>
         </div>
-        <p className="text-xs font-black text-slate-600 leading-tight group-hover:text-indigo-600 transition-colors">{title}</p>
     </div>
 );
 

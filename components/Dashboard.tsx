@@ -1,14 +1,14 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam, StoredLessonPlan, BehaviorIncident } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, StoredLessonPlan, BehaviorIncident } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Activity, Award, Star, Calendar, Bot, Zap, Heart, MessageSquare, ChevronLeft, BarChart3
+    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
-import { getExams, getExamResults, getLessonPlans, getBehaviorIncidents } from '../services/storageService';
-import { calculateGrowthMetrics, calculateClassHealth } from '../services/analysisService';
+import { getLessonPlans, getBehaviorIncidents } from '../services/storageService';
+import { calculateClassHealth } from '../services/analysisService';
 import TeacherStats from './TeacherStats';
 
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
@@ -20,6 +20,8 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       const total = students.length;
       const attRate = attendance.length > 0 ? (attendance.filter(a => a.status === AttendanceStatus.PRESENT).length / attendance.length) * 100 : 0;
       const perfAvg = performance.length > 0 ? (performance.reduce((a, b) => a + (b.score / b.maxScore), 0) / performance.length) * 100 : 0;
+      
+      // حساب مؤشر الصحة للفصل
       const health = calculateClassHealth('عام', students, attendance, performance);
       
       const ranges = [
@@ -57,7 +59,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
             <div className="w-16 h-16 bg-slate-900 rounded-3xl flex items-center justify-center text-white shadow-2xl">
                 <ShieldAlert size={32}/>
             </div>
-            <div>
+            <div className="text-right">
                 <h1 className="text-3xl font-black text-slate-900">نظام المتابع الذكي</h1>
                 <p className="text-slate-500 mt-1 font-bold italic">مرحباً بك، {currentUser?.name.split(' ')[0]} | أنت تدير {students.length} طالباً حالياً.</p>
             </div>
@@ -83,11 +85,11 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
           <div className="lg:col-span-2 space-y-6">
               <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col h-[480px]">
                   <div className="flex justify-between items-center mb-8 px-2">
-                      <div>
-                        <h3 className="font-black text-slate-800 text-xl flex items-center gap-2"><BarChart3 size={22} className="text-brand-500"/> توزيع مستويات الإتقان</h3>
+                      <button onClick={()=>navigate('/reports')} className="text-xs font-black text-brand-600 hover:underline flex items-center gap-1"><ChevronLeft size={14}/> التقارير التفصيلية</button>
+                      <div className="text-right">
+                        <h3 className="font-black text-slate-800 text-xl flex items-center gap-2 justify-end">توزيع مستويات الإتقان <BarChart3 size={22} className="text-brand-500"/></h3>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Class Achievement Distribution</p>
                       </div>
-                      <button onClick={()=>navigate('/reports')} className="text-xs font-black text-brand-600 hover:underline flex items-center gap-1">التقارير التفصيلية <ChevronLeft size={14}/></button>
                   </div>
                   <div className="flex-1">
                     <ResponsiveContainer width="100%" height="100%">
@@ -118,21 +120,21 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
               <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden shrink-0 h-[300px] group">
                   <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-700"><Activity size={180}/></div>
                   <div className="relative z-10 flex flex-col h-full">
-                    <h3 className="text-xl font-black flex items-center gap-3 mb-6"><MessageSquare size={24} className="text-yellow-400"/> آخر النشاطات الصفيّة</h3>
+                    <h3 className="text-xl font-black flex items-center gap-3 mb-6 justify-end">آخر النشاطات الصفيّة <MessageSquare size={24} className="text-yellow-400"/></h3>
                     <div className="space-y-3 flex-1 overflow-y-auto no-scrollbar pr-1">
                         {recentIncidents.length > 0 ? recentIncidents.map((incident, i) => {
                             const student = students.find(s => s.id === incident.studentId);
                             return (
                                 <div key={i} className="flex justify-between items-center bg-white/10 p-3 rounded-2xl border border-white/5 backdrop-blur-sm">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center font-black text-xs">{student?.name.charAt(0)}</div>
+                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-500 text-white shadow-lg'}`}>
+                                        {incident.points > 0 ? '+' : ''}{incident.points}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-right">
                                         <div>
                                             <p className="text-xs font-black truncate max-w-[100px]">{student?.name.split(' ')[0]}</p>
                                             <p className="text-[8px] opacity-60">{incident.category}</p>
                                         </div>
-                                    </div>
-                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-500' : 'bg-rose-500'} text-white shadow-lg`}>
-                                        {incident.points > 0 ? '+' : ''}{incident.points}
+                                        <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center font-black text-xs">{student?.name.charAt(0)}</div>
                                     </div>
                                 </div>
                             );
@@ -148,14 +150,14 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
               <div className="bg-slate-900 rounded-[3rem] p-8 text-white flex flex-col shadow-2xl relative overflow-hidden flex-1 border border-white/5 min-h-[350px]">
                   <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12"><Bot size={150}/></div>
                   <div className="relative z-10 flex flex-col h-full">
-                      <div className="flex items-center gap-3 mb-6">
-                          <div className="p-3 bg-indigo-500/20 rounded-2xl border border-indigo-500/30 backdrop-blur-md"><Bot size={24} className="text-indigo-400"/></div>
-                          <div>
+                      <div className="flex items-center gap-3 mb-6 justify-end">
+                          <div className="text-right">
                             <h3 className="font-black text-lg">مستشار الفصل الذكي</h3>
                             <p className="text-[8px] text-indigo-400 uppercase font-black tracking-widest">AI Cognitive Assistant</p>
                           </div>
+                          <div className="p-3 bg-indigo-500/20 rounded-2xl border border-indigo-500/30 backdrop-blur-md"><Bot size={24} className="text-indigo-400"/></div>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 text-right">
                           <div className="p-5 bg-white/5 rounded-3xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic font-medium">
                             {classStats.health < 70 ? 
                                 `"مؤشر صحة الفصل منخفض قليلاً؛ نوصي بإطلاق تحدي 'أسبوع بلا غياب' لرفع مستوى الانضباط فوراً."` :
@@ -181,12 +183,12 @@ const KPIStat = ({ label, value, icon: Icon, color }: any) => {
     };
     return (
         <div className={`bg-white p-8 rounded-[2.5rem] border-2 shadow-sm flex items-center justify-between group hover:shadow-xl transition-all duration-300 ${colors[color].split(' ')[2]}`}>
-            <div>
+            <div className="p-4 rounded-2xl ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} group-hover:scale-110 transition-transform duration-500 shadow-inner">
+                <Icon size={28} />
+            </div>
+            <div className="text-right">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{label}</p>
                 <h4 className="text-3xl font-black text-slate-900">{value}</h4>
-            </div>
-            <div className={`p-4 rounded-2xl ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} group-hover:scale-110 transition-transform duration-500 shadow-inner`}>
-                <Icon size={28} />
             </div>
         </div>
     );
