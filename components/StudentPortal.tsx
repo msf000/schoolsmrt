@@ -7,7 +7,7 @@ import {
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
     Bell, ShieldCheck, Zap, Sparkles, Puzzle, Layers, User, Crown, 
     Rocket, ChevronLeft, Target, GraduationCap, BrainCircuit, Calendar,
-    RefreshCw, Heart, Award, ListChecks, Medal, Network, History
+    RefreshCw, Heart, Award, ListChecks, Medal, Network, History, Newspaper
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
@@ -22,6 +22,7 @@ import KnowledgeTree from './KnowledgeTree';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
 import StudentTaskView from './StudentTaskView';
 import SoftSkillsRadar from './SoftSkillsRadar';
+import SchoolWall from './SchoolWall';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
     const [availableGames, setAvailableGames] = useState<InteractiveGame[]>([]);
@@ -29,7 +30,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ACAD' | 'TASKS' | 'SKILLS' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'WALL' | 'TIMELINE' | 'TASKS' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
         loadData();
@@ -82,45 +83,25 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('TASKS')}>
-                                <div>
-                                    <h3 className="text-2xl font-black mb-2 flex items-center gap-3"><BookOpen className="text-indigo-400"/> حقيبة الواجبات</h3>
-                                    <p className="text-slate-400 text-sm">ارفع حلولك وتابع تصحيح المعلم لمهامك.</p>
-                                </div>
-                                <div className="mt-8 flex justify-end">
-                                    <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-indigo-600 transition-all">
-                                        <ChevronLeft/>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer" onClick={() => setActiveTab('ACAD')}>
-                                <div>
-                                    <h3 className="text-2xl font-black mb-2 flex items-center gap-3"><Target className="text-rose-500"/> الاختبارات الذكية</h3>
-                                    <p className="text-slate-400 text-sm">لديك تحديات جديدة بانتظارك للحصول على XP إضافي.</p>
-                                </div>
-                                <div className="mt-8 flex justify-end">
-                                    <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-rose-600 transition-all">
-                                        <ChevronLeft/>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
+                            <ActionCard title="حائط المدرسة" icon={<Newspaper/>} color="bg-emerald-500" onClick={()=>setActiveTab('WALL')} />
+                            <ActionCard title="سجل الفخر" icon={<History/>} color="bg-purple-500" onClick={()=>setActiveTab('TIMELINE')} />
                         </div>
                     </div>
                 )}
 
+                {activeTab === 'WALL' && <SchoolWall currentUser={currentUser} students={[]} />}
+                {activeTab === 'TIMELINE' && <StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />}
                 {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
-                {activeTab === 'ACAD' && <StudentEvaluationView student={currentUser} performance={performance} />}
-                {activeTab === 'SKILLS' && <KnowledgeTree student={currentUser} performance={performance} formsResults={formsResults} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
+                <NavBtn icon={<Newspaper/>} label="الحائط" active={activeTab==='WALL'} onClick={()=>setActiveTab('WALL')}/>
+                <NavBtn icon={<History/>} label="الفخر" active={activeTab==='TIMELINE'} onClick={()=>setActiveTab('TIMELINE')}/>
                 <NavBtn icon={<BookOpen/>} label="الواجبات" active={activeTab==='TASKS'} onClick={()=>setActiveTab('TASKS')}/>
-                <NavBtn icon={<Target/>} label="الاختبارات" active={activeTab==='ACAD'} onClick={()=>setActiveTab('ACAD')}/>
-                <NavBtn icon={<Network/>} label="نواتج التعلم" active={activeTab==='SKILLS'} onClick={()=>setActiveTab('SKILLS')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
 
@@ -128,6 +109,18 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
         </div>
     );
 };
+
+const ActionCard = ({ title, icon, color, onClick }: any) => (
+    <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer hover:bg-white/10 transition-all" onClick={onClick}>
+        <div className={`w-16 h-16 rounded-[1.5rem] ${color} flex items-center justify-center text-white mb-6 shadow-xl`}>
+            {React.cloneElement(icon, { size: 32 })}
+        </div>
+        <h3 className="text-2xl font-black mb-2 flex items-center justify-between">
+            {title}
+            <ChevronLeft className="group-hover:translate-x-[-8px] transition-transform"/>
+        </h3>
+    </div>
+);
 
 const NavBtn = ({ icon, label, active, onClick }: any) => (
     <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-indigo-400' : 'text-slate-500'}`}>

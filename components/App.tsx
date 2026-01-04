@@ -25,12 +25,13 @@ import AdminDashboard from './AdminDashboard';
 import PrincipalDashboard from './PrincipalDashboard';
 import HallOfFame from './HallOfFame';
 import TeacherTaskGrader from './TeacherTaskGrader';
+import SmartBadges from './SmartBadges';
+import SchoolWall from './SchoolWall';
 import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from '../services/storageService';
 import Login from './Login';
 import ReloadPrompt from './ReloadPrompt';
 import AIChatBot from './AIChatBot';
 import PredictiveAnalytics from './PredictiveAnalytics';
-import SmartBadges from './SmartBadges';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import CertificatesCenter from './CertificatesCenter';
 import NoorExporter from './NoorExporter';
@@ -92,6 +93,7 @@ const App: React.FC = () => {
             <Routes>
                 <Route path="/" element={getStaffDashboard()} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
+                <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
                 
                 {/* مسارات المعلم */}
                 {currentUser.role === 'TEACHER' && (
@@ -109,7 +111,6 @@ const App: React.FC = () => {
                         <Route path="/badges" element={<SmartBadges students={students} />} />
                         <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
                         <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
-                        <Route path="/pro-impact" element={<TeacherStats students={students} performance={performance} attendance={attendance} plans={[]} />} />
                         <Route path="/grading" element={<TeacherTaskGrader currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
