@@ -67,7 +67,7 @@ const AdminDashboard = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         <AdminKpi label="المدارس النشطة" value={stats.schools} icon={Building} color="blue" />
                         <AdminKpi label="إجمالي المعلمين" value={stats.teachers} icon={Users} color="emerald" />
-                        <AdminKpi label="قاعدة الطلاب" value={stats.students} icon={GraduationCap} color="amber" />
+                        <AdminKpi label="قاعدة الطلاب" value={stats.students} icon={Users} color="amber" />
                         <AdminKpi label="سجلات النظام" value={stats.users} icon={Database} color="rose" />
                     </div>
                     
@@ -410,6 +410,3 @@ CREATE TABLE IF NOT EXISTS wall_posts (
 );`;
 
 export default AdminDashboard;
-
-const GraduationCap = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>;
-const Briefcase = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
