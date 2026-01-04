@@ -377,6 +377,18 @@ CREATE TABLE IF NOT EXISTS performance (
     date DATE,
     created_by_id TEXT REFERENCES system_users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. حائط المدرسة
+CREATE TABLE IF NOT EXISTS wall_posts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    user_name TEXT,
+    content TEXT,
+    type TEXT,
+    likes INTEGER DEFAULT 0,
+    school_id TEXT REFERENCES schools(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );`;
 
 export default AdminDashboard;
