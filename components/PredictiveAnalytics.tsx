@@ -4,10 +4,8 @@ import { Student, AttendanceRecord, PerformanceRecord, SystemUser } from '../typ
 import { calculateClassHealth, predictNextScore, detectAtRiskStudents, calculateStudentConsistency } from '../services/analysisService';
 import { 
     BrainCircuit, TrendingUp, AlertTriangle, CheckCircle, 
-    Sparkles, ArrowUpRight, Target, Activity, Zap, Info,
-    ChevronLeft, ShieldAlert, GraduationCap, Users
+    Sparkles, Target, Activity, Zap, Info, ShieldAlert, Users
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
 const PredictiveAnalytics: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser: SystemUser }> = ({ students, attendance, performance, currentUser }) => {
@@ -25,8 +23,8 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
     const classHealth = useMemo(() => calculateClassHealth(selectedClass, students, attendance, performance), [selectedClass, students, attendance, performance]);
 
     return (
-        <div className="space-y-8 page-enter font-tajawal pb-20">
-            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 rounded-3xl border border-slate-200 shadow-sm gap-6 relative overflow-hidden">
+        <div className="space-y-8 animate-fade-in font-tajawal pb-20">
+            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 rounded-3xl border shadow-sm gap-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-40 h-full bg-brand-500/5 -skew-x-12 translate-x-10"></div>
                 <div className="relative z-10">
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
@@ -54,7 +52,7 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
                     </div>
                 </div>
 
-                <div className="md:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                <div className="md:col-span-2 bg-white p-8 rounded-[2.5rem] border shadow-sm">
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="font-black text-slate-800 flex items-center gap-2"><TrendingUp size={20} className="text-brand-500"/> التوقعات الأكاديمية القادمة</h3>
                         <span className="text-[9px] font-black bg-slate-100 px-3 py-1 rounded-full text-slate-400">PROBABILITY: 92%</span>
@@ -71,7 +69,7 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
                                         <p className="text-[8px] font-black text-slate-400 uppercase">الدرجة المتوقعة</p>
                                         <p className="text-lg font-black text-brand-600">{prediction}%</p>
                                     </div>
-                                    <div className="w-full bg-slate-200 h-1 rounded-full mt-1 overflow-hidden" title={`الثبات: ${consistency}%`}>
+                                    <div className="w-full bg-slate-200 h-1 rounded-full mt-1 overflow-hidden">
                                         <div className="h-full bg-indigo-500" style={{width: `${consistency}%`}}></div>
                                     </div>
                                 </div>
@@ -82,10 +80,10 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
+                <div className="lg:col-span-2 bg-white rounded-[3rem] border shadow-sm overflow-hidden flex flex-col h-[500px]">
                     <div className="p-6 bg-rose-50 border-b border-rose-100 flex justify-between items-center">
                         <h3 className="font-black text-rose-800 flex items-center gap-3"><AlertTriangle/> نظام الإنذار المبكر (حالات حرجة)</h3>
-                        <span className="px-4 py-1 bg-white text-rose-600 rounded-full text-[10px] font-black shadow-sm border border-rose-100">تحتاج لتدخل فوري</span>
+                        <span className="px-4 py-1 bg-white text-rose-600 rounded-full text-[10px] font-black shadow-sm">تحتاج لتدخل فوري</span>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {atRiskList.length > 0 ? (
@@ -93,7 +91,7 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
                                 {atRiskList.map(({ student, risks }, i) => (
                                     <div key={i} className="p-6 flex items-center justify-between hover:bg-rose-50/20 transition-all group">
                                         <div className="flex items-center gap-6">
-                                            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center border-2 border-rose-100 font-black text-rose-500 shadow-sm group-hover:scale-110 transition-transform">
+                                            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center border-2 border-rose-100 font-black text-rose-500 group-hover:scale-110 transition-transform">
                                                 {student.name.charAt(0)}
                                             </div>
                                             <div>
@@ -105,7 +103,7 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
                                                 </div>
                                             </div>
                                         </div>
-                                        <button onClick={() => navigate('/lab')} className="p-3 bg-white text-slate-400 hover:text-indigo-600 border border-slate-100 rounded-2xl shadow-sm transition-all hover:shadow-md">
+                                        <button onClick={() => navigate('/lab')} className="p-3 bg-white text-slate-400 hover:text-indigo-600 border rounded-2xl shadow-sm transition-all hover:shadow-md">
                                             <Zap size={20}/>
                                         </button>
                                     </div>
@@ -138,7 +136,7 @@ const PredictiveAnalytics: React.FC<{ students: Student[], attendance: Attendanc
                                 <li className="text-[11px] font-bold list-none flex gap-2"><span>2.</span> إشراك أولياء الأمور عبر مركز الرسائل</li>
                             </div>
                         </div>
-                        <button onClick={() => navigate('/planning')} className="w-full py-4 bg-white text-slate-900 rounded-[1.5rem] font-black text-xs hover:bg-slate-100 transition-all shadow-xl">تحميل تقرير التدخل الكامل</button>
+                        <button onClick={() => navigate('/planning')} className="w-full py-4 bg-white text-slate-900 rounded-[1.5rem] font-black text-xs hover:bg-slate-100 transition-all">تحميل تقرير التدخل الكامل</button>
                     </div>
                 </div>
             </div>

@@ -40,7 +40,6 @@ import PredictiveAnalytics from './PredictiveAnalytics';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import CertificatesCenter from './CertificatesCenter';
 import NoorExporter from './NoorExporter';
-import TeacherStats from './TeacherStats';
 
 const App: React.FC = () => {
     const navigate = useNavigate();

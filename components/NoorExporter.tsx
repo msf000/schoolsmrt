@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, PerformanceRecord, Assignment, SystemUser } from '../types';
 import { getAssignments, getTeacherAssignments } from '../services/storageService';
-import { FileSpreadsheet, Download, CheckCircle, Info, Database, LayoutGrid } from 'lucide-react';
+import { FileSpreadsheet, Download, Info, Database } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface NoorExporterProps {
@@ -86,7 +86,7 @@ const NoorExporter: React.FC<NoorExporterProps> = ({ students, performance, curr
                         <Info className="text-indigo-600 shrink-0"/>
                         <p className="text-xs text-indigo-800 leading-relaxed font-medium">سيتم توليد ملف Excel يحتوي على درجات الطلاب المسجلة في هذا التقييم، وجاهز للاستيراد المباشر في لوحة المعلم بنظام نور.</p>
                     </div>
-                    <button onClick={handleExport} disabled={!selectedClass || !selectedAssignmentId} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-3"><Download/> تصدير كشف نور</button>
+                    <button onClick={handleExport} disabled={!selectedClass || !selectedAssignmentId} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"><Download/> تصدير كشف نور</button>
                 </div>
 
                 <div className="lg:col-span-2 bg-white rounded-[3.5rem] border shadow-sm overflow-hidden flex flex-col">

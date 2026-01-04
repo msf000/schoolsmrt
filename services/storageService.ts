@@ -103,7 +103,6 @@ export const saveAttendance = async (records: AttendanceRecord[]): Promise<void>
     }
 };
 
-// Fix: Added getAttendance to resolve import error in SchoolManagement.tsx and TeacherInbox.tsx
 export const getAttendance = (): AttendanceRecord[] => getLocal('attendance');
 
 export const fetchAttendance = async (): Promise<AttendanceRecord[]> => {
@@ -158,7 +157,6 @@ export const authenticateUser = async (id: string, pass: string): Promise<System
     return data as SystemUser;
 };
 
-// Fix: Added getTeachers to resolve import error in SchoolManagement.tsx, TeacherRegistration.tsx, etc.
 export const getTeachers = (): Teacher[] => getLocal('teachers');
 
 export const fetchTeachers = async (): Promise<Teacher[]> => {
@@ -168,7 +166,6 @@ export const fetchTeachers = async (): Promise<Teacher[]> => {
     return teachers;
 };
 
-// Fix: Added getSchools to resolve import error in SchoolManagement.tsx, TeacherRegistration.tsx, etc.
 export const getSchools = (): School[] => getLocal('schools');
 
 export const fetchSchools = async (): Promise<School[]> => {
@@ -196,16 +193,12 @@ export const fetchAssignments = async (tid: string): Promise<Assignment[]> => {
     return mapped;
 };
 
-// Fix: Added saveAssignment to resolve import error in WorksTracking.tsx
 export const saveAssignment = async (a: Assignment) => setLocal('assignments', [...getLocal('assignments').filter(x => x.id !== a.id), a]);
 
-// Fix: Added deleteAssignment to resolve import error in WorksTracking.tsx
 export const deleteAssignment = (id: string) => setLocal('assignments', getLocal('assignments').filter(a => a.id !== id));
 
-// Fix: Added getWorksMasterUrl to resolve import error in WorksTracking.tsx
 export const getWorksMasterUrl = () => localStorage.getItem('works_master_url') || '';
 
-// Fix: Added saveWorksMasterUrl to resolve import error in WorksTracking.tsx
 export const saveWorksMasterUrl = (url: string) => localStorage.setItem('works_master_url', url);
 
 export const getSubjects = (tid: string): Subject[] => getLocal('subjects').filter(s => s.teacherId === tid);
@@ -224,7 +217,6 @@ export const saveExamResult = async (r: ExamResult) => setLocal('exam_results', 
 export const getLessonPlans = (tid?: string): StoredLessonPlan[] => getLocal('lesson_plans').filter(p => !tid || p.teacherId === tid);
 export const saveLessonPlan = (p: StoredLessonPlan) => setLocal('lesson_plans', [...getLocal('lesson_plans').filter(x => x.id !== p.id), p]);
 
-// Fix: Added deleteLessonPlan to resolve import error in LessonPlanning.tsx
 export const deleteLessonPlan = (id: string) => setLocal('lesson_plans', getLocal('lesson_plans').filter(p => p.id !== id));
 
 export const getBehaviorIncidents = (tid?: string): BehaviorIncident[] => getLocal('behavior_incidents').filter(i => !tid || i.teacherId === tid);
@@ -243,13 +235,10 @@ export const deleteScheduleItem = (id: string) => setLocal('schedules', getSched
 export const getTeacherPeriodTimings = (tid: string): string[] => ["07:00", "07:45", "08:30", "09:45", "10:30", "11:15", "12:00", "12:45"];
 export const getAcademicTerms = (tid: string): AcademicTerm[] => getLocal('academic_terms').filter(t => t.teacherId === tid);
 
-// Fix: Added saveAcademicTerm to resolve import error in SchoolManagement.tsx
 export const saveAcademicTerm = (t: AcademicTerm) => setLocal('academic_terms', [...getLocal('academic_terms').filter(x => x.id !== t.id), t]);
 
-// Fix: Added deleteAcademicTerm to resolve import error in SchoolManagement.tsx
 export const deleteAcademicTerm = (id: string) => setLocal('academic_terms', getLocal('academic_terms').filter(t => t.id !== id));
 
-// Fix: Added setCurrentTerm to resolve import error in SchoolManagement.tsx
 export const setCurrentTerm = (id: string, tid: string) => {
     const terms = getLocal('academic_terms');
     setLocal('academic_terms', terms.map((t: AcademicTerm) => ({ ...t, isCurrent: t.id === id && t.teacherId === tid })));
@@ -301,86 +290,59 @@ export const addTeacher = async (t: Teacher) => await supabase.from('system_user
 export const updateTeacher = async (t: Teacher) => await supabase.from('system_users').update({ name: t.name, email: t.email, phone: t.phone, subject_specialty: t.subjectSpecialty, status: t.status }).eq('id', t.id);
 export const addSchool = async (s: School) => await supabase.from('schools').insert({ id: s.id, name: s.name, ministry_code: s.ministryCode, manager_name: s.managerName, manager_national_id: s.managerNationalId, type: s.type });
 
-// Fix: Added saveRemedialPlan to resolve import error in StudentFollowUp.tsx and AITools.tsx
 export const saveRemedialPlan = (p: RemedialPlan) => setLocal('remedial_plans', [...getLocal('remedial_plans').filter(x => x.id !== p.id), p]);
 
-// Fix: Added getGames to resolve import error in StudentPortal.tsx and GamesBuilder.tsx
 export const getGames = (tid: string): InteractiveGame[] => getLocal('games').filter(g => g.teacherId === tid);
 
-// Fix: Added saveGame to resolve import error in GamesBuilder.tsx
 export const saveGame = async (g: InteractiveGame) => setLocal('games', [...getLocal('games').filter(x => x.id !== g.id), g]);
 
-// Fix: Added deleteGame to resolve import error in GamesBuilder.tsx
 export const deleteGame = (id: string) => setLocal('games', getLocal('games').filter(g => g.id !== id));
 
-// Fix: Added getQuestionBank to resolve import error in QuestionBank.tsx
 export const getQuestionBank = (tid: string): Question[] => getLocal('question_bank').filter(q => q.teacherId === tid);
 
-// Fix: Added saveQuestionToBank to resolve import error in QuestionBank.tsx
 export const saveQuestionToBank = (q: Question) => setLocal('question_bank', [...getLocal('question_bank').filter(x => x.id !== q.id), q]);
 
-// Fix: Added deleteQuestionFromBank to resolve import error in QuestionBank.tsx
 export const deleteQuestionFromBank = (id: string) => setLocal('question_bank', getLocal('question_bank').filter(q => q.id !== id));
 
-// Fix: Added getCurriculumUnits to resolve import error in CurriculumManager.tsx
 export const getCurriculumUnits = (tid: string): CurriculumUnit[] => getLocal('curriculum_units').filter(u => u.teacherId === tid);
 
-// Fix: Added saveCurriculumUnit to resolve import error in CurriculumManager.tsx
 export const saveCurriculumUnit = async (u: CurriculumUnit) => setLocal('curriculum_units', [...getLocal('curriculum_units').filter(x => x.id !== u.id), u]);
 
-// Fix: Added deleteCurriculumUnit to resolve import error in CurriculumManager.tsx
 export const deleteCurriculumUnit = (id: string) => setLocal('curriculum_units', getLocal('curriculum_units').filter(u => u.id !== id));
 
-// Fix: Added getCurriculumLessons to resolve import error in CurriculumManager.tsx
 export const getCurriculumLessons = (unitId: string): CurriculumLesson[] => getLocal('curriculum_lessons').filter(l => l.unitId === unitId);
 
-// Fix: Added saveCurriculumLesson to resolve import error in CurriculumManager.tsx
 export const saveCurriculumLesson = async (l: CurriculumLesson) => setLocal('curriculum_lessons', [...getLocal('curriculum_lessons').filter(x => x.id !== l.id), l]);
 
-// Fix: Added deleteCurriculumLesson to resolve import error in CurriculumManager.tsx
 export const deleteCurriculumLesson = (id: string) => setLocal('curriculum_lessons', getLocal('curriculum_lessons').filter(l => l.id !== id));
 
-// Fix: Added toggleCurriculumLesson to resolve import error in CurriculumManager.tsx
 export const toggleCurriculumLesson = (id: string, isCompleted: boolean) => {
     const lessons = getLocal('curriculum_lessons');
     setLocal('curriculum_lessons', lessons.map((l: CurriculumLesson) => l.id === id ? { ...l, isCompleted } : l));
 };
 
-// Fix: Added getLessonLinks to resolve import error in ResourcesView.tsx and RemedialBridge.tsx
 export const getLessonLinks = (): LessonLink[] => getLocal('lesson_links');
 
-// Fix: Added saveLessonLink to resolve import error in ResourcesView.tsx
 export const saveLessonLink = (l: LessonLink) => setLocal('lesson_links', [...getLocal('lesson_links').filter(x => x.id !== l.id), l]);
 
-// Fix: Added deleteLessonLink to resolve import error in ResourcesView.tsx
 export const deleteLessonLink = (id: string) => setLocal('lesson_links', getLocal('lesson_links').filter(l => l.id !== id));
 
-// Fix: Added getWeeklyPlans to resolve import error in ScheduleView.tsx
 export const getWeeklyPlans = (tid: string): WeeklyPlanItem[] => getLocal('weekly_plans').filter(p => p.teacherId === tid);
 
-// Fix: Added saveWeeklyPlanItem to resolve import error in ScheduleView.tsx
 export const saveWeeklyPlanItem = (p: WeeklyPlanItem) => setLocal('weekly_plans', [...getLocal('weekly_plans').filter(x => x.id !== p.id), p]);
 
-// Fix: Added getTrackingSheets to resolve import error in FlexibleTrackingSheet.tsx
 export const getTrackingSheets = (tid: string): TrackingSheet[] => getLocal('tracking_sheets').filter(s => s.teacherId === tid);
 
-// Fix: Added saveTrackingSheet to resolve import error in FlexibleTrackingSheet.tsx
 export const saveTrackingSheet = (s: TrackingSheet) => setLocal('tracking_sheets', [...getLocal('tracking_sheets').filter(x => x.id !== s.id), s]);
 
-// Fix: Added deleteTrackingSheet to resolve import error in FlexibleTrackingSheet.tsx
 export const deleteTrackingSheet = (id: string) => setLocal('tracking_sheets', getLocal('tracking_sheets').filter(s => s.id !== id));
 
-// Fix: Added saveEnvironmentRecord to resolve import error in LearningLab.tsx
 export const saveEnvironmentRecord = async (r: EnvironmentRecord) => setLocal('environment_records', [...getLocal('environment_records'), r]);
 
-// Fix: Added savePurchaseRequest to resolve import error in StudentShop.tsx
 export const savePurchaseRequest = async (r: PurchaseRequest) => setLocal('purchase_requests', [...getLocal('purchase_requests'), r]);
 
-// Fix: Added fetchParentRequests to resolve import error in MeetingScheduler.tsx
 export const fetchParentRequests = async (userId: string): Promise<ParentRequest[]> => {
-    // This is mocked as local for now, but should ideally be Supabase
     return getLocal('parent_requests').filter(r => r.teacherId === userId || r.parentId === userId);
 };
 
-// Fix: Added saveParentRequest to resolve import error in MeetingScheduler.tsx
 export const saveParentRequest = async (r: ParentRequest) => setLocal('parent_requests', [...getLocal('parent_requests').filter(x => x.id !== r.id), r]);

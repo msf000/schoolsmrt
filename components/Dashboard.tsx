@@ -3,19 +3,16 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, Exam, StoredLessonPlan, BehaviorIncident } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Sparkles, Activity, Award, Star, ArrowUpRight, Calendar, Bot, Video, Clock, ChevronLeft, ArrowUpCircle, BarChart3, Zap, Heart, MessageSquare
+    ShieldAlert, Activity, Award, Star, Calendar, Bot, Zap, Heart, MessageSquare, ChevronLeft, BarChart3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
-import { getExams, getStudents, getExamResults, getLessonPlans, getBehaviorIncidents } from '../services/storageService';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
+import { getExams, getExamResults, getLessonPlans, getBehaviorIncidents } from '../services/storageService';
 import { calculateGrowthMetrics, calculateClassHealth } from '../services/analysisService';
 import TeacherStats from './TeacherStats';
-import { formatDualDate } from '../services/dateService';
 
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
-  const [liveExams, setLiveExams] = useState<Exam[]>([]);
-  const [growthLeaders, setGrowthLeaders] = useState<any[]>([]);
   const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
   const [recentIncidents, setRecentIncidents] = useState<BehaviorIncident[]>([]);
 
@@ -47,29 +44,13 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
 
   useEffect(() => {
     if (currentUser?.id) {
-        const allExams = getExams(currentUser.id);
-        const now = new Date();
-        const active = allExams.filter(e => {
-            if (!e.isActive || !e.startDate || !e.endDate) return false;
-            return now >= new Date(e.startDate) && now <= new Date(e.endDate);
-        });
-        setLiveExams(active);
         setLessonPlans(getLessonPlans(currentUser.id));
         setRecentIncidents(getBehaviorIncidents(currentUser.id).slice(0, 5));
-
-        const pre = allExams.find(e => e.type === 'PRE_TEST' || e.type === 'DIAGNOSTIC');
-        const post = allExams.find(e => e.type === 'POST_TEST');
-        if (pre && post) {
-            const preRes = getExamResults(pre.id);
-            const postRes = getExamResults(post.id);
-            const { comparison } = calculateGrowthMetrics(preRes, postRes, students);
-            setGrowthLeaders(comparison.sort((a,b) => b.growth - a.growth).slice(0, 4));
-        }
     }
   }, [currentUser, students]);
 
   return (
-    <div className="space-y-8 pb-10 page-enter font-tajawal">
+    <div className="space-y-8 pb-10 animate-fade-in font-tajawal">
       <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 flex flex-col md:flex-row justify-between items-center shadow-xl gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-full bg-brand-500/5 -skew-x-12 translate-x-20"></div>
         <div className="relative z-10 flex items-center gap-6">
@@ -95,6 +76,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
            <KPIStat label="إجمالي الطلاب" value={classStats.total} icon={Users} color="blue" />
            <KPIStat label="الانضباط العام" value={`${classStats.attRate}%`} icon={Activity} color="emerald" />
            <KPIStat label="متوسط الإتقان" value={`${classStats.perfAvg}%`} icon={Target} color="amber" />
+           {/* Fix: use classStats.health instead of classHealth on line 79 */}
            <KPIStat label="صحة الفصل" value={`${classStats.health}%`} icon={Heart} color="rose" />
       </div>
 
@@ -150,7 +132,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                                             <p className="text-[8px] opacity-60">{incident.category}</p>
                                         </div>
                                     </div>
-                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-500' : 'bg-rose-500'} text-white shadow-lg`}>
+                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-50' : 'bg-rose-500'} text-white shadow-lg`}>
                                         {incident.points > 0 ? '+' : ''}{incident.points}
                                     </div>
                                 </div>
@@ -176,9 +158,10 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                       </div>
                       <div className="flex-1">
                           <div className="p-5 bg-white/5 rounded-3xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic font-medium">
+                            {/* Fix: use classStats.health instead of classHealth on line 160 */}
                             {classStats.health < 70 ? 
-                                `"مؤشر صحة الفصل منخفض قليلاً؛ نوصي بإطلاق تحدي 'أسبوع بلا غياب' في متجر المكافآت لرفع مستوى الانضباط فوراً."` :
-                                `"أداء الفصل استثنائي اليوم! هناك 4 طلاب جاهزون للترقية لمستوى 'الخبير'، هل ترغب في تكريمهم بلقب شرفي؟"`
+                                `"مؤشر صحة الفصل منخفض قليلاً؛ نوصي بإطلاق تحدي 'أسبوع بلا غياب' لرفع مستوى الانضباط فوراً."` :
+                                `"أداء الفصل استثنائي اليوم! هناك طلاب جاهزون للترقية لمستوى 'الخبير'، هل ترغب في تكريمهم بلقب شرفي؟"`
                             }
                           </div>
                       </div>
