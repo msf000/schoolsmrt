@@ -1,48 +1,38 @@
 
 import React, { useState, useEffect } from 'react';
-import { InteractiveGame, Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident } from '../types';
-import GamePlayer from './GamePlayer';
+import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident } from '../types';
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
-    Bell, ShieldCheck, Zap, Sparkles, Puzzle, Layers, User, Crown, 
-    Rocket, ChevronLeft, Target, GraduationCap, BrainCircuit, Calendar,
-    RefreshCw, Heart, Award, ListChecks, Medal, Network, History, Newspaper
+    Zap, Sparkles, GraduationCap, User, Newspaper, History, ChevronLeft
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
-import StudentMessages from './StudentMessages';
-import StudentShop from './StudentShop';
 import StudentDigitalID from './StudentDigitalID';
 import StudentQuestSystem from './StudentQuestSystem';
 import RemedialBridge from './RemedialBridge';
-import StudentAchievements from './StudentAchievements';
-import StudentAITutor from './StudentAITutor';
-import KnowledgeTree from './KnowledgeTree';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
 import StudentTaskView from './StudentTaskView';
 import SoftSkillsRadar from './SoftSkillsRadar';
 import SchoolWall from './SchoolWall';
+import StudentAITutor from './StudentAITutor';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
-    const [availableGames, setAvailableGames] = useState<InteractiveGame[]>([]);
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'WALL' | 'TIMELINE' | 'TASKS' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'WALL' | 'TIMELINE' | 'TASKS' | 'ID'>('DASHBOARD');
 
     useEffect(() => {
         loadData();
     }, [currentUser]);
 
     const loadData = async () => {
-        const allGames = getGames();
-        setAvailableGames(allGames.filter((g: InteractiveGame) => !g.targetClass || g.targetClass === currentUser.className));
         const [perf, att, beh] = await Promise.all([fetchPerformance(), fetchAttendance(), getBehaviorIncidents()]);
-        setPerformance(perf.filter((p: PerformanceRecord) => p.studentId === currentUser.id));
-        setAttendance(att.filter((a: AttendanceRecord) => a.studentId === currentUser.id));
-        setBehaviorLog(beh.filter((i: BehaviorIncident) => i.studentId === currentUser.id));
+        setPerformance(perf.filter(p => p.studentId === currentUser.id));
+        setAttendance(att.filter(a => a.studentId === currentUser.id));
+        setBehaviorLog(beh.filter(i => i.studentId === currentUser.id));
         setFormsResults(getFormsDetailedResults(currentUser.createdById || ''));
     };
 
@@ -69,28 +59,29 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 </div>
             </header>
 
-            <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+            <main className="flex-1 p-6 max-w-7xl mx-auto w-full overflow-hidden">
                 {activeTab === 'DASHBOARD' && (
-                    <div className="space-y-10 animate-fade-in">
+                    <div className="space-y-10 animate-fade-in overflow-y-auto max-h-full custom-scrollbar pr-1">
                         <StudentJourney xp={currentUser.xp || 0} level={currentUser.level || 1} />
                         
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2">
+                            <div className="lg:col-span-2 space-y-6">
                                 <RemedialBridge student={currentUser} formsResults={formsResults} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <ActionCard title="كشف درجاتي" icon={<Activity/>} color="bg-rose-500" onClick={()=>setActiveTab('EVAL')} />
+                                    <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
+                                    <ActionCard title="حائط المدرسة" icon={<Newspaper/>} color="bg-emerald-500" onClick={()=>setActiveTab('WALL')} />
+                                    <ActionCard title="سجل الفخر" icon={<History/>} color="bg-purple-500" onClick={()=>setActiveTab('TIMELINE')} />
+                                </div>
                             </div>
                             <div className="lg:col-span-1">
                                 <SoftSkillsRadar student={currentUser} incidents={behaviorLog} />
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
-                            <ActionCard title="حائط المدرسة" icon={<Newspaper/>} color="bg-emerald-500" onClick={()=>setActiveTab('WALL')} />
-                            <ActionCard title="سجل الفخر" icon={<History/>} color="bg-purple-500" onClick={()=>setActiveTab('TIMELINE')} />
-                        </div>
                     </div>
                 )}
 
+                {activeTab === 'EVAL' && <StudentEvaluationView student={currentUser} performance={performance} />}
                 {activeTab === 'WALL' && <SchoolWall currentUser={currentUser} students={[]} />}
                 {activeTab === 'TIMELINE' && <StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />}
                 {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
@@ -99,8 +90,8 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
+                <NavBtn icon={<Activity/>} label="درجاتي" active={activeTab==='EVAL'} onClick={()=>setActiveTab('EVAL')}/>
                 <NavBtn icon={<Newspaper/>} label="الحائط" active={activeTab==='WALL'} onClick={()=>setActiveTab('WALL')}/>
-                <NavBtn icon={<History/>} label="الفخر" active={activeTab==='TIMELINE'} onClick={()=>setActiveTab('TIMELINE')}/>
                 <NavBtn icon={<BookOpen/>} label="الواجبات" active={activeTab==='TASKS'} onClick={()=>setActiveTab('TASKS')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
@@ -111,20 +102,20 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 };
 
 const ActionCard = ({ title, icon, color, onClick }: any) => (
-    <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer hover:bg-white/10 transition-all" onClick={onClick}>
-        <div className={`w-16 h-16 rounded-[1.5rem] ${color} flex items-center justify-center text-white mb-6 shadow-xl`}>
-            {React.cloneElement(icon, { size: 32 })}
+    <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-between group cursor-pointer hover:bg-white/10 transition-all h-48" onClick={onClick}>
+        <div className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center text-white mb-6 shadow-xl`}>
+            {React.cloneElement(icon, { size: 28 })}
         </div>
-        <h3 className="text-2xl font-black mb-2 flex items-center justify-between">
+        <h3 className="text-xl font-black mb-2 flex items-center justify-between">
             {title}
-            <ChevronLeft className="group-hover:translate-x-[-8px] transition-transform"/>
+            <ChevronLeft className="group-hover:translate-x-[-8px] transition-transform" size={18}/>
         </h3>
     </div>
 );
 
 const NavBtn = ({ icon, label, active, onClick }: any) => (
     <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-indigo-400' : 'text-slate-500'}`}>
-        <div className={`p-2 rounded-xl transition-all ${active ? 'bg-indigo-600 text-white shadow-lg' : ''}`}>{icon}</div>
+        <div className={`p-2.5 rounded-2xl transition-all ${active ? 'bg-indigo-600 text-white shadow-lg' : ''}`}>{icon}</div>
         <span className="text-[10px] font-bold">{label}</span>
     </button>
 );
