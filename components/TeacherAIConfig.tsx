@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { SystemUser } from '../types';
 import { getAISettings, saveAISettings } from '../services/storageService';
@@ -58,7 +59,6 @@ const TeacherAIConfig: React.FC<{ currentUser: SystemUser }> = ({ currentUser })
                                         className={`p-6 rounded-[2rem] border-4 text-right transition-all flex flex-col items-center gap-4 group ${config.systemInstruction === p.prompt ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl scale-105' : 'bg-slate-50 border-transparent text-slate-400 hover:bg-white hover:border-indigo-100'}`}
                                     >
                                         <div className={`p-4 rounded-2xl transition-colors ${config.systemInstruction === p.prompt ? 'bg-white/20 text-white' : 'bg-white text-slate-400 shadow-sm group-hover:text-indigo-600'}`}>
-                                            {/* Fix: Added missing generic type any to ReactElement to allow size property in cloneElement */}
                                             {React.cloneElement(p.icon as React.ReactElement<any>, { size: 28 })}
                                         </div>
                                         <span className="font-black text-xs">{p.name}</span>
