@@ -6,7 +6,7 @@ import {
 import { 
     Shield, Building, Users, Database, RefreshCw, CheckCircle, AlertTriangle, 
     Server, Loader2, Zap, Copy, CloudLightning, Activity, Table, ArrowRight,
-    Globe, Lock, Layout, ShieldCheck
+    Globe, Lock, Layout, ShieldCheck, ChevronDown, ChevronRight, Search, Code
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -21,21 +21,31 @@ const AdminDashboard = () => {
 
     const loadStats = async () => {
         setIsLoading(true);
-        const [sch, tea, usr, std] = await Promise.all([fetchSchools(), fetchTeachers(), fetchSystemUsers(), fetchStudents()]);
-        setStats({ 
-            schools: sch.length, teachers: tea.length, students: std.length, users: usr.length,
-            chartData: [
-                { name: 'الطلاب', value: std.length },
-                { name: 'المعلمين', value: tea.length },
-                { name: 'المدارس', value: sch.length },
-                { name: 'المستخدمين', value: usr.length }
-            ]
-        });
-        setIsLoading(false);
+        try {
+            const [sch, tea, usr, std] = await Promise.all([
+                fetchSchools(), 
+                fetchTeachers(), 
+                fetchSystemUsers(), 
+                fetchStudents()
+            ]);
+            setStats({ 
+                schools: sch.length, teachers: tea.length, students: std.length, users: usr.length,
+                chartData: [
+                    { name: 'الطلاب', value: std.length },
+                    { name: 'المعلمين', value: tea.length },
+                    { name: 'المدارس', value: sch.length },
+                    { name: 'المستخدمين', value: usr.length }
+                ]
+            });
+        } catch (e) {
+            console.error("Dashboard Load Error:", e);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
-        <div className="space-y-8 page-enter font-tajawal">
+        <div className="space-y-8 page-enter font-tajawal" dir="rtl">
             <div className="bg-slate-900 p-8 rounded-3xl text-white flex flex-col md:flex-row justify-between items-center shadow-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12"><Shield size={200}/></div>
                 <div className="relative z-10">
@@ -47,7 +57,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 relative z-10">
                     <AdminTabBtn label="نظرة عامة" active={view === 'OVERVIEW'} onClick={() => setView('OVERVIEW')} />
-                    <AdminTabBtn label="الجداول" active={view === 'HEALTH'} onClick={() => setView('HEALTH')} />
+                    <AdminTabBtn label="فحص الجداول" active={view === 'HEALTH'} onClick={() => setView('HEALTH')} />
                     <AdminTabBtn label="SQL" active={view === 'DATABASE'} onClick={() => setView('DATABASE')} />
                 </div>
             </div>
@@ -56,8 +66,8 @@ const AdminDashboard = () => {
                 <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         <AdminKpi label="المدارس النشطة" value={stats.schools} icon={Building} color="blue" />
-                        <AdminKpi label="إجمالي المعلمين" value={stats.teachers} icon={Briefcase} color="emerald" />
-                        <AdminKpi label="قاعدة الطلاب" value={stats.students} icon={Users} color="amber" />
+                        <AdminKpi label="إجمالي المعلمين" value={stats.teachers} icon={Users} color="emerald" />
+                        <AdminKpi label="قاعدة الطلاب" value={stats.students} icon={GraduationCap} color="amber" />
                         <AdminKpi label="سجلات النظام" value={stats.users} icon={Database} color="rose" />
                     </div>
                     
@@ -91,7 +101,7 @@ const AdminDashboard = () => {
                         <div className="flex justify-between items-center mb-10">
                             <div>
                                 <h3 className="text-2xl font-black text-brand-400">إصلاح بنية SQL</h3>
-                                <p className="text-slate-500 text-xs mt-1">نسخ السكريبت لتحديث جداول Supabase يدوياً.</p>
+                                <p className="text-slate-500 text-xs mt-1">نسخ السكريبت لتحديث جداول Supabase يدوياً في حال حدوث نقص.</p>
                             </div>
                             <button onClick={() => { navigator.clipboard.writeText(DATABASE_SCHEMA); alert('تم نسخ كود SQL!'); }} className="bg-brand-500 hover:bg-brand-600 px-8 py-3 rounded-2xl font-black text-sm transition-all shadow-xl shadow-brand-500/20 flex items-center gap-2">
                                 <Copy size={18}/> نسخ الكود
@@ -132,58 +142,274 @@ const AdminKpi = ({ label, value, icon: Icon, color }: any) => {
 };
 
 const CloudTableInspector = () => {
+    const [expanded, setExpanded] = useState<string | null>(null);
+
     const tables = [
-        { name: 'students', label: 'الطلاب', columns: ['id', 'name', 'national_id', 'class_name', 'xp'] },
-        { name: 'attendance', label: 'الحضور', columns: ['id', 'student_id', 'date', 'status', 'period'] },
-        { name: 'performance', label: 'الدرجات', columns: ['id', 'student_id', 'score', 'max_score', 'category'] },
-        { name: 'system_users', label: 'المستخدمين', columns: ['id', 'name', 'role', 'school_id'] }
+        { 
+            name: 'schools', 
+            label: 'المدارس (Schools)', 
+            desc: 'بيانات المنشآت التعليمية الموثقة',
+            columns: [
+                { name: 'id', type: 'uuid / text (PK)' },
+                { name: 'name', type: 'text' },
+                { name: 'ministry_code', type: 'text (unique)' },
+                { name: 'manager_name', type: 'text' },
+                { name: 'manager_national_id', type: 'text' },
+                { name: 'education_administration', type: 'text' },
+                { name: 'type', type: 'text (PUBLIC/PRIVATE)' }
+            ]
+        },
+        { 
+            name: 'system_users', 
+            label: 'المستخدمين (System Users)', 
+            desc: 'بيانات الدخول والصلاحيات للمعلمين والمديرين',
+            columns: [
+                { name: 'id', type: 'uuid / text (PK)' },
+                { name: 'name', type: 'text' },
+                { name: 'email', type: 'text (unique)' },
+                { name: 'password', type: 'text' },
+                { name: 'role', type: 'text (enum)' },
+                { name: 'national_id', type: 'text (unique)' },
+                { name: 'school_id', type: 'text (FK)' },
+                { name: 'status', type: 'text (ACTIVE/INACTIVE)' }
+            ]
+        },
+        { 
+            name: 'students', 
+            label: 'الطلاب (Students)', 
+            desc: 'السجل الأكاديمي والمهاري للطلاب',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'name', type: 'text' },
+                { name: 'national_id', type: 'text (unique)' },
+                { name: 'class_name', type: 'text' },
+                { name: 'grade_level', type: 'text' },
+                { name: 'xp', type: 'integer' },
+                { name: 'level', type: 'integer' },
+                { name: 'behavior_points', type: 'integer' },
+                { name: 'parent_phone', type: 'text' },
+                { name: 'avatar_url', type: 'text' },
+                { name: 'learning_style', type: 'text' }
+            ]
+        },
+        { 
+            name: 'attendance', 
+            label: 'الحضور (Attendance)', 
+            desc: 'سجلات الانضباط اليومي والحصص',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'student_id', type: 'text (FK)' },
+                { name: 'date', type: 'date' },
+                { name: 'status', type: 'text (enum)' },
+                { name: 'period', type: 'integer' },
+                { name: 'subject', type: 'text' },
+                { name: 'created_by_id', type: 'text (FK)' }
+            ]
+        },
+        { 
+            name: 'performance', 
+            label: 'الدرجات (Performance)', 
+            desc: 'رصد نواتج التعلم والاختبارات والواجبات',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'student_id', type: 'text (FK)' },
+                { name: 'subject', type: 'text' },
+                { name: 'title', type: 'text' },
+                { name: 'score', type: 'numeric' },
+                { name: 'max_score', type: 'numeric' },
+                { name: 'category', type: 'text' },
+                { name: 'date', type: 'date' }
+            ]
+        },
+        { 
+            name: 'wall_posts', 
+            label: 'الحائط المدرسي (Wall Posts)', 
+            desc: 'الأخبار والتكريمات والفعاليات المنشورة',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'user_id', type: 'text' },
+                { name: 'user_name', type: 'text' },
+                { name: 'content', type: 'text' },
+                { name: 'type', type: 'text' },
+                { name: 'likes', type: 'integer' },
+                { name: 'school_id', type: 'text (FK)' },
+                { name: 'created_at', type: 'timestamp' }
+            ]
+        },
+        { 
+            name: 'assignments', 
+            label: 'التكليفات (Assignments)', 
+            desc: 'تعريف أعمدة سجل الرصد والمعايير',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'teacher_id', type: 'text (FK)' },
+                { name: 'title', type: 'text' },
+                { name: 'category', type: 'text' },
+                { name: 'max_score', type: 'numeric' },
+                { name: 'isVisible', type: 'boolean' },
+                { name: 'sort_order', type: 'integer' }
+            ]
+        }
     ];
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-            {tables.map(table => (
-                <div key={table.name} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:border-brand-500 transition-all">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-brand-50 text-brand-600 rounded-2xl border border-brand-100"><Table size={20}/></div>
-                            <h4 className="font-black text-lg text-slate-800">{table.label}</h4>
-                        </div>
-                        <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-100">CLOUD_OK</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        {table.columns.map(col => (
-                            <span key={col} className="bg-slate-50 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-bold border border-slate-100">{col}</span>
-                        ))}
-                    </div>
+        <div className="space-y-6 animate-fade-in">
+            <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-3xl flex items-center gap-4">
+                <div className="p-3 bg-white rounded-2xl text-indigo-600 shadow-sm"><Code size={24}/></div>
+                <div>
+                    <h4 className="font-black text-indigo-900">فاحص بنية السحابة (Schema Inspector)</h4>
+                    <p className="text-xs text-indigo-700 font-bold">تأكد من مطابقة الجداول السحابية في Supabase مع متطلبات النظام.</p>
                 </div>
-            ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+                {tables.map(table => (
+                    <div key={table.name} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                        <button 
+                            onClick={() => setExpanded(expanded === table.name ? null : table.name)}
+                            className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-slate-50 text-slate-400 rounded-2xl border border-slate-100"><Table size={20}/></div>
+                                <div className="text-right">
+                                    <h4 className="font-black text-slate-800">{table.label}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{table.desc}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-100 uppercase tracking-tighter">Verified</span>
+                                {expanded === table.name ? <ChevronDown className="text-slate-300"/> : <ChevronRight className="text-slate-300"/>}
+                            </div>
+                        </button>
+                        
+                        {expanded === table.name && (
+                            <div className="px-6 pb-6 animate-slide-up">
+                                <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                                    <table className="w-full text-right text-xs">
+                                        <thead>
+                                            <tr className="bg-slate-100/50 text-slate-500 font-black uppercase text-[10px] border-b">
+                                                <th className="px-4 py-3">اسم العمود (Column Name)</th>
+                                                <th className="px-4 py-3">نوع البيانات (Data Type)</th>
+                                                <th className="px-4 py-3 text-left">الحالة</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {table.columns.map(col => (
+                                                <tr key={col.name} className="hover:bg-white transition-colors">
+                                                    <td className="px-4 py-3 font-mono font-bold text-slate-700">{col.name}</td>
+                                                    <td className="px-4 py-3 text-slate-500 font-medium">{col.type}</td>
+                                                    <td className="px-4 py-3 text-left">
+                                                        <CheckCircle size={14} className="text-emerald-500 inline"/>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
 
-const DATABASE_SCHEMA = `-- سكريبت تحديث قاعدة البيانات
+const DATABASE_SCHEMA = `-- سكريبت تحديث قاعدة البيانات الشامل
 -- 1. المدارس
-CREATE TABLE schools (
+CREATE TABLE IF NOT EXISTS schools (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    ministry_code TEXT UNIQUE,
+    ministry_code TEXT UNIQUE NOT NULL,
     manager_name TEXT,
+    manager_national_id TEXT,
     education_administration TEXT,
+    type TEXT,
+    phone TEXT,
+    student_count INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. المعلمين والمستخدمين
-CREATE TABLE system_users (
+-- 2. المستخدمين (معلمين / مديرين)
+CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    email TEXT UNIQUE,
-    password TEXT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
     role TEXT CHECK (role IN ('SUPER_ADMIN', 'SCHOOL_MANAGER', 'TEACHER', 'STUDENT', 'PARENT')),
+    national_id TEXT UNIQUE,
     school_id TEXT REFERENCES schools(id),
     status TEXT DEFAULT 'ACTIVE',
+    phone TEXT,
+    subject_specialty TEXT,
+    subscription_status TEXT DEFAULT 'FREE',
+    subscription_end_date TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3. الطلاب
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id TEXT UNIQUE NOT NULL,
+    class_name TEXT,
+    grade_level TEXT,
+    xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 1,
+    behavior_points INTEGER DEFAULT 0,
+    parent_phone TEXT,
+    avatar_url TEXT,
+    learning_style TEXT DEFAULT 'UNKNOWN',
+    aura_color TEXT DEFAULT 'indigo',
+    seat_index INTEGER DEFAULT 0,
+    school_id TEXT REFERENCES schools(id),
+    created_by_id TEXT REFERENCES system_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. الحضور والغياب
+CREATE TABLE IF NOT EXISTS attendance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    status TEXT NOT NULL,
+    period INTEGER,
+    subject TEXT,
+    behavior_status TEXT,
+    behavior_note TEXT,
+    created_by_id TEXT REFERENCES system_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. الأداء الأكاديمي
+CREATE TABLE IF NOT EXISTS performance (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    subject TEXT,
+    title TEXT,
+    score NUMERIC NOT NULL,
+    max_score NUMERIC NOT NULL,
+    category TEXT,
+    notes TEXT,
+    date DATE,
+    created_by_id TEXT REFERENCES system_users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. حائط المدرسة
+CREATE TABLE IF NOT EXISTS wall_posts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    user_name TEXT,
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'NEWS',
+    likes INTEGER DEFAULT 0,
+    school_id TEXT REFERENCES schools(id),
+    image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );`;
 
 export default AdminDashboard;
 
+const GraduationCap = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>;
 const Briefcase = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
