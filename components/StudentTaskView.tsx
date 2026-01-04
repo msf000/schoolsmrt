@@ -13,7 +13,9 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
-        setTasks(getTasks(student.createdById).filter(t => t.classId === student.className));
+        // Fix: Added fallback for createdById to avoid TS2345 error
+        const teacherId = student.createdById || '';
+        setTasks(getTasks(teacherId).filter(t => t.classId === student.className));
         setSubmissions(getSubmissions().filter(s => s.studentId === student.id));
     }, [student]);
 
@@ -25,7 +27,6 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
         if (!selectedFile) return;
         setIsUploading(task.id);
         
-        // محاكاة رفع الملف والحصول على URL (في الواقع سيتم الرفع لـ Supabase Storage)
         setTimeout(async () => {
             const newSub: TaskSubmission = {
                 id: `sub_${Date.now()}`,

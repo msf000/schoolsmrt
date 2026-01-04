@@ -76,7 +76,6 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
            <KPIStat label="إجمالي الطلاب" value={classStats.total} icon={Users} color="blue" />
            <KPIStat label="الانضباط العام" value={`${classStats.attRate}%`} icon={Activity} color="emerald" />
            <KPIStat label="متوسط الإتقان" value={`${classStats.perfAvg}%`} icon={Target} color="amber" />
-           {/* Fix: use classStats.health instead of classHealth on line 79 */}
            <KPIStat label="صحة الفصل" value={`${classStats.health}%`} icon={Heart} color="rose" />
       </div>
 
@@ -132,7 +131,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                                             <p className="text-[8px] opacity-60">{incident.category}</p>
                                         </div>
                                     </div>
-                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-50' : 'bg-rose-500'} text-white shadow-lg`}>
+                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-500' : 'bg-rose-500'} text-white shadow-lg`}>
                                         {incident.points > 0 ? '+' : ''}{incident.points}
                                     </div>
                                 </div>
@@ -158,7 +157,6 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                       </div>
                       <div className="flex-1">
                           <div className="p-5 bg-white/5 rounded-3xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic font-medium">
-                            {/* Fix: use classStats.health instead of classHealth on line 160 */}
                             {classStats.health < 70 ? 
                                 `"مؤشر صحة الفصل منخفض قليلاً؛ نوصي بإطلاق تحدي 'أسبوع بلا غياب' لرفع مستوى الانضباط فوراً."` :
                                 `"أداء الفصل استثنائي اليوم! هناك طلاب جاهزون للترقية لمستوى 'الخبير'، هل ترغب في تكريمهم بلقب شرفي؟"`
