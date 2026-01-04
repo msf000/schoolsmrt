@@ -27,8 +27,12 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
     }, [schoolId]);
 
     const loadPosts = async () => {
-        const res = await fetchWallPosts(schoolId);
-        setPosts(res || []);
+        try {
+            const res = await fetchWallPosts(schoolId);
+            setPosts(res || []);
+        } catch (e) {
+            setPosts([]);
+        }
     };
 
     const handlePost = async () => {
@@ -127,6 +131,12 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                             </div>
                         </div>
                     ))}
+                    {posts.length === 0 && (
+                        <div className="py-20 text-center text-slate-300 opacity-50 flex flex-col items-center">
+                            <Newspaper size={48} className="mb-4"/>
+                            <p className="font-bold">لا توجد منشورات حالياً على الحائط.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -142,11 +152,15 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                             <h3 className="text-xl font-black mb-1">نجم الأسبوع</h3>
                             <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.3em] mb-6">Hall of Fame</p>
                             <h4 className="text-2xl font-black mb-6">{studentOfTheMonth.name}</h4>
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 flex justify-between items-center">
+                                <div><p className="text-[9px] font-black text-indigo-400 uppercase">الرصيد</p><p className="text-xl font-black">{studentOfTheMonth.xp} XP</p></div>
+                                <div className="w-px h-8 bg-white/10"></div>
+                                <div><p className="text-[9px] font-black text-indigo-400 uppercase">الفصل</p><p className="text-xl font-black">{studentOfTheMonth.className}</p></div>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Calendar Widget */}
                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
                     <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Calendar className="text-indigo-600"/> أجندة الفعاليات</h3>
                     <div className="space-y-4">

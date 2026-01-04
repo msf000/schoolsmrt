@@ -121,6 +121,7 @@ const App: React.FC = () => {
                         <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />
                         <Route path="/badges" element={<SmartBadges students={students} />} />
                         <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
+                        <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
 

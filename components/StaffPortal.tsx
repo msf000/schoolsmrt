@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SystemUser } from '../types';
 import { 
@@ -8,7 +8,7 @@ import {
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
     Building, Zap, Award, Search, FileText, ClipboardList, 
     TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
-    BookOpen, List, Map, MessageSquare
+    BookOpen, List, Map, MessageSquare, Newspaper, CheckCircle
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -190,8 +190,5 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
         </div>
     );
 };
-
-const Newspaper = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>;
-const CheckCircle = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 
 export default StaffPortal;
