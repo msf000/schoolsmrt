@@ -5,7 +5,7 @@ import { fetchWallPosts, saveWallPost } from '../services/storageService';
 import { 
     Sparkles, Image as ImageIcon, Send, Heart, MessageCircle, 
     MoreHorizontal, Share2, Plus, Camera, X, Trophy, Star, Zap,
-    Award, Crown, Flag, Newspaper, Calendar
+    Award, Crown, Flag, Newspaper, Calendar, Loader2
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
@@ -62,7 +62,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
     return (
         <div className="p-4 md:p-8 h-full flex flex-col lg:flex-row gap-8 bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden" dir="rtl">
             <div className="flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-32 lg:pb-10">
-                {/* Create Post */}
+                {/* Create Post Area */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shrink-0 group transition-all">
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg">
@@ -85,7 +85,8 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                                     disabled={isPosting || !newPostContent.trim()}
                                     className="bg-indigo-600 text-white px-8 py-2.5 rounded-2xl font-black text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    {isPosting ? <Sparkles className="animate-spin" size={16}/> : <Send size={18}/>} نشر الآن
+                                    {/* Fix: Added missing Loader2 from lucide-react to avoid 'Cannot find name' error */}
+                                    {isPosting ? <Loader2 className="animate-spin" size={16}/> : <Send size={18}/>} نشر الآن
                                 </button>
                             </div>
                         </div>
@@ -99,7 +100,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     <button onClick={()=>setFilter('NEWS')} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${filter==='NEWS'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>أخبار</button>
                 </div>
 
-                {/* Feed */}
+                {/* News Feed */}
                 <div className="space-y-6">
                     {posts.map(post => (
                         <div key={post.id} className="bg-white p-8 rounded-[3rem] border border-slate-50 shadow-sm hover:shadow-xl transition-all animate-slide-up group">
@@ -140,7 +141,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                 </div>
             </div>
 
-            {/* Sidebar Widgets */}
+            {/* Widgets Sidebar */}
             <div className="w-full lg:w-96 space-y-6">
                 {studentOfTheMonth && (
                     <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl group">
@@ -161,6 +162,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     </div>
                 )}
 
+                {/* Upcoming Events */}
                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
                     <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Calendar className="text-indigo-600"/> أجندة الفعاليات</h3>
                     <div className="space-y-4">

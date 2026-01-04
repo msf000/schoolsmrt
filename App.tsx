@@ -21,15 +21,25 @@ import LearningLab from './components/LearningLab';
 import LessonPlanning from './components/LessonPlanning';
 import SchoolManagement from './components/SchoolManagement';
 import TeacherProfile from './components/TeacherProfile';
-import TeacherAIConfig from './components/TeacherAIConfig';
 import AdminDashboard from './components/AdminDashboard';
 import PrincipalDashboard from './components/PrincipalDashboard';
 import HallOfFame from './components/HallOfFame';
+import TeacherTaskGrader from './components/TeacherTaskGrader';
+import SmartBadges from './components/SmartBadges';
+import SchoolWall from './components/SchoolWall';
+import MeetingScheduler from './components/MeetingScheduler';
+import ScheduleView from './components/ScheduleView';
+import CurriculumManager from './components/CurriculumManager';
+import ResourcesView from './components/ResourcesView';
+import StudentClubs from './components/StudentClubs';
 import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from './services/storageService';
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
 import AIChatBot from './components/AIChatBot';
 import PredictiveAnalytics from './components/PredictiveAnalytics';
+import AdvancedAnalytics from './components/AdvancedAnalytics';
+import CertificatesCenter from './components/CertificatesCenter';
+import NoorExporter from './components/NoorExporter';
 
 const App: React.FC = () => {
     const navigate = useNavigate();
@@ -87,6 +97,7 @@ const App: React.FC = () => {
             <Routes>
                 <Route path="/" element={getStaffDashboard()} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
+                <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
                 
                 {/* مسارات المعلم */}
                 {currentUser.role === 'TEACHER' && (
@@ -95,11 +106,21 @@ const App: React.FC = () => {
                         <Route path="/attendance" element={<Attendance students={students} attendanceHistory={attendance} onSaveAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                         <Route path="/gradebook" element={<GradebookMaster students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
+                        <Route path="/grading" element={<TeacherTaskGrader currentUser={currentUser as SystemUser} />} />
+                        <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
+                        <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser as SystemUser} />} />
+                        <Route path="/meetings" element={<MeetingScheduler currentUser={currentUser as SystemUser} isTeacherView={true} />} />
+                        <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
+                        <Route path="/clubs" element={<StudentClubs students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/analytics" element={<PredictiveAnalytics students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                        <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} onNavigateToAttendance={() => navigate('/attendance')} onSaveAttendance={loadInitialData} onImportAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
+                        <Route path="/deep-dive" element={<AdvancedAnalytics students={students} attendance={attendance} performance={performance} />} />
+                        <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} currentUser={currentUser as SystemUser} />} />
                         <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
                         <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />
+                        <Route path="/badges" element={<SmartBadges students={students} />} />
+                        <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
+                        <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
 
