@@ -4,8 +4,8 @@ import { WallPost, SystemUser, Student } from '../types';
 import { fetchWallPosts, saveWallPost } from '../services/storageService';
 import { 
     Sparkles, Image as ImageIcon, Send, Heart, MessageCircle, 
-    MoreHorizontal, Share2, Plus, Camera, X, Trophy, Star, Zap,
-    Award, Crown, Flag, Newspaper, Calendar, Loader2
+    MoreHorizontal, Share2, Camera, Trophy, Star, Zap,
+    Award, Crown, Newspaper, Calendar, Loader2, X
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 
@@ -31,7 +31,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
             const res = await fetchWallPosts(schoolId);
             setPosts(res || []);
         } catch (e) {
-            console.error("Error loading posts:", e);
+            console.error("Error loading wall posts:", e);
             setPosts([]);
         }
     };
@@ -54,7 +54,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
             setNewPostContent('');
             await loadPosts();
         } catch (e) {
-            console.error("Post Error:", e);
+            console.error("Post failed:", e);
         } finally {
             setIsPosting(false);
         }
@@ -65,12 +65,14 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
         return [...students].sort((a,b) => (b.xp || 0) - (a.xp || 0))[0];
     }, [students]);
 
-    const filteredPosts = posts.filter(p => filter === 'ALL' || p.type === filter);
+    const filteredPosts = useMemo(() => {
+        return posts.filter(p => filter === 'ALL' || p.type === filter);
+    }, [posts, filter]);
 
     return (
         <div className="p-4 md:p-8 h-full flex flex-col lg:flex-row gap-8 bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden" dir="rtl">
             <div className="flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-32 lg:pb-10">
-                {/* Create Post */}
+                {/* Create Post Area */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shrink-0 group transition-all">
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg">
@@ -107,7 +109,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     <button onClick={()=>setFilter('NEWS')} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${filter==='NEWS'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>أخبار</button>
                 </div>
 
-                {/* Feed */}
+                {/* News Feed */}
                 <div className="space-y-6">
                     {filteredPosts.map(post => (
                         <div key={post.id} className="bg-white p-8 rounded-[3rem] border border-slate-50 shadow-sm hover:shadow-xl transition-all animate-slide-up group">
@@ -142,13 +144,13 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     {filteredPosts.length === 0 && (
                         <div className="py-20 text-center text-slate-300 opacity-50 flex flex-col items-center">
                             <Newspaper size={48} className="mb-4"/>
-                            <p className="font-bold">لا توجد منشورات حالياً.</p>
+                            <p className="font-bold">لا توجد منشورات حالياً على الحائط.</p>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Sidebar Widgets */}
+            {/* Widgets Sidebar */}
             <div className="w-full lg:w-96 space-y-6">
                 {studentOfTheMonth && (
                     <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl group">
@@ -169,6 +171,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     </div>
                 )}
 
+                {/* Upcoming Events */}
                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
                     <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Calendar className="text-indigo-600"/> أجندة الفعاليات</h3>
                     <div className="space-y-4">

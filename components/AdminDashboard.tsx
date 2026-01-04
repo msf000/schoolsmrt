@@ -224,6 +224,21 @@ const CloudTableInspector = () => {
                 { name: 'category', type: 'text' },
                 { name: 'date', type: 'date' }
             ]
+        },
+        { 
+            name: 'wall_posts', 
+            label: 'الحائط المدرسي (Wall Posts)', 
+            desc: 'الأخبار والتكريمات والفعاليات المنشورة',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'user_id', type: 'text' },
+                { name: 'user_name', type: 'text' },
+                { name: 'content', type: 'text' },
+                { name: 'type', type: 'text' },
+                { name: 'likes', type: 'integer' },
+                { name: 'school_id', type: 'text (FK)' },
+                { name: 'created_at', type: 'timestamp' }
+            ]
         }
     ];
 
@@ -305,7 +320,7 @@ CREATE TABLE IF NOT EXISTS schools (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. المستخدمين (معلمين / مديرين)
+-- 2. المستخدمين
 CREATE TABLE IF NOT EXISTS system_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -317,8 +332,6 @@ CREATE TABLE IF NOT EXISTS system_users (
     status TEXT DEFAULT 'ACTIVE',
     phone TEXT,
     subject_specialty TEXT,
-    subscription_status TEXT DEFAULT 'FREE',
-    subscription_end_date TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -334,15 +347,13 @@ CREATE TABLE IF NOT EXISTS students (
     behavior_points INTEGER DEFAULT 0,
     parent_phone TEXT,
     avatar_url TEXT,
-    learning_style TEXT DEFAULT 'UNKNOWN',
     aura_color TEXT DEFAULT 'indigo',
-    seat_index INTEGER DEFAULT 0,
     school_id TEXT REFERENCES schools(id),
     created_by_id TEXT REFERENCES system_users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. الحضور والغياب
+-- 4. الحضور
 CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -350,13 +361,11 @@ CREATE TABLE IF NOT EXISTS attendance (
     status TEXT NOT NULL,
     period INTEGER,
     subject TEXT,
-    behavior_status TEXT,
-    behavior_note TEXT,
     created_by_id TEXT REFERENCES system_users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. الأداء الأكاديمي
+-- 5. الأداء
 CREATE TABLE IF NOT EXISTS performance (
     id TEXT PRIMARY KEY,
     student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
@@ -365,7 +374,6 @@ CREATE TABLE IF NOT EXISTS performance (
     score NUMERIC NOT NULL,
     max_score NUMERIC NOT NULL,
     category TEXT,
-    notes TEXT,
     date DATE,
     created_by_id TEXT REFERENCES system_users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

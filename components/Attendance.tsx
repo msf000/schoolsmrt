@@ -4,7 +4,7 @@ import { Student, AttendanceRecord, AttendanceStatus, SystemUser } from '../type
 import { saveAttendance } from '../services/storageService';
 import { 
     Search, UserCheck, Calendar as CalendarIcon, 
-    History, Camera, Check, X, Clock, Loader2, Sparkles, Filter, ChevronLeft, AlertCircle, TrendingDown, UserPlus
+    History, Camera, Check, X, Clock, Loader2, Sparkles, Filter, ChevronLeft, AlertCircle, TrendingDown, UserPlus, Save
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import AIAttendanceScanner from './AIAttendanceScanner';
@@ -23,6 +23,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY'>('RECORD');
   const [showAiScanner, setShowAiScanner] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
 
@@ -54,6 +55,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
     try { 
         await saveAttendance([record]); 
         onSaveAttendance([record]); 
+        showToast('تم التحديث', 'SUCCESS');
     } catch (e) { 
         showToast('فشل في حفظ السجل', 'ERROR'); 
     }
@@ -61,6 +63,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
 
   const markAllPresent = async () => {
       if (!confirm('هل تريد تحضير جميع طلاب الفصل الحالي كحاضرين؟')) return;
+      setIsSaving(true);
       const records = filteredStudents.map(s => ({
           id: `att_${s.id}_${selectedDate}`,
           studentId: s.id,
@@ -68,9 +71,13 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
           status: AttendanceStatus.PRESENT,
           createdById: currentUser?.id
       }));
-      await saveAttendance(records);
-      onSaveAttendance(records);
-      showToast(`تم تحضير ${records.length} طالباً بنجاح.`, 'SUCCESS');
+      try {
+          await saveAttendance(records);
+          onSaveAttendance(records);
+          showToast(`تم تحضير ${records.length} طالباً بنجاح.`, 'SUCCESS');
+      } finally {
+          setIsSaving(false);
+      }
   };
 
   return (
@@ -95,12 +102,12 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
           <AttMiniStat label="حاضر" value={stats.present} total={stats.total} color="emerald" />
           <AttMiniStat label="غائب" value={stats.absent} total={stats.total} color="rose" />
           <AttMiniStat label="متأخر" value={stats.late} total={stats.total} color="amber" />
-          <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex flex-col justify-center">
+          <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex flex-col justify-center shadow-xl">
               <div className="flex justify-between items-center mb-2">
                   <span className="text-[10px] font-black uppercase text-indigo-400">نسبة الانضباط</span>
                   <span className="text-lg font-black">{stats.total > 0 ? Math.round((stats.present/stats.total)*100) : 0}%</span>
               </div>
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-400 transition-all duration-1000" style={{width: `${(stats.present/stats.total)*100}%`}}></div>
               </div>
           </div>
@@ -124,8 +131,8 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                 <Search size={18} className="absolute right-3 top-2.5 text-slate-400"/>
                 <input className="pr-10 pl-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-brand-500/5 focus:border-brand-500 w-48 md:w-64 transition-all shadow-sm" placeholder="بحث باسم الطالب..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
             </div>
-            <button onClick={markAllPresent} className="px-6 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-black hover:bg-emerald-100 transition-all flex items-center gap-2">
-                <UserCheck size={16}/> تحضير الكل
+            <button onClick={markAllPresent} disabled={isSaving} className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-50">
+                {isSaving ? <Loader2 className="animate-spin" size={16}/> : <UserCheck size={16}/>} تحضير الكل
             </button>
         </div>
 
@@ -148,7 +155,7 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                                     <td className="px-8 py-4 text-slate-300 font-black text-xs group-hover:text-brand-500">{idx + 1}</td>
                                     <td className="px-8 py-4">
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg transition-all ${status === AttendanceStatus.PRESENT ? 'bg-emerald-100 text-emerald-600' : status === AttendanceStatus.ABSENT ? 'bg-rose-100 text-rose-600' : 'bg-slate-50 text-slate-400'}`}>
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg transition-all ${status === AttendanceStatus.PRESENT ? 'bg-emerald-100 text-emerald-600 shadow-inner' : status === AttendanceStatus.ABSENT ? 'bg-rose-100 text-rose-600 shadow-inner' : 'bg-slate-50 text-slate-400'}`}>
                                                 {student.name.charAt(0)}
                                             </div>
                                             <span className="font-black text-slate-700">{student.name}</span>

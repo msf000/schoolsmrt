@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, SystemUser, Assignment, AttendanceRecord, PerformanceCategory } from '../types';
 import { getAssignments, addPerformance } from '../services/storageService';
 import { 
-    Save, Target, Filter, ChevronLeft, BarChart3, ClipboardCheck, Loader2, Sparkles, TrendingUp, AlertTriangle, CheckCircle2, ListChecks, Trophy
+    Save, Target, Filter, BarChart3, ClipboardCheck, Loader2, Sparkles, TrendingUp, AlertTriangle, Trophy, ListChecks, ArrowLeft, CheckCircle2
 } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 interface PerformanceProps {
   students: Student[];
@@ -14,7 +16,8 @@ interface PerformanceProps {
   currentUser?: SystemUser | null;
 }
 
-const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, onDeletePerformance, currentUser }) => {
+const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, currentUser }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'BULK' | 'LOG'>('BULK');
   const [selectedClass, setSelectedClass] = useState('');
   const [bulkScores, setBulkScores] = useState<Record<string, string>>({});
@@ -22,8 +25,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Fix: getAssignments is a synchronous function returning Assignment[], so .then() is not required and causes an error.
   useEffect(() => {
-    if (currentUser) setAssignments(getAssignments('ALL', currentUser.id, true));
+    if (currentUser) {
+        setAssignments(getAssignments('ALL', currentUser.id, true));
+    }
   }, [currentUser]);
 
   const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.className).filter(Boolean))).sort(), [students]);
@@ -41,26 +47,46 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
 
   const handleBulkSave = async () => {
     const assign = assignments.find(a => a.id === activeAssignmentId);
-    if (!assign || !selectedClass) return alert('يرجير اختيار الفصل والتقييم أولاً.');
+    if (!assign || !selectedClass) return showToast('يرجى اختيار الفصل والمعيار', 'ERROR');
+    
     setIsSaving(true);
     const records: PerformanceRecord[] = [];
     const today = new Date().toISOString().split('T')[0];
+    
     Object.entries(bulkScores).forEach(([sid, score]) => {
         if (score === '') return;
         records.push({
-            id: `${sid}_${assign.id}`, studentId: sid, subject: assign.subject || 'عام', title: assign.title,
-            category: assign.category, score: Number(score), maxScore: assign.maxScore,
-            date: today, notes: assign.id, createdById: currentUser?.id
+            id: `${sid}_${assign.id}`, 
+            studentId: sid, 
+            subject: assign.subject || 'عام', 
+            title: assign.title,
+            category: assign.category, 
+            score: Number(score), 
+            maxScore: assign.maxScore,
+            date: today, 
+            notes: assign.id, 
+            createdById: currentUser?.id
         });
     });
+
     if (records.length > 0) {
         try { 
             await onAddPerformance(records); 
             setBulkScores({}); 
-            alert('تم حفظ الدرجات بنجاح.'); 
-        } catch (e) { alert('فشل في حفظ البيانات.'); }
+            showToast(`تم رصد درجات ${records.length} طالباً بنجاح`, 'SUCCESS');
+        } catch (e) { 
+            showToast('فشل في حفظ البيانات', 'ERROR'); 
+        }
     }
     setIsSaving(false);
+  };
+
+  const getScoreStatus = (score: number, max: number) => {
+      const pct = (score / max) * 100;
+      if (pct >= 90) return { label: 'ممتاز', color: 'text-emerald-600 bg-emerald-50' };
+      if (pct >= 70) return { label: 'جيد', color: 'text-blue-600 bg-blue-50' };
+      if (pct >= 50) return { label: 'مقبول', color: 'text-amber-600 bg-amber-50' };
+      return { label: 'تعثر', color: 'text-rose-600 bg-rose-50' };
   };
 
   return (
@@ -87,7 +113,6 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                   <Sparkles className="text-yellow-400 animate-pulse" size={32}/>
               </div>
               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex items-center gap-6">
-                  {/* Fixed error: Added Trophy to imports from lucide-react */}
                   <div className="p-4 bg-emerald-50 text-emerald-600 rounded-3xl"><Trophy size={32}/></div>
                   <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">المتميزون (90%+)</p>
@@ -98,14 +123,14 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                   <div className="p-4 bg-rose-50 text-rose-600 rounded-3xl"><AlertTriangle size={32}/></div>
                   <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">فجوات مكتشفة</p>
-                      <h4 className="text-3xl font-black text-slate-800">{students.length - classAnalysis.topCount} طلاب</h4>
+                      <h4 className="text-3xl font-black text-slate-800">{filteredStudents.length - classAnalysis.topCount} طلاب</h4>
                   </div>
               </div>
           </div>
       )}
 
-      <div className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col">
-        {activeTab === 'BULK' && (
+      <div className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col min-h-[500px]">
+        {activeTab === 'BULK' ? (
             <>
                 <div className="p-8 bg-slate-50/50 border-b border-slate-200 flex flex-wrap gap-8 items-end">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -136,27 +161,41 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                                 <tr className="text-slate-400 font-black uppercase tracking-widest text-[10px] border-b border-slate-100 bg-slate-50/20">
                                     <th className="px-10 py-5 w-16 text-center">#</th>
                                     <th className="px-10 py-5">اسم الطالب</th>
-                                    <th className="px-10 py-5 text-center w-64">رصد الدرجة (0-{assignments.find(a=>a.id===activeAssignmentId)?.maxScore})</th>
+                                    <th className="px-10 py-5 text-center w-64">رصد الدرجة</th>
+                                    <th className="px-10 py-5 text-center">مؤشر التمكن</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {filteredStudents.map((s, idx) => (
-                                    <tr key={s.id} className="hover:bg-brand-50/10 transition-colors h-16 group">
-                                        <td className="px-10 py-5 text-slate-300 font-black text-xs group-hover:text-brand-500">{idx + 1}</td>
-                                        <td className="px-10 py-5 font-black text-slate-700">{s.name}</td>
-                                        <td className="px-10 py-5">
-                                            <div className="relative w-48 mx-auto">
-                                                <input 
-                                                    type="number" 
-                                                    className="w-full p-3 bg-slate-50 border-2 border-slate-100 focus:bg-white focus:border-brand-500 rounded-2xl text-center font-black text-brand-600 outline-none transition-all shadow-inner" 
-                                                    placeholder="-"
-                                                    value={bulkScores[s.id] || ''} 
-                                                    onChange={e => setBulkScores({...bulkScores, [s.id]: e.target.value})}
-                                                />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {filteredStudents.map((s, idx) => {
+                                    const score = bulkScores[s.id];
+                                    const max = assignments.find(a=>a.id===activeAssignmentId)?.maxScore || 10;
+                                    const status = score ? getScoreStatus(Number(score), max) : null;
+                                    
+                                    return (
+                                        <tr key={s.id} className="hover:bg-brand-50/10 transition-colors h-16 group">
+                                            <td className="px-10 py-5 text-slate-300 font-black text-xs group-hover:text-brand-500">{idx + 1}</td>
+                                            <td className="px-10 py-5 font-black text-slate-700">{s.name}</td>
+                                            <td className="px-10 py-5">
+                                                <div className="relative w-32 mx-auto">
+                                                    <input 
+                                                        type="number" 
+                                                        className="w-full p-3 bg-slate-50 border-2 border-slate-100 focus:bg-white focus:border-brand-500 rounded-2xl text-center font-black text-brand-600 outline-none transition-all shadow-inner" 
+                                                        placeholder="-"
+                                                        value={score || ''} 
+                                                        onChange={e => setBulkScores({...bulkScores, [s.id]: e.target.value})}
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td className="px-10 py-5 text-center">
+                                                {status ? (
+                                                    <span className={`px-4 py-1 rounded-full text-[10px] font-black border transition-all ${status.color}`}>
+                                                        {status.label}
+                                                    </span>
+                                                ) : <span className="text-slate-300 italic text-[10px]">لم يرصد</span>}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     ) : (
@@ -169,6 +208,11 @@ const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddP
                     )}
                 </div>
             </>
+        ) : (
+            <div className="py-40 text-center text-slate-300">
+                <BarChart3 size={80} className="mx-auto mb-4 opacity-5"/>
+                <p className="font-black text-2xl">أرشيف الدرجات قيد التحليل...</p>
+            </div>
         )}
       </div>
     </div>
