@@ -6,7 +6,8 @@ import {
 import { 
     Shield, Building, Users, Database, RefreshCw, CheckCircle, AlertTriangle, 
     Server, Loader2, Zap, Copy, CloudLightning, Activity, Table, ArrowRight,
-    Globe, Lock, Layout, ShieldCheck, ChevronDown, ChevronRight, Search, Code
+    Globe, Lock, Layout, ShieldCheck, ChevronDown, ChevronRight, Search, Code, 
+    FileText, ClipboardList, GraduationCap
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -29,12 +30,15 @@ const AdminDashboard = () => {
                 fetchStudents()
             ]);
             setStats({ 
-                schools: sch.length, teachers: tea.length, students: std.length, users: usr.length,
+                schools: sch.length, 
+                teachers: tea.length, 
+                students: std.length, 
+                users: usr.length,
                 chartData: [
                     { name: 'الطلاب', value: std.length },
                     { name: 'المعلمين', value: tea.length },
                     { name: 'المدارس', value: sch.length },
-                    { name: 'المستخدمين', value: usr.length }
+                    { name: 'سجلات النظام', value: usr.length }
                 ]
             });
         } catch (e) {
@@ -67,7 +71,7 @@ const AdminDashboard = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         <AdminKpi label="المدارس النشطة" value={stats.schools} icon={Building} color="blue" />
                         <AdminKpi label="إجمالي المعلمين" value={stats.teachers} icon={Users} color="emerald" />
-                        <AdminKpi label="قاعدة الطلاب" value={stats.students} icon={Users} color="amber" />
+                        <AdminKpi label="قاعدة الطلاب" value={stats.students} icon={GraduationCap} color="amber" />
                         <AdminKpi label="سجلات النظام" value={stats.users} icon={Database} color="rose" />
                     </div>
                     
@@ -150,7 +154,7 @@ const CloudTableInspector = () => {
             label: 'المدارس (Schools)', 
             desc: 'بيانات المنشآت التعليمية الموثقة',
             columns: [
-                { name: 'id', type: 'uuid / text (PK)' },
+                { name: 'id', type: 'text (PK)' },
                 { name: 'name', type: 'text' },
                 { name: 'ministry_code', type: 'text (unique)' },
                 { name: 'manager_name', type: 'text' },
@@ -164,7 +168,7 @@ const CloudTableInspector = () => {
             label: 'المستخدمين (System Users)', 
             desc: 'بيانات الدخول والصلاحيات للمعلمين والمديرين',
             columns: [
-                { name: 'id', type: 'uuid / text (PK)' },
+                { name: 'id', type: 'text (PK)' },
                 { name: 'name', type: 'text' },
                 { name: 'email', type: 'text (unique)' },
                 { name: 'password', type: 'text' },
@@ -222,6 +226,20 @@ const CloudTableInspector = () => {
             ]
         },
         { 
+            name: 'behavior_incidents', 
+            label: 'مخالفات السلوك (Behavior)', 
+            desc: 'سجل رصد المواقف السلوكية',
+            columns: [
+                { name: 'id', type: 'text (PK)' },
+                { name: 'student_id', type: 'text (FK)' },
+                { name: 'teacher_id', type: 'text (FK)' },
+                { name: 'type', type: 'text' },
+                { name: 'category', type: 'text' },
+                { name: 'points', type: 'integer' },
+                { name: 'note', type: 'text' }
+            ]
+        },
+        { 
             name: 'wall_posts', 
             label: 'الحائط المدرسي (Wall Posts)', 
             desc: 'الأخبار والتكريمات والفعاليات المنشورة',
@@ -246,7 +264,7 @@ const CloudTableInspector = () => {
                 { name: 'title', type: 'text' },
                 { name: 'category', type: 'text' },
                 { name: 'max_score', type: 'numeric' },
-                { name: 'isVisible', type: 'boolean' },
+                { name: 'is_visible', type: 'boolean' },
                 { name: 'sort_order', type: 'integer' }
             ]
         }
@@ -258,7 +276,7 @@ const CloudTableInspector = () => {
                 <div className="p-3 bg-white rounded-2xl text-indigo-600 shadow-sm"><Code size={24}/></div>
                 <div>
                     <h4 className="font-black text-indigo-900">فاحص بنية السحابة (Schema Inspector)</h4>
-                    <p className="text-xs text-indigo-700 font-bold">تأكد من مطابقة الجداول السحابية في Supabase مع متطلبات النظام.</p>
+                    <p className="text-xs text-indigo-700 font-bold">تأكد من مطابقة الجداول السحابية في Supabase مع متطلبات النظام المركزية.</p>
                 </div>
             </div>
 
@@ -277,7 +295,7 @@ const CloudTableInspector = () => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">
-                                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-100 uppercase tracking-tighter">Verified</span>
+                                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-100 uppercase tracking-tighter">Connected</span>
                                 {expanded === table.name ? <ChevronDown className="text-slate-300"/> : <ChevronRight className="text-slate-300"/>}
                             </div>
                         </button>
@@ -396,7 +414,20 @@ CREATE TABLE IF NOT EXISTS performance (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. حائط المدرسة
+-- 6. مخالفات السلوك
+CREATE TABLE IF NOT EXISTS behavior_incidents (
+    id TEXT PRIMARY KEY,
+    student_id TEXT REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id TEXT REFERENCES system_users(id),
+    type TEXT,
+    category TEXT,
+    points INTEGER,
+    note TEXT,
+    action_taken TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 7. حائط المدرسة
 CREATE TABLE IF NOT EXISTS wall_posts (
     id TEXT PRIMARY KEY,
     user_id TEXT,
@@ -406,6 +437,21 @@ CREATE TABLE IF NOT EXISTS wall_posts (
     likes INTEGER DEFAULT 0,
     school_id TEXT REFERENCES schools(id),
     image_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 8. التكليفات وهيكلة الرصد
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT REFERENCES system_users(id),
+    title TEXT,
+    category TEXT,
+    max_score NUMERIC,
+    is_visible BOOLEAN DEFAULT TRUE,
+    sort_order INTEGER,
+    class_id TEXT,
+    subject TEXT,
+    period_tag TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );`;
 
