@@ -28,7 +28,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
 
     const loadPosts = async () => {
         const res = await fetchWallPosts(schoolId);
-        setPosts(res);
+        setPosts(res || []);
     };
 
     const handlePost = async () => {
@@ -51,11 +51,12 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
     };
 
     const studentOfTheMonth = useMemo(() => {
+        if (!students || students.length === 0) return null;
         return [...students].sort((a,b) => (b.xp || 0) - (a.xp || 0))[0];
     }, [students]);
 
     return (
-        <div className="p-4 md:p-8 h-full flex flex-col lg:flex-row gap-8 bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden">
+        <div className="p-4 md:p-8 h-full flex flex-col lg:flex-row gap-8 bg-[#F8FAFC] animate-fade-in font-tajawal overflow-hidden" dir="rtl">
             <div className="flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-32 lg:pb-10">
                 {/* Create Post */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shrink-0 group transition-all">
@@ -80,7 +81,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                                     disabled={isPosting || !newPostContent.trim()}
                                     className="bg-indigo-600 text-white px-8 py-2.5 rounded-2xl font-black text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    {isPosting ? <Sparkles className="animate-spin"/> : <Send size={18}/>} نشر الآن
+                                    {isPosting ? <Sparkles className="animate-spin" size={16}/> : <Send size={18}/>} نشر الآن
                                 </button>
                             </div>
                         </div>
@@ -113,11 +114,6 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                             <div className="prose prose-indigo max-w-none text-slate-700 leading-relaxed font-medium mb-8">
                                 {post.content}
                             </div>
-                            {post.imageUrl && (
-                                <div className="rounded-[2.5rem] overflow-hidden mb-8 shadow-2xl border-4 border-white">
-                                    <img src={post.imageUrl} className="w-full h-80 object-cover" alt="post"/>
-                                </div>
-                            )}
                             <div className="pt-6 border-t flex justify-between items-center">
                                 <div className="flex gap-6">
                                     <button className="flex items-center gap-2 text-slate-400 hover:text-rose-500 transition-all font-black text-xs">
@@ -136,7 +132,6 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
 
             {/* Sidebar Widgets */}
             <div className="w-full lg:w-96 space-y-6">
-                {/* Hero Widget: Student of the Month */}
                 {studentOfTheMonth && (
                     <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl group">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-700"><Crown size={180}/></div>
@@ -147,11 +142,6 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                             <h3 className="text-xl font-black mb-1">نجم الأسبوع</h3>
                             <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.3em] mb-6">Hall of Fame</p>
                             <h4 className="text-2xl font-black mb-6">{studentOfTheMonth.name}</h4>
-                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 flex justify-between items-center">
-                                <div><p className="text-[9px] font-black text-indigo-400 uppercase">الرصيد</p><p className="text-xl font-black">{studentOfTheMonth.xp} XP</p></div>
-                                <div className="w-px h-8 bg-white/10"></div>
-                                <div><p className="text-[9px] font-black text-indigo-400 uppercase">الفصل</p><p className="text-xl font-black">{studentOfTheMonth.className}</p></div>
-                            </div>
                         </div>
                     </div>
                 )}
@@ -163,20 +153,6 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                         <EventCard date="25" month="أكتوبر" title="معرض الابتكار المدرسي" />
                         <EventCard date="02" month="نوفمبر" title="الاختبارات الدورية 1" />
                         <EventCard date="15" month="نوفمبر" title="رحلة علمية (المتحف)" />
-                    </div>
-                </div>
-
-                {/* News Widget */}
-                <div className="bg-emerald-900 rounded-[3rem] p-8 text-white relative overflow-hidden shadow-2xl">
-                    <Sparkles className="absolute top-4 left-4 opacity-20" size={32}/>
-                    <h3 className="text-xl font-black mb-4 flex items-center gap-3"><Newspaper/> أخبار عاجلة</h3>
-                    <div className="space-y-3">
-                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                            <p className="text-xs font-bold leading-relaxed">فتح باب التسجيل في مسابقة "المبرمج الصغير" عبر البوابة الذكية.</p>
-                        </div>
-                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                            <p className="text-xs font-bold leading-relaxed">تحديث: تم إضافة 10 أوسمة جديدة لمتجر المكافآت.</p>
-                        </div>
                     </div>
                 </div>
             </div>

@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SystemUser, Student } from '../types';
+import { SystemUser } from '../types';
 import { 
     LayoutGrid, Users, CheckSquare, BarChart3, Calendar, 
     Monitor, PenTool, Database, Activity, Shield, Settings, 
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
-    Building, Zap, Award, Search, FileText, ClipboardList, TrendingUp, BrainCircuit, Medal, Sparkles
+    Building, Zap, Award, Search, FileText, ClipboardList, 
+    TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
+    BookOpen, List, Map, MessageSquare
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -23,17 +25,6 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                setIsSearchOpen(true);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
     const menuGroups = useMemo(() => {
         const role = currentUser.role;
         
@@ -45,6 +36,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/', label: 'لوحة التحكم', icon: LayoutGrid, roles: ['TEACHER', 'SCHOOL_MANAGER', 'SUPER_ADMIN'] },
                     { path: '/hall-of-fame', label: 'لوحة الشرف', icon: Award, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
+                    { path: '/wall', label: 'حائط المدرسة', icon: Newspaper, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
                 ]
             },
             {
@@ -54,9 +46,32 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/students', label: 'الطلاب', icon: Users, roles: ['TEACHER'] },
                     { path: '/attendance', label: 'التحضير', icon: CheckSquare, roles: ['TEACHER'] },
-                    { path: '/gradebook', label: 'سجل الرصد الكلي', icon: ClipboardList, roles: ['TEACHER'] },
+                    { path: '/gradebook', label: 'سجل الرصد', icon: ClipboardList, roles: ['TEACHER'] },
                     { path: '/exams', label: 'الاختبارات', icon: FileText, roles: ['TEACHER'] },
+                    { path: '/grading', label: 'تصحيح المهام', icon: CheckCircle, roles: ['TEACHER'] },
                     { path: '/certificates', label: 'مركز الشهادات', icon: Medal, roles: ['TEACHER'] },
+                ]
+            },
+            {
+                id: 'planning',
+                label: 'التخطيط والجدولة',
+                roles: ['TEACHER'],
+                items: [
+                    { path: '/schedule', label: 'الجدول الدراسي', icon: CalendarDays, roles: ['TEACHER'] },
+                    { path: '/curriculum', label: 'توزيع المنهج', icon: List, roles: ['TEACHER'] },
+                    { path: '/planning', label: 'التحضير الذكي', icon: PenTool, roles: ['TEACHER'] },
+                    { path: '/resources', label: 'مكتبة المصادر', icon: BookOpen, roles: ['TEACHER'] },
+                ]
+            },
+            {
+                id: 'engagement',
+                label: 'التفاعل والمجتمع',
+                roles: ['TEACHER'],
+                items: [
+                    { path: '/meetings', label: 'المواعيد واللقاءات', icon: Calendar, roles: ['TEACHER'] },
+                    { path: '/clubs', label: 'أندية المهارات', icon: Map, roles: ['TEACHER'] },
+                    { path: '/behavior', label: 'السلوك', icon: ShieldAlert, roles: ['TEACHER'] },
+                    { path: '/badges', label: 'استوديو الأوسمة', icon: Sparkles, roles: ['TEACHER'] },
                 ]
             },
             {
@@ -64,9 +79,9 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 label: 'الذكاء والتحليل',
                 roles: ['TEACHER'],
                 items: [
-                    { path: '/analytics', label: 'مركز التنبؤات (AI)', icon: BrainCircuit, roles: ['TEACHER'] },
+                    { path: '/analytics', label: 'مركز التنبؤات', icon: BrainCircuit, roles: ['TEACHER'] },
                     { path: '/reports', label: 'التقارير الشاملة', icon: TrendingUp, roles: ['TEACHER'] },
-                    { path: '/deep-dive', label: 'تحليل الارتباط', icon: Activity, roles: ['TEACHER'] },
+                    { path: '/lab', label: 'مختبر VARK', icon: Zap, roles: ['TEACHER'] },
                 ]
             },
             {
@@ -76,27 +91,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/school-analytics', label: 'تحليل المدرسة', icon: Activity, roles: ['SCHOOL_MANAGER'] },
                     { path: '/teachers-mgmt', label: 'إدارة المعلمين', icon: Briefcase, roles: ['SCHOOL_MANAGER'] },
-                    { path: '/all-students', label: 'السجل العام للطلاب', icon: Users, roles: ['SCHOOL_MANAGER'] },
-                ]
-            },
-            {
-                id: 'tools',
-                label: 'الأدوات الذكية',
-                roles: ['TEACHER'],
-                items: [
-                    { path: '/classroom', label: 'إدارة الفصل', icon: Monitor, roles: ['TEACHER'] },
-                    { path: '/planning', label: 'التحضير الذكي', icon: PenTool, roles: ['TEACHER'] },
-                    { path: '/behavior', label: 'السلوك', icon: ShieldAlert, roles: ['TEACHER'] },
-                    { path: '/lab', label: 'المختبر التعليمي', icon: Zap, roles: ['TEACHER'] },
-                ]
-            },
-            {
-                id: 'system',
-                label: 'إدارة النظام',
-                roles: ['SUPER_ADMIN'],
-                items: [
-                    { path: '/admin-stats', label: 'إحصائيات المنصة', icon: Database, roles: ['SUPER_ADMIN'] },
-                    { path: '/schools-mgmt', label: 'إدارة المدارس', icon: Building, roles: ['SUPER_ADMIN'] },
+                    { path: '/all-students', label: 'السجل العام', icon: Users, roles: ['SCHOOL_MANAGER'] },
                 ]
             },
             {
@@ -136,7 +131,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
             
             <aside className={`flex flex-col border-l border-slate-200 bg-white shadow-xl transition-all duration-300 z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
                 <div className="h-16 flex items-center px-6 border-b border-slate-50 shrink-0">
-                    <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30 shrink-0">
+                    <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0">
                         <Shield size={20} />
                     </div>
                     {isSidebarOpen && <span className="mr-3 font-black text-slate-900 text-lg block truncate">المتابع الذكي</span>}
@@ -156,7 +151,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 <div className="p-4 border-t border-slate-50 shrink-0">
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all text-sm font-black">
                         <LogOut size={18} />
-                        {isSidebarOpen && <span>خروج من النظام</span>}
+                        {isSidebarOpen && <span>خروج</span>}
                     </button>
                 </div>
             </aside>
@@ -166,27 +161,18 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     <div className="flex items-center gap-4">
                         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"><Menu size={20}/></button>
                         <div className="h-4 w-px bg-slate-200"></div>
-                        <div className="flex items-center gap-2">
-                             <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
-                                currentUser.role === 'SUPER_ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                                currentUser.role === 'SCHOOL_MANAGER' ? 'bg-emerald-100 text-emerald-700' :
-                                currentUser.role === 'PARENT' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                             }`}>
-                                {currentUser.role}
-                             </span>
-                             <h2 className="text-sm font-bold text-slate-600">منظومة الإدارة السحابية</h2>
-                        </div>
+                        <h2 className="text-sm font-bold text-slate-600">بوابة الموظفين</h2>
                     </div>
                     
                     <div className="flex items-center gap-4">
-                        <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-brand-500 transition-colors hidden md:block" title="البحث الشامل (Ctrl+K)">
+                        <button onClick={() => setIsSearchOpen(true)} className="p-2 text-slate-400 hover:text-brand-500 transition-colors hidden md:block">
                             <Search size={20} />
                         </button>
                         <NotificationsCenter userId={currentUser.id} />
-                        <div className="flex items-center gap-3 cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200" onClick={() => navigate('/profile')}>
+                        <div className="flex items-center gap-3 cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-slate-50" onClick={() => navigate('/profile')}>
                             <div className="text-left hidden sm:block">
                                 <p className="text-xs font-black text-slate-900 leading-none">{currentUser.name}</p>
-                                <p className="text-[9px] text-slate-400 mt-1 uppercase font-black tracking-tighter">الحساب الموثق</p>
+                                <p className="text-[9px] text-slate-400 mt-1 uppercase font-black">{currentUser.role}</p>
                             </div>
                             <div className="w-9 h-9 bg-brand-50 text-brand-600 rounded-xl flex items-center justify-center font-black border border-brand-100 group-hover:bg-brand-500 group-hover:text-white transition-all">
                                 {currentUser.name.charAt(0)}
@@ -195,7 +181,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-8 custom-scrollbar relative">
+                <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                     <div className="max-w-6xl mx-auto pb-10">
                         {children}
                     </div>
@@ -204,5 +190,8 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
         </div>
     );
 };
+
+const Newspaper = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>;
+const CheckCircle = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 
 export default StaffPortal;
