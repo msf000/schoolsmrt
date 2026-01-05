@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident, InteractiveGame } from '../types';
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
-    Zap, Sparkles, GraduationCap, User, History, ChevronLeft
+    Zap, Sparkles, GraduationCap, User, History, ChevronLeft, Newspaper
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
@@ -74,6 +75,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                     <ActionCard title="كشف درجاتي" icon={<Activity/>} color="bg-rose-500" onClick={()=>setActiveTab('EVAL')} />
                                     <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-emerald-500" onClick={()=>setActiveTab('GAMES')} />
                                     <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
+                                    <ActionCard title="ملفي الشخصي" icon={<User/>} color="bg-indigo-700" onClick={()=>setActiveTab('ID')} />
                                 </div>
                             </div>
                             <div className="lg:col-span-1">
