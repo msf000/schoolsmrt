@@ -31,7 +31,7 @@ const GamesBuilder: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
         if (!form.subject || !form.title || !form.type) return;
         setIsGenerating(true);
         try {
-            const content = await generateGameContent(form.subject, form.title, form.type);
+            const content = await generateGameContent(form.subject, form.title!, form.type);
             if (content) {
                 const newGame: InteractiveGame = {
                     id: `game_${Date.now()}`,
@@ -58,9 +58,10 @@ const GamesBuilder: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
     return (
         <div className="p-6 h-full flex flex-col bg-gray-50 animate-fade-in font-tajawal pb-24" dir="rtl">
             <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-                        <Gamepad2 className="text-indigo-600" size={36}/> مصنع الألعاب الذكي
+                <div className="text-right">
+                    <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3 justify-end">
+                        مصنع الألعاب الذكي
+                        <Gamepad2 className="text-indigo-600" size={36}/>
                     </h2>
                     <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">توليد أنشطة تفاعلية بالذكاء الاصطناعي</p>
                 </div>
@@ -80,8 +81,8 @@ const GamesBuilder: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                                 </div>
                                 <button onClick={() => { if(confirm('حذف اللعبة؟')){ deleteGame(game.id); setGames(getGames(currentUser.id)); } }} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
                             </div>
-                            <h3 className="font-black text-xl text-slate-800 mb-2 truncate">{game.title}</h3>
-                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-6">{game.subject} • {game.targetClass}</p>
+                            <h3 className="font-black text-xl text-slate-800 mb-2 truncate text-right">{game.title}</h3>
+                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-6 text-right">{game.subject} • {game.targetClass}</p>
                             <div className="mt-auto flex justify-between items-center">
                                 <span className="text-xs font-black text-indigo-600 flex items-center gap-1"><Sparkles size={14}/> {game.xpReward} XP</span>
                                 <button className="p-3 bg-slate-900 text-white rounded-xl shadow-lg hover:bg-black transition-all"><Play size={18}/></button>
@@ -97,30 +98,30 @@ const GamesBuilder: React.FC<{ currentUser: SystemUser }> = ({ currentUser }) =>
                 </div>
             ) : (
                 <div className="max-w-2xl mx-auto w-full bg-white p-10 rounded-[3.5rem] border shadow-2xl animate-slide-up">
-                    <h3 className="text-2xl font-black text-slate-800 mb-8 border-b pb-6 flex items-center gap-3"><Sparkles className="text-indigo-600"/> تخصيص النشاط التفاعلي</h3>
+                    <h3 className="text-2xl font-black text-slate-800 mb-8 border-b pb-6 flex items-center gap-3 justify-end"><Sparkles className="text-indigo-600"/> تخصيص النشاط التفاعلي</h3>
                     <div className="space-y-6">
-                        <div>
+                        <div className="text-right">
                             <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">موضوع اللعبة (أدخل عنوان الدرس)</label>
-                            <input className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner" placeholder="مثلاً: المجموعة الشمسية، أنواع الخبر..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})}/>
+                            <input className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner text-right" placeholder="مثلاً: المجموعة الشمسية، أنواع الخبر..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})}/>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">المادة</label>
-                                <select className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-sm outline-none shadow-inner" value={form.subject} onChange={e=>setForm({...form, subject: e.target.value})}>
-                                    <option value="">-- اختر المادة --</option>
-                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">الفصل المستهدف</label>
-                                <select className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-sm outline-none shadow-inner" value={form.targetClass} onChange={e=>setForm({...form, targetClass: e.target.value})}>
+                            <div className="text-right">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 text-right">الفصل المستهدف</label>
+                                <select className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-sm outline-none shadow-inner text-right" value={form.targetClass} onChange={e=>setForm({...form, targetClass: e.target.value})}>
                                     <option value="">-- كل فصولي --</option>
                                     {myClasses.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
+                            <div className="text-right">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 text-right">المادة</label>
+                                <select className="w-full p-4 border rounded-2xl bg-slate-50 font-black text-sm outline-none shadow-inner text-right" value={form.subject} onChange={e=>setForm({...form, subject: e.target.value})}>
+                                    <option value="">-- اختر المادة --</option>
+                                    {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-4">اختر ميكانيكية اللعبة</label>
+                        <div className="text-right">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-4 text-right">اختر ميكانيكية اللعبة</label>
                             <div className="grid grid-cols-2 gap-4">
                                 <button onClick={()=>setForm({...form, type: 'MATCHING'})} className={`p-8 rounded-3xl border-4 flex flex-col items-center gap-4 transition-all ${form.type==='MATCHING'?'bg-indigo-600 border-indigo-200 text-white shadow-xl scale-105':'bg-slate-50 border-transparent text-slate-400 hover:bg-indigo-50'}`}>
                                     <Puzzle size={40}/>

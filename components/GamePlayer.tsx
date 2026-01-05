@@ -99,15 +99,15 @@ const GamePlayer: React.FC<Props> = ({ game, student, onClose }) => {
             <header className="relative z-10 p-6 flex justify-between items-center border-b border-white/5 bg-black/20 backdrop-blur-md">
                 <div className="flex items-center gap-4">
                     <button onClick={onClose} className="p-3 hover:bg-white/10 rounded-2xl transition-all"><X size={24}/></button>
-                    <div>
+                    <div className="text-right">
                         <h2 className="text-xl font-black">{game.title}</h2>
-                        <div className="flex gap-3 text-[10px] font-black text-indigo-400 uppercase tracking-widest">
-                            <span>{game.subject}</span>
-                            <span>•</span>
+                        <div className="flex gap-3 text-[10px] font-black text-indigo-400 uppercase tracking-widest justify-end">
                             <span className="flex items-center gap-1">
-                                {game.type === 'MATCHING' ? <Puzzle size={12}/> : <Layers size={12}/>}
                                 {game.type === 'MATCHING' ? 'لعبة التوصيل' : 'لعبة التصنيف'}
+                                {game.type === 'MATCHING' ? <Puzzle size={12}/> : <Layers size={12}/>}
                             </span>
+                            <span>•</span>
+                            <span>{game.subject}</span>
                         </div>
                     </div>
                 </div>
@@ -203,7 +203,7 @@ const GamePlayer: React.FC<Props> = ({ game, student, onClose }) => {
                                 </p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="w-full py-6 bg-white text-slate-950 rounded-[2.5rem] font-black text-2xl shadow-2xl hover:scale-105 transition-all">العودة للبوابة</button>
+                        <button onClick={onClose} className="w-full py-6 bg-white text-slate-900 rounded-[2.5rem] font-black text-2xl shadow-2xl hover:scale-105 transition-all">العودة للبوابة</button>
                     </div>
                 )}
             </main>

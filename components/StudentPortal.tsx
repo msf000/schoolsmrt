@@ -48,7 +48,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                     <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-2xl">
                         <GraduationCap size={28}/>
                     </div>
-                    <div>
+                    <div className="text-right">
                         <h1 className="font-black text-lg text-white">بوابة الطالب الذكية</h1>
                         <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">{currentUser.name}</p>
                     </div>
@@ -93,13 +93,13 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 
                 {activeTab === 'GAMES' && (
                     <div className="space-y-8 animate-fade-in">
-                        <h2 className="text-3xl font-black flex items-center gap-4"><Gamepad2 className="text-emerald-400" size={40}/> مستودع الألعاب التفاعلية</h2>
+                        <h2 className="text-3xl font-black flex items-center gap-4 justify-end">مستودع الألعاب التفاعلية <Gamepad2 className="text-emerald-400" size={40}/></h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {games.map(game => (
                                 <div key={game.id} className="bg-white/5 p-8 rounded-[3rem] border border-white/5 flex flex-col justify-between h-72 group hover:bg-white/10 transition-all cursor-pointer" onClick={()=>setPlayingGame(game)}>
-                                    <div>
-                                        <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl"><Sparkles size={28}/></div>
-                                        <h3 className="text-xl font-black">{game.title}</h3>
+                                    <div className="text-right">
+                                        <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl mr-auto ml-0 md:ml-auto md:mr-0"><Sparkles size={28}/></div>
+                                        <h3 className="text-xl font-black text-white">{game.title}</h3>
                                         <p className="text-[10px] text-emerald-400 font-bold uppercase mt-1">{game.subject}</p>
                                     </div>
                                     <div className="flex justify-between items-center">
@@ -138,8 +138,8 @@ const ActionCard = ({ title, icon, color, onClick }: any) => (
             {React.cloneElement(icon, { size: 28 })}
         </div>
         <h3 className="text-xl font-black mb-2 flex items-center justify-between">
-            {title}
             <ChevronLeft className="group-hover:translate-x-[-8px] transition-transform" size={18}/>
+            {title}
         </h3>
     </div>
 );
@@ -151,6 +151,6 @@ const NavBtn = ({ icon, label, active, onClick }: any) => (
     </button>
 );
 
-const Play = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>;
+const Play = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>;
 
 export default StudentPortal;

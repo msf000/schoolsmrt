@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { WallPost, SystemUser, Student } from '../types';
 import { fetchWallPosts, saveWallPost } from '../services/storageService';
@@ -108,7 +109,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     <button onClick={()=>setFilter('NEWS')} className={`px-6 py-2 rounded-xl text-[10px] font-black transition-all ${filter==='NEWS'?'bg-indigo-600 text-white shadow-lg':'text-gray-400'}`}>أخبار</button>
                 </div>
 
-                {/* News Feed */}
+                {/* Feed */}
                 <div className="space-y-6">
                     {filteredPosts.map(post => (
                         <div key={post.id} className="bg-white p-8 rounded-[3rem] border border-slate-50 shadow-sm hover:shadow-xl transition-all animate-slide-up group">
@@ -149,7 +150,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                 </div>
             </div>
 
-            {/* Widgets Sidebar */}
+            {/* Sidebar Widgets */}
             <div className="w-full lg:w-96 space-y-6">
                 {studentOfTheMonth && (
                     <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl group">
@@ -170,7 +171,7 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
                     </div>
                 )}
 
-                {/* Upcoming Events */}
+                {/* Calendar Widget */}
                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
                     <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 justify-end">أجندة الفعاليات <Calendar className="text-indigo-600"/></h3>
                     <div className="space-y-4">
