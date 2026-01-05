@@ -97,7 +97,6 @@ const App: React.FC = () => {
                 <Route path="/" element={getStaffDashboard()} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
                 
-                {/* مسارات المعلم */}
                 {currentUser.role === 'TEACHER' && (
                     <>
                         <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={loadInitialData} onUpdateStudent={loadInitialData} onDeleteStudent={loadInitialData} onImportStudents={loadInitialData} currentUser={currentUser as SystemUser} />} />
@@ -107,7 +106,6 @@ const App: React.FC = () => {
                         <Route path="/grading" element={<TeacherTaskGrader currentUser={currentUser as SystemUser} />} />
                         <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
                         <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser as SystemUser} />} />
-                        <Route path="/meetings" element={<MeetingScheduler currentUser={currentUser as SystemUser} isTeacherView={true} />} />
                         <Route path="/resources" element={<ResourcesView currentUser={currentUser as SystemUser} />} />
                         <Route path="/clubs" element={<StudentClubs students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/analytics" element={<PredictiveAnalytics students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
@@ -119,10 +117,10 @@ const App: React.FC = () => {
                         <Route path="/badges" element={<SmartBadges students={students} />} />
                         <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
                         <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
+                        <Route path="/works" element={<Performance students={students} performance={performance} onAddPerformance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
 
-                {/* مسارات مدير المدرسة */}
                 {currentUser.role === 'SCHOOL_MANAGER' && (
                     <>
                         <Route path="/school-analytics" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={teachers} />} />
