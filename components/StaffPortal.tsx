@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SystemUser } from '../types';
@@ -8,7 +7,7 @@ import {
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
     Building, Zap, Award, Search, FileText, ClipboardList, 
     TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
-    BookOpen, List, Map, MessageSquare, Newspaper, CheckCircle
+    BookOpen, List, Map, MessageSquare, Newspaper, CheckCircle, Gamepad2
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -49,6 +48,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/gradebook', label: 'سجل الرصد', icon: ClipboardList, roles: ['TEACHER'] },
                     { path: '/exams', label: 'الاختبارات', icon: FileText, roles: ['TEACHER'] },
                     { path: '/grading', label: 'تصحيح المهام', icon: CheckCircle, roles: ['TEACHER'] },
+                    { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
                     { path: '/certificates', label: 'مركز الشهادات', icon: Medal, roles: ['TEACHER'] },
                 ]
             },
