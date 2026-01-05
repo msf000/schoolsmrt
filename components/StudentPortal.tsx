@@ -4,7 +4,7 @@ import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, Beha
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
-    Zap, Sparkles, GraduationCap, User, History, ChevronLeft, Newspaper
+    Zap, Sparkles, GraduationCap, User, History, ChevronLeft
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
