@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident } from '../types';
+import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident, InteractiveGame } from '../types';
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
@@ -9,7 +9,7 @@ import {
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
 import StudentDigitalID from './StudentDigitalID';
-import StudentQuestSystem from './StudentQuestSystem';
+import GamePlayer from './GamePlayer';
 import RemedialBridge from './RemedialBridge';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
 import StudentTaskView from './StudentTaskView';
@@ -21,8 +21,10 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
+    const [games, setGames] = useState<InteractiveGame[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'WALL' | 'TIMELINE' | 'TASKS' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'WALL' | 'GAMES' | 'TASKS' | 'ID'>('DASHBOARD');
+    const [playingGame, setPlayingGame] = useState<InteractiveGame | null>(null);
 
     useEffect(() => {
         loadData();
@@ -34,7 +36,10 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
         setAttendance(att.filter(a => a.studentId === currentUser.id));
         setBehaviorLog(beh.filter(i => i.studentId === currentUser.id));
         setFormsResults(getFormsDetailedResults(currentUser.createdById || ''));
+        setGames(getGames(currentUser.createdById || ''));
     };
+
+    if (playingGame) return <GamePlayer game={playingGame} student={currentUser} onClose={() => { setPlayingGame(null); loadData(); }} />;
 
     return (
         <div className="min-h-screen bg-[#020617] text-white flex flex-col font-tajawal pb-24" dir="rtl">
@@ -69,9 +74,9 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                 <RemedialBridge student={currentUser} formsResults={formsResults} />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <ActionCard title="كشف درجاتي" icon={<Activity/>} color="bg-rose-500" onClick={()=>setActiveTab('EVAL')} />
+                                    <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-emerald-500" onClick={()=>setActiveTab('GAMES')} />
                                     <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
-                                    <ActionCard title="حائط المدرسة" icon={<Newspaper/>} color="bg-emerald-500" onClick={()=>setActiveTab('WALL')} />
-                                    <ActionCard title="سجل الفخر" icon={<History/>} color="bg-purple-500" onClick={()=>setActiveTab('TIMELINE')} />
+                                    <ActionCard title="حائط المدرسة" icon={<Newspaper/>} color="bg-purple-500" onClick={()=>setActiveTab('WALL')} />
                                 </div>
                             </div>
                             <div className="lg:col-span-1">
@@ -83,15 +88,41 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
                 {activeTab === 'EVAL' && <StudentEvaluationView student={currentUser} performance={performance} />}
                 {activeTab === 'WALL' && <SchoolWall currentUser={currentUser} students={[]} />}
-                {activeTab === 'TIMELINE' && <StudentAchievementTimeline student={currentUser} attendance={attendance} performance={performance} />}
                 {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
+                
+                {activeTab === 'GAMES' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <h2 className="text-3xl font-black flex items-center gap-4"><Gamepad2 className="text-emerald-400" size={40}/> مستودع الألعاب التفاعلية</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {games.map(game => (
+                                <div key={game.id} className="bg-white/5 p-8 rounded-[3rem] border border-white/5 flex flex-col justify-between h-72 group hover:bg-white/10 transition-all cursor-pointer" onClick={()=>setPlayingGame(game)}>
+                                    <div>
+                                        <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl"><Sparkles size={28}/></div>
+                                        <h3 className="text-xl font-black">{game.title}</h3>
+                                        <p className="text-[10px] text-emerald-400 font-bold uppercase mt-1">{game.subject}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-black text-indigo-300">جائزة: {game.xpReward} XP</span>
+                                        <div className="p-3 bg-indigo-600 rounded-2xl group-hover:scale-110 transition-transform"><Play size={20}/></div>
+                                    </div>
+                                </div>
+                            ))}
+                            {games.length === 0 && (
+                                <div className="col-span-full py-40 text-center opacity-10 flex flex-col items-center">
+                                    <Gamepad2 size={100}/>
+                                    <p className="text-2xl font-black mt-4">لا توجد ألعاب متاحة حالياً.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
                 <NavBtn icon={<Activity/>} label="درجاتي" active={activeTab==='EVAL'} onClick={()=>setActiveTab('EVAL')}/>
-                <NavBtn icon={<Newspaper/>} label="الحائط" active={activeTab==='WALL'} onClick={()=>setActiveTab('WALL')}/>
+                <NavBtn icon={<Gamepad2/>} label="الألعاب" active={activeTab==='GAMES'} onClick={()=>setActiveTab('GAMES')}/>
                 <NavBtn icon={<BookOpen/>} label="الواجبات" active={activeTab==='TASKS'} onClick={()=>setActiveTab('TASKS')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
@@ -119,5 +150,7 @@ const NavBtn = ({ icon, label, active, onClick }: any) => (
         <span className="text-[10px] font-bold">{label}</span>
     </button>
 );
+
+const Play = ({ size }: any) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>;
 
 export default StudentPortal;

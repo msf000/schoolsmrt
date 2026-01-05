@@ -20,7 +20,6 @@ const SchoolWall: React.FC<Props> = ({ currentUser, students }) => {
     const [isPosting, setIsPosting] = useState(false);
     const [filter, setFilter] = useState<'ALL' | 'ACHIEVEMENTS' | 'NEWS'>('ALL');
 
-    // تحديد معرف المدرسة بناءً على المستخدم الحالي
     const schoolId = (currentUser as any).schoolId || 'GLOBAL';
 
     useEffect(() => {

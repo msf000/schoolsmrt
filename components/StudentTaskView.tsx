@@ -13,15 +13,10 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
-        // نستخدم القيم الافتراضية لمنع أخطاء النوع undefined
         const teacherId: string = student.createdById || '';
         const currentClassName: string = student.className || '';
-        
-        // جلب المهام وتصفيتها بناءً على فصل الطالب
         const allTasks = getTasks(teacherId);
         setTasks(allTasks.filter(t => t.classId === currentClassName));
-        
-        // جلب تسليمات الطالب الحالية
         setSubmissions(getSubmissions().filter(s => s.studentId === student.id));
     }, [student]);
 
@@ -36,9 +31,7 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
         setIsUploading(task.id);
         
         try {
-            // محاكاة عملية الرفع السحابي
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
             const newSub: TaskSubmission = {
                 id: `sub_${Date.now()}`,
                 taskId: task.id,
@@ -48,7 +41,6 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
                 submittedAt: new Date().toISOString(),
                 status: 'PENDING'
             };
-            
             await saveSubmission(newSub);
             setSubmissions(prev => [...prev, newSub]);
             setSelectedFile(null);
@@ -67,9 +59,7 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
                     <h2 className="text-4xl font-black text-white flex items-center gap-4">
                         <BookOpen className="text-indigo-400" size={40}/> حقيبة الواجبات
                     </h2>
-                    <p className="text-indigo-200 text-lg font-bold mt-2">
-                        لديك {tasks.length - submissions.length} واجبات بانتظار التسليم
-                    </p>
+                    <p className="text-indigo-200 text-lg font-bold mt-2">لديك {tasks.length - submissions.length} واجبات بانتظار التسليم</p>
                 </div>
                 <div className="bg-white/5 p-4 rounded-3xl border border-white/10 text-center min-w-[150px]">
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">المهام المكتملة</p>
@@ -92,9 +82,7 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
                                         </div>
                                         <div className="text-right">
                                             <h3 className="text-2xl font-black text-white">{task.title}</h3>
-                                            <p className="text-xs text-indigo-300 font-bold uppercase mt-1">
-                                                {task.subject} • موعد التسليم: {task.dueDate}
-                                            </p>
+                                            <p className="text-xs text-indigo-300 font-bold uppercase mt-1">{task.subject} • موعد التسليم: {task.dueDate}</p>
                                         </div>
                                     </div>
                                     <p className="text-slate-400 text-sm leading-relaxed text-right">{task.description}</p>
@@ -102,9 +90,7 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
                                     {sub?.status === 'GRADED' && (
                                         <div className="bg-indigo-600/20 p-6 rounded-3xl border border-indigo-500/30 animate-slide-up text-right">
                                             <div className="flex justify-between items-center mb-2">
-                                                <h4 className="text-sm font-black text-indigo-300 flex items-center gap-2">
-                                                    <Sparkles size={16}/> تقييم المعلم:
-                                                </h4>
+                                                <h4 className="text-sm font-black text-indigo-300 flex items-center gap-2"><Sparkles size={16}/> تقييم المعلم:</h4>
                                                 <span className="text-2xl font-black text-white">{sub.grade} / {task.maxScore}</span>
                                             </div>
                                             <p className="text-sm text-indigo-100 italic leading-relaxed">"{sub.feedback}"</p>
@@ -119,17 +105,13 @@ const StudentTaskView: React.FC<{ student: Student }> = ({ student }) => {
                                                 <CheckCircle2 size={32}/>
                                             </div>
                                             <p className="text-emerald-400 font-black mb-1">تم التسليم بنجاح</p>
-                                            <p className="text-[10px] text-white/40 font-bold">
-                                                {new Date(sub.submittedAt).toLocaleString('ar-SA')}
-                                            </p>
+                                            <p className="text-[10px] text-white/40 font-bold">{new Date(sub.submittedAt).toLocaleString('ar-SA')}</p>
                                         </div>
                                     ) : (
                                         <div className="flex flex-col gap-3">
                                             <label className="flex-1 border-2 border-dashed border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-white/5 hover:border-indigo-500/50 transition-all group">
                                                 {selectedFile ? <FileText className="text-indigo-400"/> : <Upload className="text-slate-600 group-hover:text-indigo-400"/>}
-                                                <span className="text-xs font-bold text-slate-500 group-hover:text-indigo-300">
-                                                    {selectedFile ? selectedFile.name : 'ارفق الحل (صورة/PDF)'}
-                                                </span>
+                                                <span className="text-xs font-bold text-slate-500 group-hover:text-indigo-300">{selectedFile ? selectedFile.name : 'ارفق الحل (صورة/PDF)'}</span>
                                                 <input type="file" className="hidden" onChange={handleFileChange} />
                                             </label>
                                             <button 
