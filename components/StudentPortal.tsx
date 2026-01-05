@@ -1,11 +1,11 @@
-
-import React, { useState, useEffect } from 'react';
-import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident, InteractiveGame } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident, InteractiveGame, AttendanceStatus } from '../types';
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
-    Zap, Sparkles, GraduationCap, User, History, ChevronLeft
+    Zap, Sparkles, GraduationCap, User, History, ChevronLeft, CheckCircle2, Clock
 } from 'lucide-react';
+import { formatDualDate } from '../services/dateService';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
 import StudentDigitalID from './StudentDigitalID';
@@ -22,7 +22,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [games, setGames] = useState<InteractiveGame[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'GAMES' | 'TASKS' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'GAMES' | 'TASKS' | 'ID' | 'ATTENDANCE'>('DASHBOARD');
     const [playingGame, setPlayingGame] = useState<InteractiveGame | null>(null);
 
     useEffect(() => {
@@ -37,6 +37,14 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
         setFormsResults(getFormsDetailedResults(currentUser.createdById || ''));
         setGames(getGames(currentUser.createdById || ''));
     };
+
+    const attendanceStats = useMemo(() => {
+        const total = attendance.length;
+        if (total === 0) return { rate: 100, present: 0, absent: 0 };
+        const present = attendance.filter(a => a.status === AttendanceStatus.PRESENT).length;
+        const absent = attendance.filter(a => a.status === AttendanceStatus.ABSENT).length;
+        return { rate: Math.round((present / total) * 100), present, absent };
+    }, [attendance]);
 
     if (playingGame) return <GamePlayer game={playingGame} student={currentUser} onClose={() => { setPlayingGame(null); loadData(); }} />;
 
@@ -73,9 +81,9 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                 <RemedialBridge student={currentUser} formsResults={formsResults} />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <ActionCard title="كشف درجاتي" icon={<Activity/>} color="bg-rose-500" onClick={()=>setActiveTab('EVAL')} />
-                                    <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-emerald-500" onClick={()=>setActiveTab('GAMES')} />
-                                    <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
-                                    <ActionCard title="ملفي الشخصي" icon={<User/>} color="bg-indigo-700" onClick={()=>setActiveTab('ID')} />
+                                    <ActionCard title="سجل الانضباط" icon={<CheckCircle2/>} color="bg-emerald-500" onClick={()=>setActiveTab('ATTENDANCE')} />
+                                    <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-indigo-500" onClick={()=>setActiveTab('GAMES')} />
+                                    <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-purple-500" onClick={()=>setActiveTab('TASKS')} />
                                 </div>
                             </div>
                             <div className="lg:col-span-1">
@@ -89,6 +97,45 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
                 
+                {activeTab === 'ATTENDANCE' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/5 text-center">
+                                <p className="text-[10px] font-black text-indigo-400 uppercase mb-2">نسبة الانضباط</p>
+                                <p className="text-5xl font-black">{attendanceStats.rate}%</p>
+                            </div>
+                            <div className="bg-emerald-500/10 p-8 rounded-[3rem] border border-emerald-500/20 text-center">
+                                <p className="text-[10px] font-black text-emerald-400 uppercase mb-2">أيام الحضور</p>
+                                <p className="text-5xl font-black text-emerald-400">{attendanceStats.present}</p>
+                            </div>
+                            <div className="bg-rose-500/10 p-8 rounded-[3rem] border border-rose-500/20 text-center">
+                                <p className="text-[10px] font-black text-rose-400 uppercase mb-2">أيام الغياب</p>
+                                <p className="text-5xl font-black text-rose-400">{attendanceStats.absent}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white/5 rounded-[3rem] border border-white/5 overflow-hidden">
+                            <table className="w-full text-right">
+                                <thead className="bg-white/5 text-[10px] font-black uppercase text-slate-500">
+                                    <tr><th className="p-6">التاريخ</th><th className="p-6">المادة</th><th className="p-6 text-center">الحالة</th></tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {attendance.sort((a,b)=>b.date.localeCompare(a.date)).map(a => (
+                                        <tr key={a.id} className="hover:bg-white/5 transition-colors">
+                                            <td className="p-6 font-bold">{formatDualDate(a.date)}</td>
+                                            <td className="p-6 text-indigo-300 font-bold">{a.subject || 'حصة عامة'}</td>
+                                            <td className="p-6 text-center">
+                                                <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase ${a.status === AttendanceStatus.PRESENT ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                    {a.status === AttendanceStatus.PRESENT ? 'حاضر' : 'غائب'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'GAMES' && (
                     <div className="space-y-8 animate-fade-in">
                         <h2 className="text-3xl font-black flex items-center gap-4 justify-end">مستودع الألعاب التفاعلية <Gamepad2 className="text-emerald-400" size={40}/></h2>
@@ -120,8 +167,8 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
                 <NavBtn icon={<Activity/>} label="درجاتي" active={activeTab==='EVAL'} onClick={()=>setActiveTab('EVAL')}/>
+                <NavBtn icon={<CheckCircle2/>} label="الانضباط" active={activeTab==='ATTENDANCE'} onClick={()=>setActiveTab('ATTENDANCE')}/>
                 <NavBtn icon={<Gamepad2/>} label="الألعاب" active={activeTab==='GAMES'} onClick={()=>setActiveTab('GAMES')}/>
-                <NavBtn icon={<BookOpen/>} label="الواجبات" active={activeTab==='TASKS'} onClick={()=>setActiveTab('TASKS')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>
 

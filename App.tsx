@@ -30,7 +30,6 @@ import ScheduleView from './components/ScheduleView';
 import CurriculumManager from './components/CurriculumManager';
 import ResourcesView from './components/ResourcesView';
 import StudentClubs from './components/StudentClubs';
-import GamesBuilder from './components/GamesBuilder';
 import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from './services/storageService';
 import Login from './components/Login';
 import ReloadPrompt from './components/ReloadPrompt';
@@ -105,7 +104,6 @@ const App: React.FC = () => {
                         <Route path="/gradebook" element={<GradebookMaster students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/exams" element={<ExamsManager currentUser={currentUser as SystemUser} />} />
                         <Route path="/grading" element={<TeacherTaskGrader currentUser={currentUser as SystemUser} />} />
-                        <Route path="/games" element={<GamesBuilder currentUser={currentUser as SystemUser} />} />
                         <Route path="/schedule" element={<ScheduleView currentUser={currentUser as SystemUser} />} />
                         <Route path="/curriculum" element={<CurriculumManager currentUser={currentUser as SystemUser} />} />
                         <Route path="/meetings" element={<MeetingScheduler currentUser={currentUser as SystemUser} isTeacherView={true} />} />

@@ -1,8 +1,3 @@
-
 import React from 'react';
-
-const GhostFile: React.FC<any> = () => {
-    return null;
-};
-
+const GhostFile: React.FC<any> = () => null;
 export default GhostFile;

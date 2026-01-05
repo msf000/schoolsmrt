@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { 
     Student, AttendanceRecord, PerformanceRecord, BehaviorIncident, 
@@ -308,13 +307,19 @@ export const getCurriculumUnits = (tid: string): CurriculumUnit[] => getLocal('c
 
 export const saveCurriculumUnit = async (u: CurriculumUnit) => setLocal('curriculum_units', [...getLocal('curriculum_units').filter(x => x.id !== u.id), u]);
 
-export const deleteCurriculumUnit = (id: string) => setLocal('curriculum_units', getLocal('curriculum_units').filter(u => u.id !== id));
+export const deleteCurriculumUnit = (id: string) => {
+    const units = getLocal('curriculum_units');
+    setLocal('curriculum_units', units.filter((u: CurriculumUnit) => u.id !== id));
+};
 
 export const getCurriculumLessons = (unitId: string): CurriculumLesson[] => getLocal('curriculum_lessons').filter(l => l.unitId === unitId);
 
 export const saveCurriculumLesson = async (l: CurriculumLesson) => setLocal('curriculum_lessons', [...getLocal('curriculum_lessons').filter(x => x.id !== l.id), l]);
 
-export const deleteCurriculumLesson = (id: string) => setLocal('curriculum_lessons', getLocal('curriculum_lessons').filter(l => l.id !== id));
+export const deleteCurriculumLesson = (id: string) => {
+    const lessons = getLocal('curriculum_lessons');
+    setLocal('curriculum_lessons', lessons.filter((l: CurriculumLesson) => l.id !== id));
+};
 
 export const toggleCurriculumLesson = (id: string, isCompleted: boolean) => {
     const lessons = getLocal('curriculum_lessons');
