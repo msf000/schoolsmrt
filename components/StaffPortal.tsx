@@ -8,7 +8,7 @@ import {
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
     Building, Zap, Award, Search, FileText, ClipboardList, 
     TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
-    BookOpen, List, Map, MessageSquare, Newspaper, CheckCircle, Gamepad2
+    BookOpen, List, Map, MessageSquare, CheckCircle, Gamepad2
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -36,7 +36,6 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/', label: 'لوحة التحكم', icon: LayoutGrid, roles: ['TEACHER', 'SCHOOL_MANAGER', 'SUPER_ADMIN'] },
                     { path: '/hall-of-fame', label: 'لوحة الشرف', icon: Award, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
-                    { path: '/wall', label: 'حائط المدرسة', icon: Newspaper, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
                 ]
             },
             {

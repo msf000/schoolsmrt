@@ -4,7 +4,7 @@ import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, Beha
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
-    Zap, Sparkles, GraduationCap, User, Newspaper, History, ChevronLeft
+    Zap, Sparkles, GraduationCap, User, History, ChevronLeft
 } from 'lucide-react';
 import StudentJourney from './StudentJourney';
 import StudentEvaluationView from './StudentEvaluationView';
@@ -14,7 +14,6 @@ import RemedialBridge from './RemedialBridge';
 import StudentAchievementTimeline from './StudentAchievementTimeline';
 import StudentTaskView from './StudentTaskView';
 import SoftSkillsRadar from './SoftSkillsRadar';
-import SchoolWall from './SchoolWall';
 import StudentAITutor from './StudentAITutor';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
@@ -23,7 +22,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [games, setGames] = useState<InteractiveGame[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'WALL' | 'GAMES' | 'TASKS' | 'ID'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'GAMES' | 'TASKS' | 'ID'>('DASHBOARD');
     const [playingGame, setPlayingGame] = useState<InteractiveGame | null>(null);
 
     useEffect(() => {
@@ -46,7 +45,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
             <header className="bg-slate-900/40 backdrop-blur-3xl border-b border-white/5 px-6 py-5 flex justify-between items-center sticky top-0 z-50">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-2xl">
-                        <GraduationCap size={28}/>
+                        < GraduationCap size={28}/>
                     </div>
                     <div className="text-right">
                         <h1 className="font-black text-lg text-white">بوابة الطالب الذكية</h1>
@@ -76,7 +75,6 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                     <ActionCard title="كشف درجاتي" icon={<Activity/>} color="bg-rose-500" onClick={()=>setActiveTab('EVAL')} />
                                     <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-emerald-500" onClick={()=>setActiveTab('GAMES')} />
                                     <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-indigo-500" onClick={()=>setActiveTab('TASKS')} />
-                                    <ActionCard title="حائط المدرسة" icon={<Newspaper/>} color="bg-purple-500" onClick={()=>setActiveTab('WALL')} />
                                 </div>
                             </div>
                             <div className="lg:col-span-1">
@@ -87,7 +85,6 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 )}
 
                 {activeTab === 'EVAL' && <StudentEvaluationView student={currentUser} performance={performance} />}
-                {activeTab === 'WALL' && <SchoolWall currentUser={currentUser} students={[]} />}
                 {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
                 

@@ -26,7 +26,6 @@ import PrincipalDashboard from './components/PrincipalDashboard';
 import HallOfFame from './components/HallOfFame';
 import TeacherTaskGrader from './components/TeacherTaskGrader';
 import SmartBadges from './components/SmartBadges';
-import SchoolWall from './components/SchoolWall';
 import MeetingScheduler from './components/MeetingScheduler';
 import ScheduleView from './components/ScheduleView';
 import CurriculumManager from './components/CurriculumManager';
@@ -98,7 +97,6 @@ const App: React.FC = () => {
             <Routes>
                 <Route path="/" element={getStaffDashboard()} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
-                <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
                 
                 {/* مسارات المعلم */}
                 {currentUser.role === 'TEACHER' && (
