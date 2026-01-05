@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident, InteractiveGame } from '../types';
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';

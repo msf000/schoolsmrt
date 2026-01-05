@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { SystemUser, Student, AttendanceRecord, PerformanceRecord } from '../types';
@@ -26,7 +25,6 @@ import PrincipalDashboard from './PrincipalDashboard';
 import HallOfFame from './HallOfFame';
 import TeacherTaskGrader from './TeacherTaskGrader';
 import SmartBadges from './SmartBadges';
-import SchoolWall from './SchoolWall';
 import MeetingScheduler from './MeetingScheduler';
 import ScheduleView from './ScheduleView';
 import CurriculumManager from './CurriculumManager';
@@ -97,7 +95,6 @@ const App: React.FC = () => {
             <Routes>
                 <Route path="/" element={getStaffDashboard()} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
-                <Route path="/wall" element={<SchoolWall currentUser={currentUser as SystemUser} students={students} />} />
                 
                 {/* مسارات المعلم */}
                 {currentUser.role === 'TEACHER' && (
