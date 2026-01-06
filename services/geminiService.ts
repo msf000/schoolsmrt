@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize the AI client
 export const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -14,6 +14,22 @@ export const summarizeFlippedContent = async (text: string) => {
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || "لم نتمكن من توليد ملخص حالياً.";
     } catch { return "حدث خطأ في محرك الذكاء الاصطناعي."; }
+};
+
+export const generateFlippedCheckupQuestions = async (text: string) => {
+    const ai = getAIClient();
+    const prompt = `بناءً على المحتوى التعليمي التالي، قم بتوليد 3 أسئلة خيارات متعددة (MCQ) للتأكد من فهم الطالب للمحتوى قبل بدء الحصة. 
+    أرجع النتيجة بصيغة JSON حصراً كـ array من الكائنات: [{"text": "السؤال", "options": ["أ", "ب", "ج", "د"], "correctAnswer": "الإجابة الصحيحة"}]. 
+    المحتوى: "${text}"`;
+
+    try {
+        const response = await ai.models.generateContent({ 
+            model: 'gemini-3-flash-preview', 
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+        });
+        return JSON.parse(response.text || "[]");
+    } catch { return []; }
 };
 
 // Updated: Changed model from gemini-2.5-flash-image to gemini-3-flash-preview for image understanding

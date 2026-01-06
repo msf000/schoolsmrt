@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { SystemUser, Student, FlippedLesson, Subject } from '../types';
+import { SystemUser, Student, FlippedLesson, Subject, Question } from '../types';
 import { getFlippedLessons, saveFlippedLesson, deleteFlippedLesson, getStudents, getSubjects } from '../services/storageService';
-import { summarizeFlippedContent } from '../services/geminiService';
+import { summarizeFlippedContent, generateFlippedCheckupQuestions } from '../services/geminiService';
 import { 
     BookOpen, Plus, Trash2, Video, Globe, Save, 
     Sparkles, Loader2, Users, CheckCircle, Clock, 
-    ArrowRight, Activity, TrendingUp, Info
+    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -18,9 +18,10 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [summarizing, setSummarizing] = useState(false);
+    const [generatingQs, setGeneratingQs] = useState(false);
 
     const [form, setForm] = useState<Partial<FlippedLesson>>({
-        title: '', subject: '', className: '', contentBody: '', xpReward: 50
+        title: '', subject: '', className: '', contentBody: '', xpReward: 50, questions: []
     });
 
     useEffect(() => {
@@ -41,6 +42,26 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
         }
     };
 
+    const handleGenerateQuestions = async () => {
+        if (!form.contentBody) return;
+        setGeneratingQs(true);
+        try {
+            const qs = await generateFlippedCheckupQuestions(form.contentBody);
+            const formattedQs: Question[] = qs.map((q: any, i: number) => ({
+                id: `fq_${Date.now()}_${i}`,
+                text: q.text,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                type: 'MCQ',
+                points: 10
+            }));
+            setForm({ ...form, questions: formattedQs });
+            showToast('تم توليد أسئلة التحقق بنجاح!', 'SUCCESS');
+        } finally {
+            setGeneratingQs(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!form.title || !form.className) return;
         setLoading(true);
@@ -53,6 +74,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
             contentUrl: form.contentUrl,
             contentBody: form.contentBody || '',
             aiSummary: form.aiSummary,
+            questions: form.questions || [],
             preparedStudentIds: [],
             createdAt: new Date().toISOString(),
             xpReward: form.xpReward || 50
@@ -60,7 +82,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
         await saveFlippedLesson(newLesson);
         setLessons(getFlippedLessons(currentUser.id));
         setIsAddModalOpen(false);
-        setForm({ title: '', subject: '', className: '', contentBody: '', xpReward: 50 });
+        setForm({ title: '', subject: '', className: '', contentBody: '', xpReward: 50, questions: [] });
         setLoading(false);
         showToast('تم نشر درس الفصل المقلوب بنجاح!', 'SUCCESS');
     };
@@ -145,17 +167,36 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
                             <div>
                                 <div className="flex justify-between items-end mb-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase">المحتوى التعليمي (شرح أو نص)</label>
-                                    <button onClick={handleAutoSummarize} disabled={summarizing || !form.contentBody} className="text-[10px] font-black text-indigo-600 flex items-center gap-1 hover:underline disabled:opacity-30">
-                                        {summarizing ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>} تلخيص بالذكاء الاصطناعي
-                                    </button>
+                                    <div className="flex gap-4">
+                                        <button onClick={handleAutoSummarize} disabled={summarizing || !form.contentBody} className="text-[10px] font-black text-indigo-600 flex items-center gap-1 hover:underline disabled:opacity-30">
+                                            {summarizing ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>} تلخيص AI
+                                        </button>
+                                        <button onClick={handleGenerateQuestions} disabled={generatingQs || !form.contentBody} className="text-[10px] font-black text-purple-600 flex items-center gap-1 hover:underline disabled:opacity-30">
+                                            {generatingQs ? <Loader2 size={12} className="animate-spin"/> : <ListChecks size={12}/>} توليد أسئلة جاهزية
+                                        </button>
+                                    </div>
                                 </div>
                                 <textarea className="w-full p-4 border rounded-2xl bg-slate-50 h-32 text-sm leading-relaxed" value={form.contentBody} onChange={e=>setForm({...form, contentBody: e.target.value})} placeholder="اكتب الشرح أو المصطلحات الهامة هنا..."/>
                             </div>
 
-                            {form.aiSummary && (
-                                <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 animate-slide-up">
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase mb-2 flex items-center gap-2"><Bot size={12}/> ملخص Gemini للطالب:</p>
-                                    <p className="text-xs text-indigo-900 leading-relaxed font-bold italic">"{form.aiSummary}"</p>
+                            {(form.aiSummary || (form.questions && form.questions.length > 0)) && (
+                                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 space-y-4 max-h-60 overflow-y-auto custom-scrollbar">
+                                    {form.aiSummary && (
+                                        <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                                            <p className="text-[10px] font-black text-indigo-400 uppercase mb-2 flex items-center gap-2"><Bot size={12}/> ملخص Gemini للطالب:</p>
+                                            <p className="text-xs text-indigo-900 leading-relaxed font-bold italic">"{form.aiSummary}"</p>
+                                        </div>
+                                    )}
+                                    {form.questions && form.questions.length > 0 && (
+                                        <div className="bg-purple-50/50 p-4 rounded-2xl border border-purple-100">
+                                            <p className="text-[10px] font-black text-purple-400 uppercase mb-2 flex items-center gap-2"><HelpCircle size={12}/> اختبار الجاهزية المولد:</p>
+                                            <div className="space-y-2">
+                                                {form.questions.map((q, idx) => (
+                                                    <div key={idx} className="text-[10px] text-purple-900 font-bold">• {q.text}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

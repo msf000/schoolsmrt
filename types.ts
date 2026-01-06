@@ -23,6 +23,7 @@ export interface FlippedLesson {
     contentUrl?: string;
     contentBody: string;
     aiSummary?: string;
+    questions?: Question[];
     preparedStudentIds: string[];
     createdAt: string;
     deadline?: string;
