@@ -147,10 +147,17 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
     let query = supabase.from('performance').select('*');
     if (tid) query = query.eq('created_by_id', tid);
     const { data } = await query;
-    const mapped = (data || []).map(p => ({
-        id: p.id, studentId: p.student_id, subject: p.subject, title: p.title,
-        score: p.score, max_score: p.max_score, date: p.date, category: p.category,
-        createdById: p.created_by_id, notes: p.notes
+    const mapped: PerformanceRecord[] = (data || []).map(p => ({
+        id: p.id, 
+        studentId: p.student_id, 
+        subject: p.subject, 
+        title: p.title,
+        score: p.score, 
+        maxScore: p.max_score, // Fixed mapping to camelCase
+        date: p.date, 
+        category: p.category,
+        createdById: p.created_by_id, 
+        notes: p.notes
     }));
     setLocal('performance', mapped);
     return mapped;
