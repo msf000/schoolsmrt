@@ -1,3 +1,7 @@
+import React from 'react';
 
-// تم تحييد هذا الملف لمنع أخطاء البناء الناتجة عن التسمية غير الصالحة
-export default function GhostFile() { return null; }
+const GhostFile: React.FC<any> = () => {
+    return null;
+};
+
+export default GhostFile;

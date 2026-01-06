@@ -3,7 +3,8 @@ import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, Beha
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
-    Zap, Sparkles, GraduationCap, User, History, ChevronLeft, CheckCircle2, Clock
+    Zap, Sparkles, GraduationCap, User, History, ChevronLeft, CheckCircle2, Clock, 
+    ShieldAlert, TrendingUp
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import StudentJourney from './StudentJourney';
@@ -31,11 +32,12 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
     const loadData = async () => {
         const [perf, att, beh] = await Promise.all([fetchPerformance(), fetchAttendance(), getBehaviorIncidents()]);
+        const tid = currentUser.createdById || '';
         setPerformance(perf.filter(p => p.studentId === currentUser.id));
         setAttendance(att.filter(a => a.studentId === currentUser.id));
         setBehaviorLog(beh.filter(i => i.studentId === currentUser.id));
-        setFormsResults(getFormsDetailedResults(currentUser.createdById || ''));
-        setGames(getGames(currentUser.createdById || ''));
+        setFormsResults(getFormsDetailedResults(tid));
+        setGames(getGames(tid));
     };
 
     const attendanceStats = useMemo(() => {
@@ -73,16 +75,39 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
             <main className="flex-1 p-6 max-w-7xl mx-auto w-full overflow-hidden">
                 {activeTab === 'DASHBOARD' && (
-                    <div className="space-y-10 animate-fade-in overflow-y-auto max-h-full custom-scrollbar pr-1">
+                    <div className="space-y-10 animate-fade-in overflow-y-auto max-h-full custom-scrollbar pr-1 pb-10">
                         <StudentJourney xp={currentUser.xp || 0} level={currentUser.level || 1} />
                         
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-6">
                                 <RemedialBridge student={currentUser} formsResults={formsResults} />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 flex flex-col justify-between h-40">
+                                        <div className="flex justify-between items-start">
+                                            <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl"><CheckCircle2 size={20}/></div>
+                                            <span className="text-2xl font-black">{attendanceStats.rate}%</span>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-sm">نسبة الحضور</h4>
+                                            <p className="text-[10px] text-slate-500">منضبط في {attendanceStats.present} حصة</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 flex flex-col justify-between h-40">
+                                        <div className="flex justify-between items-start">
+                                            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl"><Star size={20}/></div>
+                                            <span className="text-2xl font-black">+{currentUser.behaviorPoints || 0}</span>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-sm">نقاط السلوك</h4>
+                                            <p className="text-[10px] text-slate-500">أوسمة التميز المكتسبة</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <ActionCard title="كشف درجاتي" icon={<Activity/>} color="bg-rose-500" onClick={()=>setActiveTab('EVAL')} />
-                                    <ActionCard title="سجل الانضباط" icon={<CheckCircle2/>} color="bg-emerald-500" onClick={()=>setActiveTab('ATTENDANCE')} />
-                                    <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-indigo-500" onClick={()=>setActiveTab('GAMES')} />
+                                    <ActionCard title="الألعاب التعليمية" icon={<Gamepad2/>} color="bg-emerald-500" onClick={()=>setActiveTab('GAMES')} />
                                     <ActionCard title="حقيبة الواجبات" icon={<BookOpen/>} color="bg-purple-500" onClick={()=>setActiveTab('TASKS')} />
                                 </div>
                             </div>
@@ -139,7 +164,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 {activeTab === 'GAMES' && (
                     <div className="space-y-8 animate-fade-in">
                         <h2 className="text-3xl font-black flex items-center gap-4 justify-end">مستودع الألعاب التفاعلية <Gamepad2 className="text-emerald-400" size={40}/></h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-10">
                             {games.map(game => (
                                 <div key={game.id} className="bg-white/5 p-8 rounded-[3rem] border border-white/5 flex flex-col justify-between h-72 group hover:bg-white/10 transition-all cursor-pointer" onClick={()=>setPlayingGame(game)}>
                                     <div className="text-right">

@@ -7,7 +7,8 @@ import {
     LogOut, Bell, Menu, ShieldAlert, Table, Briefcase, 
     Building, Zap, Award, Search, FileText, ClipboardList, 
     TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
-    BookOpen, List, Map, MessageSquare, CheckCircle, Gamepad2
+    BookOpen, List, Map, MessageSquare, CheckCircle, Gamepad2,
+    FileSpreadsheet, TableProperties
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -42,45 +43,33 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 label: 'الشؤون التعليمية',
                 roles: ['TEACHER'],
                 items: [
-                    { path: '/students', label: 'الطلاب', icon: Users, roles: ['TEACHER'] },
-                    { path: '/attendance', label: 'التحضير', icon: CheckSquare, roles: ['TEACHER'] },
-                    { path: '/gradebook', label: 'سجل الرصد', icon: ClipboardList, roles: ['TEACHER'] },
-                    { path: '/exams', label: 'الاختبارات', icon: FileText, roles: ['TEACHER'] },
-                    { path: '/grading', label: 'تصحيح المهام', icon: CheckCircle, roles: ['TEACHER'] },
-                    { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
-                    { path: '/certificates', label: 'مركز الشهادات', icon: Medal, roles: ['TEACHER'] },
+                    { path: '/students', label: 'سجل الطلاب', icon: Users, roles: ['TEACHER'] },
+                    { path: '/attendance', label: 'تحضير الحصص', icon: CheckSquare, roles: ['TEACHER'] },
+                    { path: '/gradebook', label: 'سجل الرصد العام', icon: ClipboardList, roles: ['TEACHER'] },
+                    { path: '/works', label: 'الرصد السريع', icon: TableProperties, roles: ['TEACHER'] },
+                    { path: '/noor-export', label: 'مصدّر نظام نور', icon: FileSpreadsheet, roles: ['TEACHER'] },
                 ]
             },
             {
-                id: 'planning',
-                label: 'التخطيط والجدولة',
+                id: 'ai_tools',
+                label: 'أدوات الذكاء والتقييم',
                 roles: ['TEACHER'],
                 items: [
-                    { path: '/schedule', label: 'الجدول الدراسي', icon: CalendarDays, roles: ['TEACHER'] },
-                    { path: '/curriculum', label: 'توزيع المنهج', icon: List, roles: ['TEACHER'] },
-                    { path: '/planning', label: 'التحضير الذكي', icon: PenTool, roles: ['TEACHER'] },
-                    { path: '/resources', label: 'مكتبة المصادر', icon: BookOpen, roles: ['TEACHER'] },
+                    { path: '/exams', label: 'الاختبارات الذكية', icon: FileText, roles: ['TEACHER'] },
+                    { path: '/grading', label: 'تصحيح المهام', icon: CheckCircle, roles: ['TEACHER'] },
+                    { path: '/lab', label: 'مختبر VARK', icon: Zap, roles: ['TEACHER'] },
+                    { path: '/analytics', label: 'مركز التنبؤات', icon: BrainCircuit, roles: ['TEACHER'] },
                 ]
             },
             {
                 id: 'engagement',
-                label: 'التفاعل والمجتمع',
+                label: 'التفاعل والميدان',
                 roles: ['TEACHER'],
                 items: [
-                    { path: '/meetings', label: 'المواعيد واللقاءات', icon: Calendar, roles: ['TEACHER'] },
-                    { path: '/clubs', label: 'أندية المهارات', icon: Map, roles: ['TEACHER'] },
-                    { path: '/behavior', label: 'السلوك', icon: ShieldAlert, roles: ['TEACHER'] },
-                    { path: '/badges', label: 'استوديو الأوسمة', icon: Sparkles, roles: ['TEACHER'] },
-                ]
-            },
-            {
-                id: 'intelligence',
-                label: 'الذكاء والتحليل',
-                roles: ['TEACHER'],
-                items: [
-                    { path: '/analytics', label: 'مركز التنبؤات', icon: BrainCircuit, roles: ['TEACHER'] },
-                    { path: '/reports', label: 'التقارير الشاملة', icon: TrendingUp, roles: ['TEACHER'] },
-                    { path: '/lab', label: 'مختبر VARK', icon: Zap, roles: ['TEACHER'] },
+                    { path: '/classroom', label: 'إدارة القاعة', icon: Monitor, roles: ['TEACHER'] },
+                    { path: '/planning', label: 'التحضير الآلي', icon: PenTool, roles: ['TEACHER'] },
+                    { path: '/behavior', label: 'السلوك والتعزيز', icon: ShieldAlert, roles: ['TEACHER'] },
+                    { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
                 ]
             },
             {
@@ -114,12 +103,12 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 onClick={() => navigate(path)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium mb-1 ${
                     isActive 
-                    ? 'bg-brand-500 text-white shadow-lg' 
+                    ? 'bg-brand-500 text-white shadow-lg shadow-brand-200' 
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
             >
                 <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                {isSidebarOpen && <span>{label}</span>}
+                {isSidebarOpen && <span className="truncate">{label}</span>}
             </button>
         );
     };
