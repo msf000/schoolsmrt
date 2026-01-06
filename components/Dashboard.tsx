@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, StoredLessonPlan, BehaviorIncident, FlippedLesson } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap, ArrowUpCircle
+    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap, ArrowUpCircle, Info, AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -14,15 +14,20 @@ import TeacherStats from './TeacherStats';
 const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[], performance: PerformanceRecord[], currentUser?: SystemUser | null }> = ({ students, attendance, performance, currentUser }) => {
   const navigate = useNavigate();
   const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
-  const [recentIncidents, setRecentIncidents] = useState<BehaviorIncident[]>([]);
+  const [incidents, setIncidents] = useState<BehaviorIncident[]>([]);
   const [flippedLessons, setFlippedLessons] = useState<FlippedLesson[]>([]);
 
-  const classStats = useMemo(() => {
-      const total = students.length;
+  useEffect(() => {
+    if (currentUser?.id) {
+        setLessonPlans(getLessonPlans(currentUser.id));
+        setIncidents(getBehaviorIncidents(currentUser.id));
+        setFlippedLessons(getFlippedLessons(currentUser.id));
+    }
+  }, [currentUser, students]);
+
+  const stats = useMemo(() => {
       const attRate = attendance.length > 0 ? (attendance.filter(a => a.status === AttendanceStatus.PRESENT).length / attendance.length) * 100 : 0;
       const perfAvg = performance.length > 0 ? (performance.reduce((a, b) => a + (b.score / b.maxScore), 0) / performance.length) * 100 : 0;
-      
-      const health = calculateClassHealth('عام', students, attendance, performance);
       
       const ranges = [
           { name: 'ممتاز', min: 90, count: 0, color: '#10b981' },
@@ -41,16 +46,14 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
           }
       });
 
-      return { total, attRate: Math.round(attRate), perfAvg: Math.round(perfAvg), health, distribution: ranges };
-  }, [students, attendance, performance]);
+      // تحديد الحالات التي تستوجب التدخل
+      const interventionNeeded = students.filter(s => {
+          const sNeg = incidents.filter(i => i.studentId === s.id && i.type === 'NEGATIVE');
+          return sNeg.length >= 3;
+      });
 
-  useEffect(() => {
-    if (currentUser?.id) {
-        setLessonPlans(getLessonPlans(currentUser.id));
-        setRecentIncidents(getBehaviorIncidents(currentUser.id).slice(0, 5));
-        setFlippedLessons(getFlippedLessons(currentUser.id));
-    }
-  }, [currentUser, students]);
+      return { attRate: Math.round(attRate), perfAvg: Math.round(perfAvg), distribution: ranges, interventions: interventionNeeded.length };
+  }, [students, attendance, performance, incidents]);
 
   const flippedEngagement = useMemo(() => {
     if (flippedLessons.length === 0) return 0;
@@ -82,10 +85,23 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
         </div>
       </div>
 
+      {stats.interventions > 0 && (
+          <div className="bg-rose-600 p-6 rounded-[2rem] text-white flex items-center justify-between shadow-2xl animate-pulse cursor-pointer hover:bg-rose-700 transition-all" onClick={() => navigate('/behavior')}>
+              <div className="flex items-center gap-6">
+                  <div className="p-4 bg-white/20 rounded-2xl border border-white/20"><AlertTriangle size={32}/></div>
+                  <div>
+                      <h3 className="text-xl font-black">تحذير: حالات تستوجب التدخل</h3>
+                      <p className="text-rose-100 font-bold">هناك {stats.interventions} طلاب تجاوزوا الحد المسموح من التنبيهات السلوكية.</p>
+                  </div>
+              </div>
+              <ChevronLeft size={32}/>
+          </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-           <KPIStat label="إجمالي الطلاب" value={classStats.total} icon={Users} color="blue" />
-           <KPIStat label="الانضباط العام" value={`${classStats.attRate}%`} icon={Activity} color="emerald" />
-           <KPIStat label="متوسط الإتقان" value={`${classStats.perfAvg}%`} icon={Target} color="amber" />
+           <KPIStat label="إجمالي الطلاب" value={students.length} icon={Users} color="blue" />
+           <KPIStat label="الانضباط العام" value={`${stats.attRate}%`} icon={Activity} color="emerald" />
+           <KPIStat label="متوسط الإتقان" value={`${stats.perfAvg}%`} icon={Target} color="amber" />
            <KPIStat label="جاهزية الفصل" value={`${flippedEngagement}%`} icon={ArrowUpCircle} color="rose" />
       </div>
 
@@ -101,13 +117,13 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                   </div>
                   <div className="flex-1">
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={classStats.distribution}>
+                        <BarChart data={stats.distribution}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="name" fontSize={11} fontWeight="bold" axisLine={false} tickLine={false} />
                             <YAxis hide domain={[0, 'dataMax + 2']} />
                             <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -3px rgb(0 0 0 / 0.1)'}} />
                             <Bar dataKey="count" radius={[12, 12, 0, 0]} barSize={50}>
-                                {classStats.distribution.map((entry, index) => (
+                                {stats.distribution.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                 ))}
                             </Bar>
@@ -130,7 +146,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                   <div className="relative z-10 flex flex-col h-full">
                     <h3 className="text-xl font-black flex items-center gap-3 mb-6 justify-end">آخر النشاطات الصفيّة <MessageSquare size={24} className="text-yellow-400"/></h3>
                     <div className="space-y-3 flex-1 overflow-y-auto no-scrollbar pr-1">
-                        {recentIncidents.length > 0 ? recentIncidents.map((incident, i) => {
+                        {incidents.slice(0, 5).map((incident, i) => {
                             const student = students.find(s => s.id === incident.studentId);
                             return (
                                 <div key={i} className="flex justify-between items-center bg-white/10 p-3 rounded-2xl border border-white/5 backdrop-blur-sm">
@@ -142,15 +158,13 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                                             <p className="text-xs font-black truncate max-w-[100px]">{student?.name.split(' ')[0]}</p>
                                             <p className="text-[8px] opacity-60">{incident.category}</p>
                                         </div>
-                                        <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center font-black text-xs">{student?.name.charAt(0)}</div>
+                                        <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center font-black text-xs">
+                                            {student?.avatarUrl ? <img src={student.avatarUrl} className="w-full h-full object-cover rounded-xl"/> : student?.name.charAt(0)}
+                                        </div>
                                     </div>
                                 </div>
                             );
-                        }) : (
-                            <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
-                                <p className="text-xs font-bold italic">لا توجد نشاطات مؤخرة...</p>
-                            </div>
-                        )}
+                        })}
                     </div>
                   </div>
               </div>
