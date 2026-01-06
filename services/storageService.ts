@@ -135,9 +135,13 @@ export const getAttendance = (): AttendanceRecord[] => getLocal('attendance');
 
 export const fetchAttendance = async (): Promise<AttendanceRecord[]> => {
     const { data } = await supabase.from('attendance').select('*');
-    const mapped = (data || []).map(a => ({
-        id: a.id, studentId: a.student_id, date: a.date, status: a.status as AttendanceStatus,
-        subject: a.subject, createdById: a.created_by_id
+    const mapped: AttendanceRecord[] = (data || []).map(a => ({
+        id: a.id, 
+        studentId: a.student_id, 
+        date: a.date, 
+        status: a.status as AttendanceStatus,
+        subject: a.subject, 
+        createdById: a.created_by_id
     }));
     setLocal('attendance', mapped);
     return mapped;
@@ -153,7 +157,7 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
         subject: p.subject, 
         title: p.title,
         score: p.score, 
-        maxScore: p.max_score, // Fixed mapping to camelCase
+        maxScore: p.max_score,
         date: p.date, 
         category: p.category,
         createdById: p.created_by_id, 
@@ -272,7 +276,7 @@ export const getAcademicTerms = (tid: string): AcademicTerm[] => getLocal('acade
 
 export const saveAcademicTerm = (t: AcademicTerm) => setLocal('academic_terms', [...getLocal('academic_terms').filter(x => x.id !== t.id), t]);
 
-export const deleteAcademicTerm = (id: string) => getLocal('academic_terms').filter(t => t.id !== id);
+export const deleteAcademicTerm = (id: string) => setLocal('academic_terms', getLocal('academic_terms').filter(t => t.id !== id));
 
 export const setCurrentTerm = (id: string, tid: string) => {
     const terms = getLocal('academic_terms');
@@ -318,7 +322,6 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
     return null;
 };
 
-// Fix: Use property names from Student interface (gradeLevel and createdById) instead of snake_case.
 export const addStudent = async (s: Student) => await supabase.from('students').insert({ id: s.id, name: s.name, national_id: s.nationalId, class_name: s.className, grade_level: s.gradeLevel, created_by_id: s.createdById });
 export const deleteStudent = async (id: string) => await supabase.from('students').delete().eq('id', id);
 export const addSystemUser = async (u: SystemUser) => await supabase.from('system_users').insert({ id: u.id, name: u.name, email: u.email, password: u.password, role: u.role, phone: u.phone, status: u.status });
