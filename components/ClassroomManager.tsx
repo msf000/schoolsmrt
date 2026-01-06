@@ -78,7 +78,7 @@ const ClassroomManager: React.FC<ClassroomManagerProps> = ({
                 )}
 
                 {activeTab === 'HEATMAP' && (
-                    <ClassMasteryHeatmap selectedClass={selectedClass} students={students} performance={performance} assignments={getAssignments('ALL', currentUser?.id)} />
+                    <ClassMasteryHeatmap selectedClass={selectedClass} students={students} performance={performance} assignments={getAssignments('ALL', currentUser?.id || '')} />
                 )}
 
                 {activeTab === 'GROUPS' && (

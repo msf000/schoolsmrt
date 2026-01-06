@@ -74,7 +74,7 @@ const StudentGoalSystem: React.FC<{ student: Student, performance: PerformanceRe
                             <h3 className="text-xl font-black text-white mb-2">{goal.title}</h3>
                             <div className="flex items-center gap-2 mb-6">
                                 <span className="bg-white/5 px-3 py-1 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest">{goal.category}</span>
-                                <span className="text-[10px] font-bold text-slate-500">الموعد: {formatDualDate(goal.deadline)}</span>
+                                <span className="text-[10px] font-bold text-slate-500">الموعد: {formatDualDate(goal.deadline || '')}</span>
                             </div>
 
                             <div className="mt-auto space-y-3">
