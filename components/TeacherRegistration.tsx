@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Teacher, School, SystemUser } from '../types';
-import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser, fetchSchools, fetchSystemUsers } from '../services/storageService';
-import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info, MapPin, Building, RefreshCw } from 'lucide-react';
+import { addTeacher, getTeachers, getSchools, addSchool, addSystemUser, fetchSchools, fetchSystemUsers, updateTeacher } from '../services/storageService';
+import { User, Mail, Phone, Lock, BookOpen, ShieldCheck, School as SchoolIcon, ArrowRight, CheckCircle, Loader2, AlertCircle, Info, MapPin, Building, RefreshCw, Sparkles } from 'lucide-react';
 
 interface TeacherRegistrationProps {
     onBack: () => void;
@@ -18,21 +18,19 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         specialty: '',
         password: '',
         confirmPassword: '',
-        schoolCode: '',       // Ministry Code
-        schoolName: '',       // New School Name
-        managerName: '',      // New Manager Name
-        managerNationalId: '', // New Manager ID
-        educationAdmin: '',   // New: Education Administration
-        schoolType: 'PUBLIC'  // New: School Type
+        schoolCode: '',       
+        schoolName: '',       
+        managerName: '',      
+        managerNationalId: '', 
+        educationAdmin: '',   
+        schoolType: 'PUBLIC'  
     });
     
     const [foundSchool, setFoundSchool] = useState<School | null>(null);
     const [loading, setLoading] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState(false);
 
-    // جلب البيانات السحابية فور تحميل المكون لضمان معرفة المدارس المسجلة
     useEffect(() => {
         const syncData = async () => {
             setIsSyncing(true);
@@ -62,25 +60,6 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
         setError('');
     };
 
-    // Helper to attempt saving school with fallback
-    const tryAddSchool = async (school: School) => {
-        try {
-            await addSchool(school);
-            return school.id;
-        } catch (e: any) {
-            // Smart Retry: If error implies missing columns, try saving without optional manager fields
-            if (e.message && (e.message.includes('column') || e.message.includes('manager_national_id'))) {
-                console.warn("Schema mismatch detected, retrying with basic school data...");
-                // Create a clean object without the problematic fields
-                const { managerNationalId, managerName, ministryCode, ...basicSchoolData } = school;
-                
-                await addSchool(basicSchoolData as School);
-                return basicSchoolData.id;
-            }
-            throw e;
-        }
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -91,88 +70,121 @@ const TeacherRegistration: React.FC<TeacherRegistrationProps> = ({ onBack, onReg
             setLoading(false);
             return;
         }
-        if (formData.nationalId.length < 10) {
-            setError('رقم الهوية يجب أن يكون 10 أرقام على الأقل.');
-            setLoading(false);
-            return;
-        }
-
-        const teachers = getTeachers();
-        const exists = teachers.find((t: Teacher) => t.nationalId === formData.nationalId || t.email === formData.email);
-        if (exists) {
-            setError('رقم الهوية أو البريد الإلكتروني مسجل مسبقاً.');
-            setLoading(false);
-            return;
-        }
 
         try {
-            let schoolId = undefined;
-            let managerId = undefined;
+            let schoolId = foundSchool?.id;
 
-            if (formData.schoolCode) {
-                if (foundSchool) {
-                    schoolId = foundSchool.id;
-                    managerId = foundSchool.managerNationalId;
-                } else {
-                    // New School Logic
-                    if (!formData.schoolName) {
-                        setError('الرمز الوزاري جديد. الرجاء كتابة اسم المدرسة لإنشائها.');
-                        setLoading(false);
-                        return;
-                    }
-                    
-                    // Validate Manager Data for account creation
-                    if (!formData.managerNationalId || formData.managerNationalId.length < 5) {
-                        setError('الرجاء إدخال رقم هوية المدير لإنشاء حسابه.');
-                        setLoading(false);
-                        return;
-                    }
+            if (!foundSchool && formData.schoolCode) {
+                // Corrected: Mapping camelCase properties for School interface
+                const newSchool: School = {
+                    id: `sch_${Date.now()}`,
+                    name: formData.schoolName || 'مدرسة جديدة',
+                    ministryCode: formData.schoolCode,
+                    managerName: formData.managerName,
+                    managerNationalId: formData.managerNationalId,
+                    educationAdministration: formData.educationAdmin,
+                    type: formData.schoolType as any
+                };
+                await addSchool(newSchool);
+                schoolId = newSchool.id;
 
-                    const newSchool: School = {
-                        id: Date.now().toString() + '_sch',
-                        name: formData.schoolName,
-                        ministryCode: formData.schoolCode,
-                        managerName: formData.managerName || 'غير مسجل',
-                        managerNationalId: formData.managerNationalId,
-                        educationAdministration: formData.educationAdmin || '',
-                        type: formData.schoolType as any || 'PUBLIC',
-                        phone: '',
-                        studentCount: 0
-                    };
-                    
-                    // 1. Create School
-                    await tryAddSchool(newSchool);
-                    
-                    schoolId = newSchool.id;
-                    managerId = formData.managerNationalId;
-
-                    // 2. Create System User for Manager (Auto-generated)
-                    // Password = Last 4 digits of National ID
-                    const mgrPassword = formData.managerNationalId.trim().slice(-4);
-                    
-                    const managerUser: SystemUser = {
-                        id: `mgr_${Date.now()}`,
-                        name: formData.managerName || 'مدير المدرسة',
-                        email: `manager.${formData.managerNationalId}@system.local`, // Dummy email for unique constraint if needed
-                        nationalId: formData.managerNationalId, // Used for login
-                        password: mgrPassword,
-                        role: 'SCHOOL_MANAGER',
-                        schoolId: newSchool.id,
-                        status: 'ACTIVE',
-                        phone: ''
-                    };
-
-                    // Add manager to system users
-                    await addSystemUser(managerUser);
-                }
+                // إنشاء حساب المدير آلياً
+                const managerPass = formData.managerNationalId.slice(-4);
+                await addSystemUser({
+                    id: `mgr_${Date.now()}`,
+                    name: formData.managerName,
+                    email: `mgr.${formData.managerNationalId}@system.local`,
+                    password: managerPass,
+                    role: 'SCHOOL_MANAGER',
+                    nationalId: formData.managerNationalId,
+                    schoolId: schoolId,
+                    status: 'ACTIVE'
+                });
             }
 
-            const newTeacher: Teacher = {
-                id: Date.now().toString(),
+            const teacher: Teacher = {
+                id: `tea_${Date.now()}`,
                 name: formData.name,
-                nationalId: formData.nationalId,
                 email: formData.email,
+                password: formData.password,
+                role: 'TEACHER',
+                nationalId: formData.nationalId,
+                schoolId: schoolId,
+                subjectSpecialty: formData.specialty,
+                status: 'ACTIVE',
                 phone: formData.phone,
-                role: 'TEACHER', 
-                status: 'ACTIVE', 
-                subjectSpecialty:
+                subscriptionStatus: 'FREE'
+            };
+
+            await addTeacher(teacher);
+            alert('تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.');
+            onRegisterSuccess(formData.email, formData.password);
+        } catch (err: any) {
+            setError(err.message || 'حدث خطأ أثناء التسجيل.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-tajawal" dir="rtl">
+            <div className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in">
+                <div className="bg-indigo-900 p-8 text-white relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10"><Sparkles size={120}/></div>
+                    <h2 className="text-3xl font-black relative z-10">إنضمام معلم جديد</h2>
+                    <p className="text-indigo-200 text-sm mt-1 relative z-10">ابدأ رحلتك التعليمية الذكية اليوم</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-10 space-y-8">
+                    {error && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-xs font-bold border border-rose-100 flex items-center gap-2"><AlertCircle size={16}/> {error}</div>}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <h3 className="font-black text-slate-800 border-r-4 border-indigo-600 pr-3 mb-4">بياناتك الشخصية</h3>
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">الاسم الكامل</label><input required name="name" className="w-full p-3 bg-slate-50 border-none rounded-xl font-bold" value={formData.name} onChange={handleChange}/></div>
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">رقم الهوية</label><input required name="nationalId" className="w-full p-3 bg-slate-50 border-none rounded-xl font-mono" value={formData.nationalId} onChange={handleChange}/></div>
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">البريد الإلكتروني</label><input required type="email" name="email" className="w-full p-3 bg-slate-50 border-none rounded-xl" value={formData.email} onChange={handleChange}/></div>
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">كلمة المرور</label><input required type="password" name="password" className="w-full p-3 bg-slate-50 border-none rounded-xl" value={formData.password} onChange={handleChange}/></div>
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">تأكيد كلمة المرور</label><input required type="password" name="confirmPassword" className="w-full p-3 bg-slate-50 border-none rounded-xl" value={formData.confirmPassword} onChange={handleChange}/></div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h3 className="font-black text-slate-800 border-r-4 border-teal-600 pr-3 mb-4">بيانات المدرسة</h3>
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">الرمز الوزاري</label><input required name="schoolCode" className="w-full p-3 bg-slate-50 border-none rounded-xl font-mono" value={formData.schoolCode} onChange={handleChange} placeholder="مثال: 12345"/></div>
+                            
+                            {!foundSchool && formData.schoolCode.length >= 3 && (
+                                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 animate-slide-up space-y-4">
+                                    <p className="text-[10px] text-amber-700 font-bold">هذه المدرسة غير مسجلة، يرجى تزويدنا ببياناتها:</p>
+                                    <input name="schoolName" placeholder="اسم المدرسة" className="w-full p-2 text-xs rounded-lg border" value={formData.schoolName} onChange={handleChange}/>
+                                    <input name="managerName" placeholder="اسم مدير المدرسة" className="w-full p-2 text-xs rounded-lg border" value={formData.managerName} onChange={handleChange}/>
+                                    <input name="managerNationalId" placeholder="رقم هوية المدير (لحسابه)" className="w-full p-2 text-xs rounded-lg border" value={formData.managerNationalId} onChange={handleChange}/>
+                                </div>
+                            )}
+                            
+                            {foundSchool && (
+                                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3">
+                                    <Building className="text-emerald-600"/>
+                                    <div>
+                                        <p className="text-xs font-black text-emerald-900">{foundSchool.name}</p>
+                                        <p className="text-[10px] text-emerald-600">سيتم ربط حسابك بهذه المنشأة</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">تخصصك التدريسي</label><input required name="specialty" className="w-full p-3 bg-slate-50 border-none rounded-xl" value={formData.specialty} onChange={handleChange} placeholder="مثلاً: رياضيات، فيزياء..."/></div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-6 border-t">
+                        <button type="button" onClick={onBack} className="px-8 py-4 text-slate-400 font-bold">رجوع</button>
+                        <button type="submit" disabled={loading} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all flex justify-center items-center gap-2">
+                            {loading ? <Loader2 className="animate-spin"/> : <CheckCircle/>} إتمام التسجيل
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+export default TeacherRegistration;

@@ -9,7 +9,7 @@ import {
     Building, Zap, Award, Search, FileText, ClipboardList, 
     TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
     BookOpen, List, Map, MessageSquare, CheckCircle, Gamepad2,
-    FileSpreadsheet, TableProperties, ArrowUpCircle
+    FileSpreadsheet, TableProperties, ArrowUpCircle, Inbox
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -60,6 +60,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/classroom', label: 'إدارة القاعة', icon: Monitor, roles: ['TEACHER'] },
                     { path: '/behavior', label: 'السلوك والتعزيز', icon: ShieldAlert, roles: ['TEACHER'] },
                     { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
+                    { path: '/inbox', label: 'مركز الطلبات', icon: Inbox, roles: ['TEACHER'] },
                 ]
             },
             {

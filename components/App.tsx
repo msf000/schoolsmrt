@@ -33,6 +33,8 @@ import ResourcesView from './ResourcesView';
 import StudentClubs from './StudentClubs';
 import FlippedClassroomManager from './FlippedClassroomManager';
 import StudentFlippedPortal from './StudentFlippedPortal';
+import GamesBuilder from './GamesBuilder';
+import TeacherInbox from './TeacherInbox';
 import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from '../services/storageService';
 import Login from './Login';
 import ReloadPrompt from './ReloadPrompt';
@@ -121,6 +123,8 @@ const App: React.FC = () => {
                         <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
                         <Route path="/noor-export" element={<NoorExporter students={students} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/works" element={<Performance students={students} performance={performance} onAddPerformance={loadInitialData} currentUser={currentUser as SystemUser} />} />
+                        <Route path="/games" element={<GamesBuilder currentUser={currentUser as SystemUser} />} />
+                        <Route path="/inbox" element={<TeacherInbox currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
 

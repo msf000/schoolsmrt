@@ -110,7 +110,8 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
         if (!selectedLessonForDetails?.quizResults || !selectedLessonForDetails.questions) return [];
         return selectedLessonForDetails.questions.map(q => {
             let errorCount = 0;
-            Object.values(selectedLessonForDetails.quizResults || {}).forEach(res => {
+            // Added explicit type for result object in quizResults record
+            Object.values(selectedLessonForDetails.quizResults || {}).forEach((res: { score: number, wrongQuestionIds: string[] }) => {
                 if (res.wrongQuestionIds.includes(q.id)) errorCount++;
             });
             const totalRes = Object.keys(selectedLessonForDetails.quizResults || {}).length;
