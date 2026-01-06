@@ -31,6 +31,8 @@ import ScheduleView from './ScheduleView';
 import CurriculumManager from './CurriculumManager';
 import ResourcesView from './ResourcesView';
 import StudentClubs from './StudentClubs';
+import FlippedClassroomManager from './FlippedClassroomManager';
+import StudentFlippedPortal from './StudentFlippedPortal';
 import { fetchStudents, fetchAttendance, fetchPerformance, fetchTeachers } from '../services/storageService';
 import Login from './Login';
 import ReloadPrompt from './ReloadPrompt';
@@ -111,6 +113,7 @@ const App: React.FC = () => {
                         <Route path="/analytics" element={<PredictiveAnalytics students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/deep-dive" element={<AdvancedAnalytics students={students} attendance={attendance} performance={performance} />} />
                         <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} currentUser={currentUser as SystemUser} />} />
+                        <Route path="/flipped" element={<FlippedClassroomManager currentUser={currentUser as SystemUser} />} />
                         <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
                         <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />

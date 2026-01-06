@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-    fetchSchools, fetchSystemUsers, fetchTeachers, fetchAttendance, fetchPerformance, fetchStudents
+    fetchSchools, fetchSystemUsers, fetchTeachers, fetchAttendance, fetchPerformance, fetchStudents, fetchDatabaseSchema
 } from '../services/storageService';
 import { 
     Shield, Building, Users, Database, RefreshCw, CheckCircle, AlertTriangle, 
@@ -146,114 +146,39 @@ const AdminKpi = ({ label, value, icon: Icon, color }: any) => {
 };
 
 const CloudTableInspector = () => {
+    const [tables, setTables] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState<string | null>(null);
 
-    const tables = [
-        { 
-            name: 'schools', 
-            label: 'المدارس (Schools)', 
-            desc: 'بيانات المنشآت التعليمية الموثقة',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'name', type: 'text' },
-                { name: 'ministry_code', type: 'text (unique)' },
-                { name: 'manager_name', type: 'text' },
-                { name: 'manager_national_id', type: 'text' },
-                { name: 'education_administration', type: 'text' },
-                { name: 'type', type: 'text (PUBLIC/PRIVATE)' }
-            ]
-        },
-        { 
-            name: 'system_users', 
-            label: 'المستخدمين (System Users)', 
-            desc: 'بيانات الدخول والصلاحيات للمعلمين والمديرين',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'name', type: 'text' },
-                { name: 'email', type: 'text (unique)' },
-                { name: 'password', type: 'text' },
-                { name: 'role', type: 'text (enum)' },
-                { name: 'national_id', type: 'text (unique)' },
-                { name: 'school_id', type: 'text (FK)' },
-                { name: 'status', type: 'text (ACTIVE/INACTIVE)' }
-            ]
-        },
-        { 
-            name: 'students', 
-            label: 'الطلاب (Students)', 
-            desc: 'السجل الأكاديمي والمهاري للطلاب',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'name', type: 'text' },
-                { name: 'national_id', type: 'text (unique)' },
-                { name: 'class_name', type: 'text' },
-                { name: 'grade_level', type: 'text' },
-                { name: 'xp', type: 'integer' },
-                { name: 'level', type: 'integer' },
-                { name: 'behavior_points', type: 'integer' },
-                { name: 'parent_phone', type: 'text' },
-                { name: 'avatar_url', type: 'text' },
-                { name: 'learning_style', type: 'text' }
-            ]
-        },
-        { 
-            name: 'attendance', 
-            label: 'الحضور (Attendance)', 
-            desc: 'سجلات الانضباط اليومي والحصص',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'student_id', type: 'text (FK)' },
-                { name: 'date', type: 'date' },
-                { name: 'status', type: 'text (enum)' },
-                { name: 'period', type: 'integer' },
-                { name: 'subject', type: 'text' },
-                { name: 'created_by_id', type: 'text (FK)' }
-            ]
-        },
-        { 
-            name: 'performance', 
-            label: 'الدرجات (Performance)', 
-            desc: 'رصد نواتج التعلم والاختبارات والواجبات',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'student_id', type: 'text (FK)' },
-                { name: 'subject', type: 'text' },
-                { name: 'title', type: 'text' },
-                { name: 'score', type: 'numeric' },
-                { name: 'max_score', type: 'numeric' },
-                { name: 'category', type: 'text' },
-                { name: 'date', type: 'date' }
-            ]
-        },
-        { 
-            name: 'wall_posts', 
-            label: 'الحائط المدرسي (Wall Posts)', 
-            desc: 'الأخبار والتكريمات والفعاليات المنشورة',
-            columns: [
-                { name: 'id', type: 'text (PK)' },
-                { name: 'user_id', type: 'text' },
-                { name: 'user_name', type: 'text' },
-                { name: 'content', type: 'text' },
-                { name: 'type', type: 'text' },
-                { name: 'likes', type: 'integer' },
-                { name: 'school_id', type: 'text (FK)' },
-                { name: 'created_at', type: 'timestamp' }
-            ]
-        }
-    ];
+    useEffect(() => {
+        const loadSchema = async () => {
+            setLoading(true);
+            const schema = await fetchDatabaseSchema();
+            setTables(schema);
+            setLoading(false);
+        };
+        loadSchema();
+    }, []);
+
+    if (loading) return (
+        <div className="py-20 flex flex-col items-center justify-center gap-4 text-indigo-600">
+            <Loader2 size={48} className="animate-spin" />
+            <p className="font-black text-sm uppercase tracking-widest">جاري جلب بنية السحابة الحية...</p>
+        </div>
+    );
 
     return (
         <div className="space-y-6 animate-fade-in">
             <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-3xl flex items-center gap-4">
                 <div className="p-3 bg-white rounded-2xl text-indigo-600 shadow-sm"><Code size={24}/></div>
                 <div>
-                    <h4 className="font-black text-indigo-900">فاحص بنية السحابة (Schema Inspector)</h4>
-                    <p className="text-xs text-indigo-700 font-bold">تأكد من مطابقة الجداول السحابية في Supabase مع متطلبات النظام المركزية.</p>
+                    <h4 className="font-black text-indigo-900">فاحص بنية السحابة الحية (Live Schema Inspector)</h4>
+                    <p className="text-xs text-indigo-700 font-bold">يتم عرض الجداول والأعمدة الفعلية من Supabase حالياً.</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-                {tables.map(table => (
+                {tables.length > 0 ? tables.map(table => (
                     <div key={table.name} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
                         <button 
                             onClick={() => setExpanded(expanded === table.name ? null : table.name)}
@@ -262,12 +187,12 @@ const CloudTableInspector = () => {
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-slate-50 text-slate-400 rounded-2xl border border-slate-100"><Table size={20}/></div>
                                 <div className="text-right">
-                                    <h4 className="font-black text-slate-800">{table.label}</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{table.desc}</p>
+                                    <h4 className="font-black text-slate-800">{table.name}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{table.columns?.length || 0} عمود مكتشف</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">
-                                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-100 uppercase tracking-tighter">Connected</span>
+                                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-100 uppercase tracking-tighter">Live Connected</span>
                                 {expanded === table.name ? <ChevronDown className="text-slate-300"/> : <ChevronRight className="text-slate-300"/>}
                             </div>
                         </button>
@@ -284,7 +209,7 @@ const CloudTableInspector = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {table.columns.map(col => (
+                                            {table.columns?.map((col: any) => (
                                                 <tr key={col.name} className="hover:bg-white transition-colors">
                                                     <td className="px-4 py-3 font-mono font-bold text-slate-700">{col.name}</td>
                                                     <td className="px-4 py-3 text-slate-500 font-medium">{col.type}</td>
@@ -299,7 +224,13 @@ const CloudTableInspector = () => {
                             </div>
                         )}
                     </div>
-                ))}
+                )) : (
+                    <div className="bg-white p-10 rounded-3xl border border-dashed border-slate-200 text-center text-slate-400">
+                        <AlertTriangle size={48} className="mx-auto mb-4 opacity-20" />
+                        <p className="font-bold">لم يتم العثور على جداول، أو أن وظيفة RPC غير مفعلة في قاعدة البيانات.</p>
+                        <p className="text-xs mt-2">انسخ كود SQL من تبويب SQL وقم بتنفيذه في Supabase SQL Editor.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -389,6 +320,33 @@ CREATE TABLE IF NOT EXISTS wall_posts (
     likes INTEGER DEFAULT 0,
     school_id TEXT REFERENCES schools(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);`;
+);
+
+-- 7. وظيفة جلب البنية البرمجية (للإدارة)
+CREATE OR REPLACE FUNCTION get_database_schema()
+RETURNS JSON AS $$
+DECLARE
+    result JSON;
+BEGIN
+    SELECT json_agg(t) INTO result
+    FROM (
+        SELECT
+            table_name as name,
+            (
+                SELECT json_agg(cols)
+                FROM (
+                    SELECT column_name as name, data_type as type
+                    FROM information_schema.columns
+                    WHERE table_name = columns_info.table_name
+                    AND table_schema = 'public'
+                ) cols
+            ) as columns
+        FROM information_schema.tables columns_info
+        WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+    ) t;
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;`;
 
 export default AdminDashboard;

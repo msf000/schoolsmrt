@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student, PerformanceRecord, FormsDetailedResult, AttendanceRecord, BehaviorIncident, InteractiveGame, AttendanceStatus } from '../types';
 import { getGames, fetchPerformance, getFormsDetailedResults, fetchAttendance, getBehaviorIncidents } from '../services/storageService';
 import { 
     Gamepad2, Trophy, BookOpen, Star, LogOut, LayoutGrid, Activity, 
     Zap, Sparkles, GraduationCap, User, History, ChevronLeft, CheckCircle2, Clock, 
-    ShieldAlert, TrendingUp
+    ShieldAlert, TrendingUp, ArrowUpCircle
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
 import StudentJourney from './StudentJourney';
@@ -16,6 +17,7 @@ import StudentAchievementTimeline from './StudentAchievementTimeline';
 import StudentTaskView from './StudentTaskView';
 import SoftSkillsRadar from './SoftSkillsRadar';
 import StudentAITutor from './StudentAITutor';
+import StudentFlippedPortal from './StudentFlippedPortal';
 
 const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogout: () => void }) => {
     const [performance, setPerformance] = useState<PerformanceRecord[]>([]);
@@ -23,7 +25,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
     const [behaviorLog, setBehaviorLog] = useState<BehaviorIncident[]>([]);
     const [games, setGames] = useState<InteractiveGame[]>([]);
     const [formsResults, setFormsResults] = useState<FormsDetailedResult[]>([]);
-    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'GAMES' | 'TASKS' | 'ID' | 'ATTENDANCE'>('DASHBOARD');
+    const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'EVAL' | 'GAMES' | 'TASKS' | 'ID' | 'ATTENDANCE' | 'FLIPPED'>('DASHBOARD');
     const [playingGame, setPlayingGame] = useState<InteractiveGame | null>(null);
 
     useEffect(() => {
@@ -93,14 +95,14 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                             <p className="text-[10px] text-slate-500">منضبط في {attendanceStats.present} حصة</p>
                                         </div>
                                     </div>
-                                    <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 flex flex-col justify-between h-40">
+                                    <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 flex flex-col justify-between h-40 cursor-pointer hover:bg-white/10 transition-all" onClick={()=>setActiveTab('FLIPPED')}>
                                         <div className="flex justify-between items-start">
-                                            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl"><Star size={20}/></div>
-                                            <span className="text-2xl font-black">+{currentUser.behaviorPoints || 0}</span>
+                                            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl"><ArrowUpCircle size={20}/></div>
+                                            <span className="text-2xl font-black text-yellow-400"><Sparkles size={20}/></span>
                                         </div>
                                         <div>
-                                            <h4 className="font-black text-sm">نقاط السلوك</h4>
-                                            <p className="text-[10px] text-slate-500">أوسمة التميز المكتسبة</p>
+                                            <h4 className="font-black text-sm">التعلم المقلوب</h4>
+                                            <p className="text-[10px] text-slate-500">شاهد الدروس قبل الجميع</p>
                                         </div>
                                     </div>
                                 </div>
@@ -121,6 +123,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                 {activeTab === 'EVAL' && <StudentEvaluationView student={currentUser} performance={performance} />}
                 {activeTab === 'TASKS' && <StudentTaskView student={currentUser} />}
                 {activeTab === 'ID' && <StudentDigitalID student={currentUser} stats={{level: currentUser.level||1, xp: currentUser.xp||0}} />}
+                {activeTab === 'FLIPPED' && <StudentFlippedPortal student={currentUser} />}
                 
                 {activeTab === 'ATTENDANCE' && (
                     <div className="space-y-8 animate-fade-in">
@@ -191,8 +194,8 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
 
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/60 backdrop-blur-3xl border-t border-white/5 h-20 flex justify-around items-center px-6 z-50">
                 <NavBtn icon={<LayoutGrid/>} label="الرئيسية" active={activeTab==='DASHBOARD'} onClick={()=>setActiveTab('DASHBOARD')}/>
+                <NavBtn icon={<ArrowUpCircle/>} label="المقلوب" active={activeTab==='FLIPPED'} onClick={()=>setActiveTab('FLIPPED')}/>
                 <NavBtn icon={<Activity/>} label="درجاتي" active={activeTab==='EVAL'} onClick={()=>setActiveTab('EVAL')}/>
-                <NavBtn icon={<CheckCircle2/>} label="الانضباط" active={activeTab==='ATTENDANCE'} onClick={()=>setActiveTab('ATTENDANCE')}/>
                 <NavBtn icon={<Gamepad2/>} label="الألعاب" active={activeTab==='GAMES'} onClick={()=>setActiveTab('GAMES')}/>
                 <NavBtn icon={<User/>} label="هويتي" active={activeTab==='ID'} onClick={()=>setActiveTab('ID')}/>
             </nav>

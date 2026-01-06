@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { 
     Student, AttendanceRecord, PerformanceRecord, BehaviorIncident, 
@@ -7,7 +8,8 @@ import {
     LessonLink, WeeklyPlanItem, TrackingSheet, Reward,
     PurchaseRequest, WeeklyChallenge, Badge, Exam, Question, ExamResult, MessageLog,
     ParentRequest, LearningStyle, UserTheme, TeacherAssignment, ReportHeaderConfig,
-    StoredLessonPlan, ScheduleItem, Task, EnvironmentRecord, AttendanceStatus, TaskSubmission
+    StoredLessonPlan, ScheduleItem, Task, EnvironmentRecord, AttendanceStatus, TaskSubmission,
+    FlippedLesson
 } from '../types';
 
 const getLocal = (key: string): any[] => {
@@ -16,6 +18,33 @@ const getLocal = (key: string): any[] => {
     } catch { return []; }
 };
 const setLocal = (key: string, val: any): void => localStorage.setItem(key, JSON.stringify(val));
+
+// --- Flipped Classroom Logic ---
+export const getFlippedLessons = (tid?: string): FlippedLesson[] => {
+    const all = getLocal('flipped_lessons');
+    return tid ? all.filter(l => l.teacherId === tid) : all;
+};
+
+export const saveFlippedLesson = async (lesson: FlippedLesson) => {
+    const all = getFlippedLessons();
+    const updated = [...all.filter(l => l.id !== lesson.id), lesson];
+    setLocal('flipped_lessons', updated);
+};
+
+export const deleteFlippedLesson = (id: string) => {
+    const all = getFlippedLessons();
+    setLocal('flipped_lessons', all.filter(l => l.id !== id));
+};
+
+export const markLessonPrepared = async (studentId: string, lessonId: string) => {
+    const all = getFlippedLessons();
+    const lesson = all.find(l => l.id === lessonId);
+    if (lesson && !lesson.preparedStudentIds.includes(studentId)) {
+        lesson.preparedStudentIds.push(studentId);
+        setLocal('flipped_lessons', all);
+        await adjustStudentXP(studentId, lesson.xpReward || 50);
+    }
+};
 
 const mapStudentFromDB = (s: any): Student => ({
     id: s.id,
@@ -120,7 +149,7 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
     const { data } = await query;
     const mapped = (data || []).map(p => ({
         id: p.id, studentId: p.student_id, subject: p.subject, title: p.title,
-        score: p.score, maxScore: p.max_score, date: p.date, category: p.category,
+        score: p.score, max_score: p.max_score, date: p.date, category: p.category,
         createdById: p.created_by_id, notes: p.notes
     }));
     setLocal('performance', mapped);
@@ -236,7 +265,7 @@ export const getAcademicTerms = (tid: string): AcademicTerm[] => getLocal('acade
 
 export const saveAcademicTerm = (t: AcademicTerm) => setLocal('academic_terms', [...getLocal('academic_terms').filter(x => x.id !== t.id), t]);
 
-export const deleteAcademicTerm = (id: string) => setLocal('academic_terms', getLocal('academic_terms').filter(t => t.id !== id));
+export const deleteAcademicTerm = (id: string) => getLocal('academic_terms').filter(t => t.id !== id);
 
 export const setCurrentTerm = (id: string, tid: string) => {
     const terms = getLocal('academic_terms');
@@ -281,6 +310,8 @@ export const authenticateStudent = async (id: string, p: string): Promise<Studen
     if (data && (data.password === p || p === '123456')) return mapStudentFromDB(data);
     return null;
 };
+
+// Fix: Use property names from Student interface (gradeLevel and createdById) instead of snake_case.
 export const addStudent = async (s: Student) => await supabase.from('students').insert({ id: s.id, name: s.name, national_id: s.nationalId, class_name: s.className, grade_level: s.gradeLevel, created_by_id: s.createdById });
 export const deleteStudent = async (id: string) => await supabase.from('students').delete().eq('id', id);
 export const addSystemUser = async (u: SystemUser) => await supabase.from('system_users').insert({ id: u.id, name: u.name, email: u.email, password: u.password, role: u.role, phone: u.phone, status: u.status });
@@ -351,3 +382,12 @@ export const fetchParentRequests = async (userId: string): Promise<ParentRequest
 };
 
 export const saveParentRequest = async (r: ParentRequest) => setLocal('parent_requests', [...getLocal('parent_requests').filter(x => x.id !== r.id), r]);
+
+export const fetchDatabaseSchema = async (): Promise<any[]> => {
+    const { data, error } = await supabase.rpc('get_database_schema');
+    if (error) {
+        console.error("Schema Fetch Error:", error);
+        return [];
+    }
+    return data || [];
+};

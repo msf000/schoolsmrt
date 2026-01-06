@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SystemUser } from '../types';
@@ -8,7 +9,7 @@ import {
     Building, Zap, Award, Search, FileText, ClipboardList, 
     TrendingUp, BrainCircuit, Medal, Sparkles, CalendarDays,
     BookOpen, List, Map, MessageSquare, CheckCircle, Gamepad2,
-    FileSpreadsheet, TableProperties
+    FileSpreadsheet, TableProperties, ArrowUpCircle
 } from 'lucide-react';
 import OmniSearch from './OmniSearch';
 import NotificationsCenter from './NotificationsCenter';
@@ -51,6 +52,17 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 ]
             },
             {
+                id: 'engagement',
+                label: 'التفاعل والميدان',
+                roles: ['TEACHER'],
+                items: [
+                    { path: '/flipped', label: 'الفصل المقلوب', icon: ArrowUpCircle, roles: ['TEACHER'] },
+                    { path: '/classroom', label: 'إدارة القاعة', icon: Monitor, roles: ['TEACHER'] },
+                    { path: '/behavior', label: 'السلوك والتعزيز', icon: ShieldAlert, roles: ['TEACHER'] },
+                    { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
+                ]
+            },
+            {
                 id: 'ai_tools',
                 label: 'أدوات الذكاء والتقييم',
                 roles: ['TEACHER'],
@@ -59,17 +71,7 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                     { path: '/grading', label: 'تصحيح المهام', icon: CheckCircle, roles: ['TEACHER'] },
                     { path: '/lab', label: 'مختبر VARK', icon: Zap, roles: ['TEACHER'] },
                     { path: '/analytics', label: 'مركز التنبؤات', icon: BrainCircuit, roles: ['TEACHER'] },
-                ]
-            },
-            {
-                id: 'engagement',
-                label: 'التفاعل والميدان',
-                roles: ['TEACHER'],
-                items: [
-                    { path: '/classroom', label: 'إدارة القاعة', icon: Monitor, roles: ['TEACHER'] },
                     { path: '/planning', label: 'التحضير الآلي', icon: PenTool, roles: ['TEACHER'] },
-                    { path: '/behavior', label: 'السلوك والتعزيز', icon: ShieldAlert, roles: ['TEACHER'] },
-                    { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
                 ]
             },
             {

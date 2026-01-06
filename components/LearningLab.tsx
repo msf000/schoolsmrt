@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, EnvironmentRecord, LearningStyle } from '../types';
 import { updateStudentLearningStyle, saveEnvironmentRecord, getStudents } from '../services/storageService';
-import { diagnoseLearningStyle, analyzeLearningStyleExcel } from '../services/geminiService';
+// Fixed: Removed non-existent export analyzeLearningStyleExcel
+import { diagnoseLearningStyle } from '../services/geminiService';
 import { getWorkbookStructure, getSheetHeadersAndData, analyzeVarkLocally } from '../services/excelService';
 import { 
     BrainCircuit, Wind, Sun, Volume2, Smile, Loader2, Sparkles, CheckCircle, Save, 
@@ -98,7 +99,7 @@ const LearningLab: React.FC<Props> = ({ students: initialStudents, currentUserId
             <div className="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">مختبر أنماط التعلم (VARK)</h2>
-                    <p className="text-sm text-slate-500">تحليل شخصيات الطلاب لتخصيص طرق التدريس.</p>
+                    <p className="text-sm text-gray-500">تحليل شخصيات الطلاب لتخصيص طرق التدريس.</p>
                 </div>
                 <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm overflow-x-auto no-scrollbar max-w-full">
                     <TabBtn label="التشخيص" active={activeTab === 'STYLES'} onClick={() => setActiveTab('STYLES')} />

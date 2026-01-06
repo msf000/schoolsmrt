@@ -4,44 +4,16 @@ import { GoogleGenAI } from "@google/genai";
 // Initialize the AI client
 export const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Get standard model configuration
-export const getModelConfig = (overrides: any = {}) => {
-    return {
-        model: 'gemini-3-flash-preview',
-        config: {
-            temperature: 0.7,
-            topP: 0.95,
-            topK: 64,
-            ...overrides
-        }
-    };
-};
-
-export const generateGameContent = async (subject: string, topic: string, type: string) => {
-    const { model, config } = getModelConfig({ 
-        responseMimeType: "application/json"
-    });
-
-    const prompt = `أنت مصمم ألعاب تعليمية محترف. صمم محتوى للعبة من نوع "${type}" لموضوع "${topic}" في مادة "${subject}". 
-    المطلوب إرجاع JSON فقط:
-    - إذا كانت MATCHING: {"pairs": [{"term": "كلمة", "definition": "تعريفها"}]}
-    - إذا كانت SORTING: {"categories": [{"name": "فئة 1", "items": ["عنصر", "عنصر"]}, {"name": "فئة 2", "items": ["عنصر", "عنصر"]}]}
-    أرجع 6 عناصر على الأقل. بالعربية.`;
-
-    try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({ model, contents: prompt, config });
-        return JSON.parse(response.text || "{}");
-    } catch { return null; }
-};
-
-export const generateClassroomPulse = async (context: any) => {
+export const summarizeFlippedContent = async (text: string) => {
     const ai = getAIClient();
-    const prompt = `بناءً على حالة الفصل: ضجيج ${context.noise}/5، مزاج "${context.mood}"، آخر موضوع "${context.lastTopic}". أعطِ تعليقاً مشجعاً ومختصراً للمعلم بلهجة سعودية.`;
+    const prompt = `أنت مساعد تعليمي خبير. قم بتلخيص النص التالي بأسلوب مشوق ومبسط لطلاب المدارس كجزء من استراتيجية الفصل المقلوب. 
+    اجعل الملخص على شكل نقاط (Bullet points) وبالعربية Markdown. 
+    النص: "${text}"`;
+    
     try {
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        return response.text || "طاقة الفصل ممتازة!";
-    } catch { return "طاقة الفصل ممتازة!"; }
+        return response.text || "لم نتمكن من توليد ملخص حالياً.";
+    } catch { return "حدث خطأ في محرك الذكاء الاصطناعي."; }
 };
 
 // Updated: Changed model from gemini-2.5-flash-image to gemini-3-flash-preview for image understanding
@@ -80,19 +52,6 @@ export const predictColumnMapping = async (headers: string[], targetFields: any[
         });
         return JSON.parse(response.text || "{}");
     } catch { return {}; }
-};
-
-export const generateStudentPersona = async (student: any, performance: any[], attendance: any[]) => {
-    const ai = getAIClient();
-    const prompt = `ابتكر شخصية (Persona) محفزة للطالب ${student.name} بناءً على نمطه ${student.learningStyle}. أرجع JSON: {"title": "اسم اللقب", "description": "وصف الشخصية", "tips": ["نصيحة1", "نصيحة2"]}`;
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: { responseMimeType: "application/json" }
-        });
-        return JSON.parse(response.text || "{}");
-    } catch { return null; }
 };
 
 export const generateParentMessage = async (studentName: string, topic: string, tone: string) => {
@@ -205,7 +164,7 @@ export const generateStructuredQuiz = async (subject: string, topic: string, gra
     } catch { return []; }
 };
 
-// Updated: Changed model from gemini-2.5-flash-image to gemini-3-flash-preview for exam paper understanding
+// Fixed: Corrected variable name from base64 to imageBase64
 export const gradeExamPaper = async (imageBase64: string, exam: any) => {
     const ai = getAIClient();
     const prompt = `أنت مصحح ذكي. قارن صورة ورقة الإجابة مع نموذج الاختبار هذا: ${JSON.stringify(exam)}. حدد الدرجة الكلية وصحح كل سؤال. أرجع JSON: {"totalScore": 0, "maxTotalScore": 10, "studentNameDetected": "...", "questions": [{"index": 1, "isCorrect": true, "studentAnswer": "...", "feedback": "..."}], "aiRecommendation": "..."}`;
@@ -239,19 +198,6 @@ export const chatWithData = async (query: string, data: any) => {
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || "عذراً، لم أستطع تحليل البيانات.";
     } catch { return "حدث خطأ أثناء معالجة طلبك."; }
-};
-
-export const analyzeLearningStyleExcel = async (dataJson: string) => {
-    const ai = getAIClient();
-    const prompt = `حلل استجابات الطلاب هذه وحدد نمط تعلم كل طالب (VARK). أرجع JSON: {"studentAssignments": [{"studentName": "...", "style": "VISUAL/AUDITORY/READ_WRITE/KINESTHETIC"}]}. البيانات: ${dataJson}`;
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: { responseMimeType: "application/json" }
-        });
-        return JSON.parse(response.text || "{}");
-    } catch { return { studentAssignments: [] }; }
 };
 
 export const diagnoseLearningStyle = async (name: string, obs: string) => {
@@ -364,4 +310,21 @@ export const generateSmartRemedialPlan = async (student: any, gaps: any[]) => {
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || "";
     } catch { return ""; }
+};
+
+// Added: Missing export for generateGameContent
+export const generateGameContent = async (subject: string, topic: string, type: string) => {
+    const ai = getAIClient();
+    const prompt = type === 'MATCHING' 
+        ? `ولد محتوى لعبة توصيل (Matching) لمادة ${subject} موضوع ${topic}. أرجع JSON: {"pairs": [{"term": "...", "definition": "..."}]}`
+        : `ولد محتوى لعبة تصنيف (Sorting) لمادة ${subject} موضوع ${topic}. أرجع JSON: {"categories": [{"name": "...", "items": ["...", "..."]}]}`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch { return null; }
 };

@@ -14,6 +14,21 @@ export enum BehaviorStatus {
     NEUTRAL = 'NEUTRAL'
 }
 
+export interface FlippedLesson {
+    id: string;
+    teacherId: string;
+    title: string;
+    subject: string;
+    className: string;
+    contentUrl?: string;
+    contentBody: string;
+    aiSummary?: string;
+    preparedStudentIds: string[];
+    createdAt: string;
+    deadline?: string;
+    xpReward: number;
+}
+
 export interface AppNotification {
     id: string;
     userId: string;
