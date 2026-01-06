@@ -96,7 +96,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <MiniActionCard title="شجرة المهارات" icon={<BrainCircuit/>} color="bg-purple-600" onClick={()=>setActiveTab('KNOWLEDGE')} />
                                     <MiniActionCard title="خطة المذاكرة" icon={<Rocket/>} color="bg-orange-500" onClick={()=>setActiveTab('STUDY')} />
-                                    <MiniActionCard title="تعديل الأفاتار" icon={<Palette/>} color="bg-pink-600" onClick={()=>setActiveTab('AVATAR')} />
+                                    <MiniActionCard title="الفصل المقلوب" icon={<ArrowUpCircle/>} color="bg-indigo-600" onClick={()=>setActiveTab('FLIPPED')} />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -134,7 +134,6 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm font-black text-indigo-300">جائزة: {game.xpReward} XP</span>
                                         <div className="p-3 bg-indigo-600 rounded-2xl group-hover:scale-110 transition-transform">
-                                            {/* Fix: Added ArrowLeft icon to lucide-react imports */}
                                             <ArrowLeft size={20}/>
                                         </div>
                                     </div>

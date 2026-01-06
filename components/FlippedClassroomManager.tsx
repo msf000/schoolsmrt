@@ -110,8 +110,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
         if (!selectedLessonForDetails?.quizResults || !selectedLessonForDetails.questions) return [];
         return selectedLessonForDetails.questions.map(q => {
             let errorCount = 0;
-            // Added explicit type for result object in quizResults record
-            Object.values(selectedLessonForDetails.quizResults || {}).forEach((res: { score: number, wrongQuestionIds: string[] }) => {
+            Object.values(selectedLessonForDetails.quizResults || {}).forEach((res: any) => {
                 if (res.wrongQuestionIds.includes(q.id)) errorCount++;
             });
             const totalRes = Object.keys(selectedLessonForDetails.quizResults || {}).length;
@@ -130,7 +129,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
                     <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3">
                         <TrendingUp className="text-indigo-600" size={36}/> إدارة الفصل المقلوب
                     </h2>
-                    <p className="text-sm text-gray-500 font-bold mt-1 uppercase tracking-widest">التعلّم الاستباقي • الجاهزية • النقاش</p>
+                    <p className="text-sm text-gray-400 font-bold mt-1 uppercase tracking-widest">التعلّم الاستباقي • الجاهزية • النقاش</p>
                 </div>
                 <button onClick={() => setIsAddModalOpen(true)} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 shadow-xl hover:bg-indigo-700 transition-all">
                     <Plus size={20}/> نشر مادة تعليمية
