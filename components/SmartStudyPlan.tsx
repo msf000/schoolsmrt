@@ -79,11 +79,6 @@ const SmartStudyPlan: React.FC<Props> = ({ student }) => {
                         {loading ? <Loader2 className="animate-spin" size={28}/> : <BrainCircuit size={28}/>}
                         {loading ? 'جاري التخطيط...' : 'توليد خطة المذاكرة'}
                     </button>
-                    
-                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-start gap-3">
-                        <Sparkles className="text-yellow-400 shrink-0" size={16}/>
-                        <p className="text-[10px] text-slate-400 font-bold leading-relaxed">سأقوم بتوزيع الموضوعات واقتراح طرق للمذاكرة تناسب نمطك المفضل لضمان أعلى مستويات الفهم.</p>
-                    </div>
                 </div>
 
                 <div className="lg:col-span-2 bg-white/5 backdrop-blur-md rounded-[4rem] border border-white/10 shadow-2xl flex flex-col overflow-hidden relative">

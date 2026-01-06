@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Student, PerformanceRecord, FormsDetailedResult } from '../types';
-import { BrainCircuit, Star, Zap, Lock, ChevronLeft, Target, Trophy, Sparkles, ShieldCheck, Award } from 'lucide-react';
+import { BrainCircuit, Star, Zap, Lock, ChevronLeft, Target, Trophy, Sparkles, Award } from 'lucide-react';
 
 interface Props {
     student: Student;
@@ -61,11 +61,9 @@ const KnowledgeTree: React.FC<Props> = ({ student, performance, formsResults }) 
                     {skills.map((skill, i) => (
                         <div key={i} className="group relative">
                             <div className={`p-12 rounded-[4rem] border-2 transition-all duration-700 relative overflow-hidden flex flex-col items-center text-center gap-10 shadow-2xl h-[400px] ${skill.isMastered ? 'bg-indigo-600/10 border-indigo-500/40 shadow-indigo-500/5' : 'bg-white/5 border-white/5 opacity-40 grayscale'}`}>
-                                
                                 <div className={`w-28 h-28 rounded-[2.5rem] flex items-center justify-center transition-all duration-700 shadow-2xl group-hover:scale-110 ${skill.isMastered ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white/5 text-white/20'}`}>
                                     {skill.isMastered ? <Zap size={56} fill="currentColor"/> : <Lock size={56}/>}
                                 </div>
-                                
                                 <div className="space-y-6 w-full">
                                     <h4 className={`text-2xl font-black leading-tight ${skill.isMastered ? 'text-white' : 'text-slate-500'}`}>{skill.name}</h4>
                                     <div className="flex flex-col items-center gap-4">
@@ -75,16 +73,9 @@ const KnowledgeTree: React.FC<Props> = ({ student, performance, formsResults }) 
                                         <span className="text-[10px] font-black text-indigo-400 tracking-[0.3em] uppercase">{skill.mastery}% Mastery Level</span>
                                     </div>
                                 </div>
-
-                                {skill.isMastered && (
-                                    <div className="absolute top-8 right-8 text-emerald-400">
-                                        <Sparkles size={28} className="animate-spin-slow"/>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     ))}
-
                     {skills.length === 0 && (
                         <div className="col-span-full py-48 text-center opacity-10 flex flex-col items-center gap-10 border-4 border-dashed border-white/10 rounded-[5rem]">
                             <Target size={180} strokeWidth={1}/>
@@ -92,18 +83,6 @@ const KnowledgeTree: React.FC<Props> = ({ student, performance, formsResults }) 
                         </div>
                     )}
                 </div>
-            </div>
-
-            <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[60] bg-slate-900/80 backdrop-blur-3xl border border-white/10 px-16 py-6 rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.8)] flex items-center gap-16 animate-slide-up">
-                 <div className="flex items-center gap-4">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500 shadow-[0_0_20px_#10b981] animate-pulse"></div>
-                    <span className="text-sm font-black uppercase text-indigo-100 tracking-widest">كفاية مكتملة</span>
-                 </div>
-                 <div className="w-px h-10 bg-white/10"></div>
-                 <div className="flex items-center gap-4 text-yellow-400">
-                    <Trophy size={28}/>
-                    <span className="text-sm font-black uppercase tracking-widest">{skills.filter(s=>s.isMastered).length} منجزات محققة</span>
-                 </div>
             </div>
         </div>
     );

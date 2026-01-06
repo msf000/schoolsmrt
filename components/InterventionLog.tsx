@@ -15,6 +15,7 @@ const InterventionLog: React.FC<Props> = ({ students, incidents, currentUser }) 
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newLog, setNewLog] = useState({ title: '', content: '', date: new Date().toISOString().split('T')[0] });
 
+    // تصفية الطلاب الذين لديهم 3 تنبيهات سلبية أو أكثر
     const studentInterventions = students.filter(s => {
         const studentIncidents = incidents.filter(i => i.studentId === s.id && i.type === 'NEGATIVE');
         return studentIncidents.length >= 3;
@@ -79,10 +80,6 @@ const InterventionLog: React.FC<Props> = ({ students, incidents, currentUser }) 
                                         </span>
                                     </div>
                                     <p className="text-sm text-slate-500 font-medium leading-relaxed pr-16 mb-4">تم الاجتماع مع الطالب وتوقيعه على تعهد بعدم تكرار التأخير، مع إبلاغ ولي الأمر عبر البوابة الذكية.</p>
-                                    <div className="flex justify-end gap-2">
-                                        <button className="px-6 py-2 bg-slate-50 text-slate-400 rounded-xl text-xs font-black hover:bg-indigo-50 hover:text-indigo-600 transition-all">تحميل المحضر</button>
-                                        <button className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"><Trash2 size={18}/></button>
-                                    </div>
                                 </div>
                             );
                         })}
