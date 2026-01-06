@@ -6,7 +6,7 @@ import { summarizeFlippedContent, generateFlippedCheckupQuestions } from '../ser
 import { 
     BookOpen, Plus, Trash2, Video, Globe, Save, 
     Sparkles, Loader2, Users, CheckCircle, Clock, 
-    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle
+    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle, Eye, X
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -16,6 +16,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
     const [students, setStudents] = useState<Student[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [selectedLessonForDetails, setSelectedLessonForDetails] = useState<FlippedLesson | null>(null);
     const [loading, setLoading] = useState(false);
     const [summarizing, setSummarizing] = useState(false);
     const [generatingQs, setGeneratingQs] = useState(false);
@@ -108,19 +109,22 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
                     const prepRate = classStudents.length > 0 ? Math.round((preparedCount / classStudents.length) * 100) : 0;
 
                     return (
-                        <div key={lesson.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm relative group overflow-hidden flex flex-col min-h-[350px]">
+                        <div key={lesson.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm relative group overflow-hidden flex flex-col min-h-[350px] hover:border-indigo-300 transition-all">
                             <div className="absolute top-0 right-0 w-2 h-full bg-indigo-500"></div>
                             <div className="flex justify-between items-start mb-6">
                                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
                                     {lesson.contentUrl ? <Video size={24}/> : <BookOpen size={24}/>}
                                 </div>
-                                <button onClick={() => { if(confirm('حذف الدرس؟')){ deleteFlippedLesson(lesson.id); setLessons(getFlippedLessons(currentUser.id)); } }} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setSelectedLessonForDetails(lesson)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><Eye size={18}/></button>
+                                    <button onClick={() => { if(confirm('حذف الدرس؟')){ deleteFlippedLesson(lesson.id); setLessons(getFlippedLessons(currentUser.id)); } }} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                                </div>
                             </div>
 
                             <h3 className="text-xl font-black text-slate-800 mb-2">{lesson.title}</h3>
                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-6">{lesson.subject} • الفصل: {lesson.className}</p>
 
-                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mt-auto">
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mt-auto cursor-pointer" onClick={() => setSelectedLessonForDetails(lesson)}>
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">مؤشر الجاهزية</span>
                                     <span className="text-sm font-black text-indigo-600">{prepRate}%</span>
@@ -129,7 +133,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
                                     <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${prepRate}%` }}></div>
                                 </div>
                                 <p className="text-[10px] text-slate-500 font-bold flex items-center gap-2">
-                                    <Users size={12}/> {preparedCount} من أصل {classStudents.length} طلاب مستعدون للنقاش
+                                    <Users size={12}/> {preparedCount} من أصل {classStudents.length} طلاب جاهزون
                                 </p>
                             </div>
                         </div>
@@ -143,6 +147,45 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
                     </div>
                 )}
             </div>
+
+            {/* تفاصيل الجاهزية Modal */}
+            {selectedLessonForDetails && (
+                <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl animate-zoom-in relative">
+                        <button onClick={() => setSelectedLessonForDetails(null)} className="absolute top-8 left-8 text-slate-400 hover:text-red-500"><X/></button>
+                        <h3 className="text-2xl font-black text-slate-800 mb-8 flex items-center gap-3">
+                            <Users className="text-indigo-600"/> تقرير الجاهزية الصفي
+                        </h3>
+                        
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">الطلاب المستعدون للنقاش (XP+)</h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {students.filter(s => selectedLessonForDetails.preparedStudentIds.includes(s.id)).map(s => (
+                                        <div key={s.id} className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                            <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs">{s.name.charAt(0)}</div>
+                                            <span className="text-xs font-bold text-slate-700 truncate">{s.name.split(' ')[0]}</span>
+                                            <CheckCircle className="text-emerald-500 ml-auto" size={14}/>
+                                        </div>
+                                    ))}
+                                    {selectedLessonForDetails.preparedStudentIds.length === 0 && <p className="col-span-2 text-center py-6 text-slate-400 text-xs italic">لا يوجد طلاب مستعدون بعد.</p>}
+                                </div>
+                            </div>
+
+                            <div className="bg-rose-50/50 p-6 rounded-3xl border border-rose-100">
+                                <h4 className="text-[10px] font-black text-rose-400 uppercase mb-4 tracking-widest">طلاب بانتظار التحضير</h4>
+                                <div className="grid grid-cols-2 gap-3 opacity-60">
+                                    {students.filter(s => s.className === selectedLessonForDetails.className && !selectedLessonForDetails.preparedStudentIds.includes(s.id)).map(s => (
+                                        <div key={s.id} className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-100">
+                                            <span className="text-xs font-bold text-slate-500 truncate">{s.name.split(' ')[0]}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">

@@ -1,13 +1,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, StoredLessonPlan, BehaviorIncident } from '../types';
+import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, StoredLessonPlan, BehaviorIncident, FlippedLesson } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap
+    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap, ArrowUpCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
-import { getLessonPlans, getBehaviorIncidents } from '../services/storageService';
+import { getLessonPlans, getBehaviorIncidents, getFlippedLessons } from '../services/storageService';
 import { calculateClassHealth } from '../services/analysisService';
 import TeacherStats from './TeacherStats';
 
@@ -15,13 +15,13 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
   const navigate = useNavigate();
   const [lessonPlans, setLessonPlans] = useState<StoredLessonPlan[]>([]);
   const [recentIncidents, setRecentIncidents] = useState<BehaviorIncident[]>([]);
+  const [flippedLessons, setFlippedLessons] = useState<FlippedLesson[]>([]);
 
   const classStats = useMemo(() => {
       const total = students.length;
       const attRate = attendance.length > 0 ? (attendance.filter(a => a.status === AttendanceStatus.PRESENT).length / attendance.length) * 100 : 0;
       const perfAvg = performance.length > 0 ? (performance.reduce((a, b) => a + (b.score / b.maxScore), 0) / performance.length) * 100 : 0;
       
-      // حساب مؤشر الصحة للفصل
       const health = calculateClassHealth('عام', students, attendance, performance);
       
       const ranges = [
@@ -48,8 +48,16 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
     if (currentUser?.id) {
         setLessonPlans(getLessonPlans(currentUser.id));
         setRecentIncidents(getBehaviorIncidents(currentUser.id).slice(0, 5));
+        setFlippedLessons(getFlippedLessons(currentUser.id));
     }
   }, [currentUser, students]);
+
+  const flippedEngagement = useMemo(() => {
+    if (flippedLessons.length === 0) return 0;
+    const latest = flippedLessons[flippedLessons.length - 1];
+    const totalInClass = students.filter(s => s.className === latest.className).length;
+    return totalInClass > 0 ? Math.round((latest.preparedStudentIds.length / totalInClass) * 100) : 0;
+  }, [flippedLessons, students]);
 
   return (
     <div className="space-y-8 pb-10 animate-fade-in font-tajawal">
@@ -66,10 +74,10 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
         </div>
         <div className="flex gap-3 relative z-10">
             <button onClick={() => navigate('/attendance')} className="px-8 py-4 bg-brand-500 text-white rounded-2xl text-sm font-black hover:bg-brand-600 transition-all shadow-xl shadow-brand-500/20 flex items-center gap-2 active:scale-95">
-                <CheckCircle size={20}/> رصد الحضور الآن
+                <CheckCircle size={20}/> رصد الحضور
             </button>
-            <button onClick={() => navigate('/lab')} className="px-8 py-4 bg-indigo-50 text-indigo-700 rounded-2xl text-sm font-black border border-indigo-100 hover:bg-indigo-100 transition-all flex items-center gap-2">
-                <Zap size={20}/> مختبر الذكاء
+            <button onClick={() => navigate('/flipped')} className="px-8 py-4 bg-indigo-50 text-indigo-700 rounded-2xl text-sm font-black border border-indigo-100 hover:bg-indigo-100 transition-all flex items-center gap-2">
+                <ArrowUpCircle size={20}/> الفصل المقلوب
             </button>
         </div>
       </div>
@@ -78,7 +86,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
            <KPIStat label="إجمالي الطلاب" value={classStats.total} icon={Users} color="blue" />
            <KPIStat label="الانضباط العام" value={`${classStats.attRate}%`} icon={Activity} color="emerald" />
            <KPIStat label="متوسط الإتقان" value={`${classStats.perfAvg}%`} icon={Target} color="amber" />
-           <KPIStat label="صحة الفصل" value={`${classStats.health}%`} icon={Heart} color="rose" />
+           <KPIStat label="جاهزية الفصل" value={`${flippedEngagement}%`} icon={ArrowUpCircle} color="rose" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -126,7 +134,7 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                             const student = students.find(s => s.id === incident.studentId);
                             return (
                                 <div key={i} className="flex justify-between items-center bg-white/10 p-3 rounded-2xl border border-white/5 backdrop-blur-sm">
-                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-500 text-white shadow-lg'}`}>
+                                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${incident.points > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-white shadow-lg'}`}>
                                         {incident.points > 0 ? '+' : ''}{incident.points}
                                     </div>
                                     <div className="flex items-center gap-3 text-right">
@@ -159,9 +167,9 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
                       </div>
                       <div className="flex-1 text-right">
                           <div className="p-5 bg-white/5 rounded-3xl border border-white/5 text-xs text-indigo-100 leading-relaxed italic font-medium">
-                            {classStats.health < 70 ? 
-                                `"مؤشر صحة الفصل منخفض قليلاً؛ نوصي بإطلاق تحدي 'أسبوع بلا غياب' لرفع مستوى الانضباط فوراً."` :
-                                `"أداء الفصل استثنائي اليوم! هناك طلاب جاهزون للترقية لمستوى 'الخبير'، هل ترغب في تكريمهم بلقب شرفي؟"`
+                            {flippedEngagement < 50 ? 
+                                `"معدل جاهزية الطلاب للدرس المقلوب منخفض. ربما يحتاجون لتذكير عبر بوابة أولياء الأمور قبل الحصة القادمة."` :
+                                `"استعداد مذهل! أكثر من نصف الفصل قام بتحضير المادة العلمية مسبقاً. أنت جاهز لنقاش صفي عميق اليوم."`
                             }
                           </div>
                       </div>
@@ -183,7 +191,7 @@ const KPIStat = ({ label, value, icon: Icon, color }: any) => {
     };
     return (
         <div className={`bg-white p-8 rounded-[2.5rem] border-2 shadow-sm flex items-center justify-between group hover:shadow-xl transition-all duration-300 ${colors[color].split(' ')[2]}`}>
-            <div className="p-4 rounded-2xl ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} group-hover:scale-110 transition-transform duration-500 shadow-inner">
+            <div className={`p-4 rounded-2xl ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} group-hover:scale-110 transition-transform duration-500 shadow-inner`}>
                 <Icon size={28} />
             </div>
             <div className="text-right">

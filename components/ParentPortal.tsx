@@ -1,13 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorIncident, Task, MessageLog } from '../types';
-import { saveAttendance, getBehaviorIncidents, getTasks, getMessages } from '../services/storageService';
+import { Student, AttendanceRecord, PerformanceRecord, AttendanceStatus, BehaviorIncident, Task, MessageLog, FlippedLesson } from '../types';
+import { saveAttendance, getBehaviorIncidents, getTasks, getMessages, getFlippedLessons } from '../services/storageService';
 import { 
     User, LogOut, AlertTriangle, Clock, MessageCircle, X, ShieldCheck, 
-    Trophy, BookOpen, Bell, ChevronLeft, Star, Calendar, CheckCircle2, Zap, Radar as RadarIcon, TrendingUp
+    Trophy, BookOpen, Bell, ChevronLeft, Star, Calendar, CheckCircle2, Zap, Radar as RadarIcon, TrendingUp, ArrowUpCircle
 } from 'lucide-react';
 import { formatDualDate } from '../services/dateService';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, Tooltip } from 'recharts';
 import SmartParentDigest from './SmartParentDigest';
 
 interface ParentPortalProps {
@@ -26,7 +25,15 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
     const [activeChildId, setActiveChildId] = useState<string>(myChildren.length > 0 ? myChildren[0].id : '');
     const activeChild = myChildren.find(c => c.id === activeChildId) || myChildren[0];
     
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ACADEMIC' | 'BEHAVIOR' | 'MESSAGES'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ACADEMIC' | 'BEHAVIOR' | 'MESSAGES' | 'FLIPPED'>('OVERVIEW');
+    const [flippedLessons, setFlippedLessons] = useState<FlippedLesson[]>([]);
+
+    useEffect(() => {
+        if (activeChild) {
+            const all = getFlippedLessons();
+            setFlippedLessons(all.filter(l => l.className === activeChild.className));
+        }
+    }, [activeChild]);
 
     if (!activeChild) return (
         <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
@@ -57,7 +64,6 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
             </header>
 
             <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full space-y-6">
-                {/* Child Quick Card */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-2xl font-bold text-blue-600 border border-slate-200">
@@ -73,9 +79,9 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                             <p className="text-[10px] font-bold text-blue-400 uppercase">النقاط</p>
                             <p className="text-lg font-bold text-blue-700">{activeChild.xp || 0}</p>
                         </div>
-                        <div className="text-center px-4 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                            <p className="text-[10px] font-bold text-emerald-400 uppercase">المعدل</p>
-                            <p className="text-lg font-bold text-emerald-700">--%</p>
+                        <div className="text-center px-4 py-2 bg-emerald-50 rounded-lg border border-emerald-100 pointer-events-none" onClick={() => setActiveTab('FLIPPED')}>
+                            <p className="text-[10px] font-bold text-emerald-400 uppercase">التحضير</p>
+                            <p className="text-lg font-bold text-emerald-700">+{flippedLessons.filter(l => l.preparedStudentIds.includes(activeChild.id)).length}</p>
                         </div>
                     </div>
                 </div>
@@ -84,6 +90,7 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
 
                 <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
                     <TabBtn active={activeTab === 'OVERVIEW'} onClick={() => setActiveTab('OVERVIEW')} label="نظرة عامة" icon={RadarIcon}/>
+                    <TabBtn active={activeTab === 'FLIPPED'} onClick={() => setActiveTab('FLIPPED')} label="الدروس المقلوبة" icon={ArrowUpCircle}/>
                     <TabBtn active={activeTab === 'ACADEMIC'} onClick={() => setActiveTab('ACADEMIC')} label="التحصيل" icon={TrendingUp}/>
                     <TabBtn active={activeTab === 'BEHAVIOR'} onClick={() => setActiveTab('BEHAVIOR')} label="السلوك" icon={Star}/>
                     <TabBtn active={activeTab === 'MESSAGES'} onClick={() => setActiveTab('MESSAGES')} label="الرسائل" icon={Bell}/>
@@ -107,6 +114,39 @@ const ParentPortal: React.FC<ParentPortalProps> = ({ parentPhone, allStudents, a
                              </div>
                         </div>
                     )}
+
+                    {activeTab === 'FLIPPED' && (
+                        <div className="space-y-4">
+                             <h3 className="font-bold text-slate-800 border-b pb-2 mb-4">التحضير المسبق (الفصل المقلوب)</h3>
+                             <div className="grid grid-cols-1 gap-3">
+                                {flippedLessons.map(lesson => {
+                                    const isDone = lesson.preparedStudentIds.includes(activeChild.id);
+                                    return (
+                                        <div key={lesson.id} className={`p-4 rounded-xl border flex items-center justify-between transition-all ${isDone ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${isDone ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                    <BookOpen size={18}/>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-slate-800">{lesson.title}</h4>
+                                                    <p className="text-[10px] text-slate-500">{lesson.subject} • {formatDualDate(lesson.createdAt)}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {isDone ? (
+                                                    <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12}/> تم التحضير</span>
+                                                ) : (
+                                                    <span className="text-[10px] font-black text-amber-600 flex items-center gap-1"><Clock size={12}/> بانتظار التحضير</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {flippedLessons.length === 0 && <p className="text-center py-10 text-slate-400 text-xs italic">لا توجد دروس مقلوبة مسجلة حالياً.</p>}
+                             </div>
+                        </div>
+                    )}
+
                     {activeTab === 'MESSAGES' && (
                         <div className="space-y-4">
                              <h3 className="font-bold text-slate-800 border-b pb-2 mb-4">صندوق الرسائل</h3>
