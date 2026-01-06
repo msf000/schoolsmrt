@@ -61,7 +61,6 @@ const LessonPlanning: React.FC<{ currentUser?: SystemUser | null }> = ({ current
             subject: selectedSubject,
             topic: lessonTopic,
             contentJson: JSON.stringify(lessonContent),
-            resources: [],
             createdAt: new Date().toISOString()
         };
         saveLessonPlan(newPlan);

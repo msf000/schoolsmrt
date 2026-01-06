@@ -1,21 +1,23 @@
 
 import React, { useState, useEffect } from 'react';
-import { Student, FlippedLesson, Question } from '../types';
-import { getFlippedLessons, markLessonPrepared } from '../services/storageService';
+import { Student, FlippedLesson, Question, FlippedComment } from '../types';
+import { getFlippedLessons, markLessonPrepared, addFlippedComment } from '../services/storageService';
 import { 
     BookOpen, Video, CheckCircle, Clock, Zap, 
     Sparkles, ArrowRight, Loader2, Bot,
     GraduationCap, Globe, ListChecks, ArrowLeft,
-    CheckCircle2, XCircle
+    CheckCircle2, XCircle, MessageSquare, Send
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import ReactMarkdown from 'react-markdown';
+import { formatDualDate } from '../services/dateService';
 
 const StudentFlippedPortal: React.FC<{ student: Student }> = ({ student }) => {
     const { showToast } = useToast();
     const [lessons, setLessons] = useState<FlippedLesson[]>([]);
     const [selectedLesson, setSelectedLesson] = useState<FlippedLesson | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [commentText, setCommentText] = useState('');
     
     // Quiz State
     const [quizActive, setQuizActive] = useState(false);
@@ -52,7 +54,10 @@ const StudentFlippedPortal: React.FC<{ student: Student }> = ({ student }) => {
         if (!selectedLesson) return;
         setIsProcessing(true);
         try {
-            await markLessonPrepared(student.id, selectedLesson.id);
+            const wrongIds = selectedLesson.questions?.filter((q, i) => answers[i] !== q.correctAnswer).map(q => q.id) || [];
+            const score = (selectedLesson.questions?.length || 0) - wrongIds.length;
+            
+            await markLessonPrepared(student.id, selectedLesson.id, { score, wrongIds });
             showToast('رائع! أثبتّ جاهزيتك وحصلت على XP إضافي.', 'SUCCESS');
             loadLessons();
             setSelectedLesson(null);
@@ -60,6 +65,22 @@ const StudentFlippedPortal: React.FC<{ student: Student }> = ({ student }) => {
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    const handleAddComment = async () => {
+        if (!commentText || !selectedLesson) return;
+        const comment: FlippedComment = {
+            id: `c_${Date.now()}`,
+            userId: student.id,
+            userName: student.name,
+            text: commentText,
+            createdAt: new Date().toISOString()
+        };
+        await addFlippedComment(selectedLesson.id, comment);
+        setCommentText('');
+        showToast('تم إرسال تساؤلك للمعلم.', 'SUCCESS');
+        const updated = { ...selectedLesson, comments: [...(selectedLesson.comments || []), comment] };
+        setSelectedLesson(updated);
     };
 
     const renderQuiz = () => {
@@ -167,12 +188,6 @@ const StudentFlippedPortal: React.FC<{ student: Student }> = ({ student }) => {
                                 </div>
                             );
                         })}
-                        {lessons.length === 0 && (
-                            <div className="col-span-full py-40 text-center opacity-10 flex flex-col items-center gap-8 border-4 border-dashed border-white/10 rounded-[4rem]">
-                                <BookOpen size={150} strokeWidth={1}/>
-                                <p className="text-3xl font-black italic">لا يوجد مهام تحضير حالية</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             ) : (
@@ -229,10 +244,35 @@ const StudentFlippedPortal: React.FC<{ student: Student }> = ({ student }) => {
                                     </div>
                                 )}
 
-                                <div className="space-y-6">
-                                    <h4 className="text-2xl font-black text-white border-r-4 border-indigo-600 pr-4">تفاصيل الدرس</h4>
-                                    <div className="bg-white/5 p-10 rounded-[3rem] border border-white/5 text-slate-300 leading-relaxed text-lg font-medium whitespace-pre-wrap">
-                                        {selectedLesson.contentBody}
+                                <div className="space-y-10">
+                                    <div>
+                                        <h4 className="text-2xl font-black text-white border-r-4 border-indigo-600 pr-4 mb-6">تفاصيل الدرس</h4>
+                                        <div className="bg-white/5 p-10 rounded-[3rem] border border-white/5 text-slate-300 leading-relaxed text-lg font-medium whitespace-pre-wrap">
+                                            {selectedLesson.contentBody}
+                                        </div>
+                                    </div>
+
+                                    {/* Discussion Section */}
+                                    <div className="space-y-6">
+                                        <h4 className="text-2xl font-black text-white border-r-4 border-amber-500 pr-4 mb-6 flex items-center gap-3"><MessageSquare size={24}/> نقاش الدرس واستفساراتك</h4>
+                                        <div className="bg-white/5 rounded-[3rem] border border-white/5 p-8 flex flex-col gap-6">
+                                            <div className="space-y-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                                                {(selectedLesson.comments || []).map(c => (
+                                                    <div key={c.id} className={`flex flex-col ${c.userId === student.id ? 'items-start' : 'items-end'}`}>
+                                                        <div className={`p-4 rounded-2xl text-sm ${c.userId === student.id ? 'bg-indigo-600 text-white rounded-tl-none' : 'bg-white/10 text-indigo-100 rounded-tr-none'}`}>
+                                                            <p className="text-[10px] font-black opacity-60 mb-1">{c.userName}</p>
+                                                            <p className="font-medium">{c.text}</p>
+                                                        </div>
+                                                        <span className="text-[8px] text-white/20 mt-1">{formatDualDate(c.createdAt)}</span>
+                                                    </div>
+                                                ))}
+                                                {(selectedLesson.comments || []).length === 0 && <p className="text-center py-10 text-white/20 italic">لا يوجد نقاشات بعد، كن أول من يسأل!</p>}
+                                            </div>
+                                            <div className="flex gap-4 p-2 bg-black/40 rounded-2xl border border-white/5">
+                                                <input className="flex-1 bg-transparent p-3 text-white outline-none font-bold text-sm" placeholder="لديك سؤال؟ اكتبه هنا للمعلم..." value={commentText} onChange={e=>setCommentText(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleAddComment()}/>
+                                                <button onClick={handleAddComment} className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"><Send size={20}/></button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

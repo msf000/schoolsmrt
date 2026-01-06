@@ -304,7 +304,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                             </div>
                                             <div className="flex gap-2">
                                                 <button 
-                                                    onClick={() => handleSendMessage(s, 
+                                                    onClick={() => handleSendMessage(s as Student, 
                                                         triggerType === 'HIGH_PERFORMANCE' ? TEMPLATES.find(t=>t.id==='praise_grade')!.text : TEMPLATES.find(t=>t.id==='absent_warning')!.text,
                                                         'WHATSAPP'
                                                     )} 
@@ -313,7 +313,7 @@ const MessageCenter: React.FC<MessageCenterProps> = ({ students, attendance, per
                                                     <Smartphone size={14}/> واتساب
                                                 </button>
                                                 <button 
-                                                    onClick={() => handleSendMessage(s, 
+                                                    onClick={() => handleSendMessage(s as Student, 
                                                         triggerType === 'HIGH_PERFORMANCE' ? TEMPLATES.find(t=>t.id==='praise_grade')!.text : TEMPLATES.find(t=>t.id==='absent_warning')!.text,
                                                         'PORTAL'
                                                     )} 

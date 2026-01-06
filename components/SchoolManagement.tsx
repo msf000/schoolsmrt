@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    getSchools, getTeachers, getSubjects, addSubject, deleteSubject,
+    fetchSchools, fetchTeachers, getSubjects, addSubject, deleteSubject,
     getAcademicTerms, saveAcademicTerm, deleteAcademicTerm, setCurrentTerm,
     getReportHeaderConfig, saveReportHeaderConfig, getTeacherAssignments, addTeacherAssignment, deleteTeacherAssignment,
     getStudents, getAttendance
