@@ -42,13 +42,12 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
             {
                 id: 'academic',
                 label: 'الشؤون التعليمية',
-                roles: ['TEACHER'],
+                roles: ['TEACHER', 'SCHOOL_MANAGER'],
                 items: [
-                    { path: '/students', label: 'سجل الطلاب', icon: Users, roles: ['TEACHER'] },
+                    { path: '/students', label: 'سجل الطلاب', icon: Users, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
                     { path: '/attendance', label: 'تحضير الحصص', icon: CheckSquare, roles: ['TEACHER'] },
                     { path: '/gradebook', label: 'سجل الرصد العام', icon: ClipboardList, roles: ['TEACHER'] },
-                    { path: '/works', label: 'الرصد السريع', icon: TableProperties, roles: ['TEACHER'] },
-                    { path: '/noor-export', label: 'مصدّر نظام نور', icon: FileSpreadsheet, roles: ['TEACHER'] },
+                    { path: '/flipped', label: 'الفصل المقلوب', icon: ArrowUpCircle, roles: ['TEACHER', 'SCHOOL_MANAGER'] },
                 ]
             },
             {
@@ -56,7 +55,6 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 label: 'التفاعل والميدان',
                 roles: ['TEACHER'],
                 items: [
-                    { path: '/flipped', label: 'الفصل المقلوب', icon: ArrowUpCircle, roles: ['TEACHER'] },
                     { path: '/classroom', label: 'إدارة القاعة', icon: Monitor, roles: ['TEACHER'] },
                     { path: '/behavior', label: 'السلوك والتعزيز', icon: ShieldAlert, roles: ['TEACHER'] },
                     { path: '/games', label: 'الألعاب التعليمية', icon: Gamepad2, roles: ['TEACHER'] },
@@ -70,7 +68,6 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/exams', label: 'الاختبارات الذكية', icon: FileText, roles: ['TEACHER'] },
                     { path: '/grading', label: 'تصحيح المهام', icon: CheckCircle, roles: ['TEACHER'] },
-                    { path: '/lab', label: 'مختبر VARK', icon: Zap, roles: ['TEACHER'] },
                     { path: '/analytics', label: 'مركز التنبؤات', icon: BrainCircuit, roles: ['TEACHER'] },
                     { path: '/planning', label: 'التحضير الآلي', icon: PenTool, roles: ['TEACHER'] },
                 ]
@@ -82,7 +79,6 @@ const StaffPortal: React.FC<Props> = ({ currentUser, onLogout, children }) => {
                 items: [
                     { path: '/school-analytics', label: 'تحليل المدرسة', icon: Activity, roles: ['SCHOOL_MANAGER'] },
                     { path: '/teachers-mgmt', label: 'إدارة المعلمين', icon: Briefcase, roles: ['SCHOOL_MANAGER'] },
-                    { path: '/all-students', label: 'السجل العام', icon: Users, roles: ['SCHOOL_MANAGER'] },
                 ]
             },
             {

@@ -101,6 +101,14 @@ const App: React.FC = () => {
                 <Route path="/" element={getStaffDashboard()} />
                 <Route path="/hall-of-fame" element={<HallOfFame students={students} performance={performance} attendance={attendance} />} />
                 
+                {/* المسارات المشتركة للهيئة التعليمية والإدارية */}
+                <Route path="/flipped" element={<FlippedClassroomManager currentUser={currentUser as SystemUser} />} />
+                <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
+                <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/followup" element={<StudentFollowUp students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
+                <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} currentUser={currentUser as SystemUser} />} />
+
+                {/* مسارات المعلم فقط */}
                 {currentUser.role === 'TEACHER' && (
                     <>
                         <Route path="/students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={loadInitialData} onUpdateStudent={loadInitialData} onDeleteStudent={loadInitialData} onImportStudents={loadInitialData} currentUser={currentUser as SystemUser} />} />
@@ -114,10 +122,7 @@ const App: React.FC = () => {
                         <Route path="/clubs" element={<StudentClubs students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/analytics" element={<PredictiveAnalytics students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                         <Route path="/deep-dive" element={<AdvancedAnalytics students={students} attendance={attendance} performance={performance} />} />
-                        <Route path="/classroom" element={<ClassroomManager students={students} attendance={attendance} performance={performance} onLaunchScreen={() => navigate('/classroom-screen')} currentUser={currentUser as SystemUser} />} />
-                        <Route path="/flipped" element={<FlippedClassroomManager currentUser={currentUser as SystemUser} />} />
                         <Route path="/planning" element={<LessonPlanning currentUser={currentUser as SystemUser} />} />
-                        <Route path="/behavior" element={<BehaviorTracking students={students} currentUser={currentUser as SystemUser} />} />
                         <Route path="/lab" element={<LearningLab students={students} currentUserId={(currentUser as SystemUser).id} />} />
                         <Route path="/badges" element={<SmartBadges students={students} />} />
                         <Route path="/certificates" element={<CertificatesCenter students={students} currentUser={currentUser as SystemUser} onSaveAttendance={loadInitialData} />} />
@@ -128,16 +133,14 @@ const App: React.FC = () => {
                     </>
                 )}
 
+                {/* مسارات مدير المدرسة فقط */}
                 {currentUser.role === 'SCHOOL_MANAGER' && (
                     <>
-                        <Route path="/school-analytics" element={<PrincipalDashboard students={students} attendance={attendance} performance={performance} teachers={teachers} />} />
                         <Route path="/teachers-mgmt" element={<TeacherManagement currentUser={currentUser as SystemUser} />} />
                         <Route path="/all-students" element={<Students students={students} attendance={attendance} performance={performance} onAddStudent={loadInitialData} onUpdateStudent={loadInitialData} onDeleteStudent={loadInitialData} onImportStudents={loadInitialData} currentUser={currentUser as SystemUser} />} />
                     </>
                 )}
 
-                <Route path="/reports" element={<AIReports students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
-                <Route path="/followup" element={<StudentFollowUp students={students} attendance={attendance} performance={performance} currentUser={currentUser as SystemUser} />} />
                 <Route path="/school-mgmt" element={<SchoolManagement students={students} onImportStudents={loadInitialData} onImportPerformance={loadInitialData} onImportAttendance={loadInitialData} currentUser={currentUser as SystemUser} />} />
                 <Route path="/profile" element={<TeacherProfile currentUser={currentUser as SystemUser} />} />
                 

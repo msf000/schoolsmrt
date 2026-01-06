@@ -6,7 +6,9 @@ import { summarizeFlippedContent, generateFlippedCheckupQuestions } from '../ser
 import { 
     BookOpen, Plus, Trash2, Video, Globe, Save, 
     Sparkles, Loader2, Users, CheckCircle, Clock, 
-    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle, Eye, X, MessageSquare, Send, BarChart3, AlertCircle
+    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle, Eye, X, MessageSquare, Send, BarChart3, AlertCircle, LayoutGrid,
+    // Fix: Added missing ArrowUpCircle import
+    ArrowUpCircle
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { formatDualDate } from '../services/dateService';
@@ -127,7 +129,7 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
             <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-                        <TrendingUp className="text-indigo-600" size={36}/> إدارة الفصل المقلوب
+                        <ArrowUpCircle className="text-indigo-600" size={36}/> إدارة الفصل المقلوب
                     </h2>
                     <p className="text-sm text-gray-400 font-bold mt-1 uppercase tracking-widest">التعلّم الاستباقي • الجاهزية • النقاش</p>
                 </div>
@@ -174,6 +176,13 @@ const FlippedClassroomManager: React.FC<{ currentUser: SystemUser }> = ({ curren
                         </div>
                     );
                 })}
+                {lessons.length === 0 && (
+                    <div className="col-span-full py-40 text-center opacity-20 border-4 border-dashed rounded-[3rem] flex flex-col items-center justify-center">
+                        <ArrowUpCircle size={80} className="mb-4 text-indigo-900"/>
+                        <p className="text-2xl font-black text-indigo-900">لا توجد دروس منشورة حالياً</p>
+                        <p className="text-sm font-bold text-slate-500 mt-2">ابدأ بنشر أول مادة تعليمية لتحفيز الطلاب على التحضير المسبق</p>
+                    </div>
+                )}
             </div>
 
             {/* تفاصيل الجاهزية والتحليل Modal */}
