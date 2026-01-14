@@ -95,7 +95,7 @@ const StudentPortal = ({ currentUser, onLogout }: { currentUser: Student, onLogo
                                 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <MiniActionCard title="شجرة المهارات" icon={<BrainCircuit/>} color="bg-purple-600" onClick={()=>setActiveTab('KNOWLEDGE')} />
-                                    <MiniActionCard title="خطة المذاكرة" icon={<Rocket/>} color="bg-orange-500" onClick={()=>setActiveTab('STUDY')} />
+                                    <MiniActionCard title="خطة المذاكرة" icon={<Rocket/>} color="bg-orange-50" onClick={()=>setActiveTab('STUDY')} />
                                     <MiniActionCard title="الفصل المقلوب" icon={<ArrowUpCircle/>} color="bg-indigo-600" onClick={()=>setActiveTab('FLIPPED')} />
                                 </div>
 
@@ -179,7 +179,7 @@ const MiniActionCard = ({ title, icon, color, onClick }: any) => (
 );
 
 const NavBtn = ({ icon, label, active, onClick }: any) => (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-indigo-400' : 'text-slate-500'}`}>
+    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-indigo-400' : 'text-slate-50'}`}>
         <div className={`p-2.5 rounded-2xl transition-all ${active ? 'bg-indigo-600 text-white shadow-lg' : ''}`}>{icon}</div>
         <span className="text-[10px] font-bold">{label}</span>
     </button>
