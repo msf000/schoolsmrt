@@ -8,6 +8,7 @@ import {
     BarChart3, LayoutGrid, CheckCircle2, Star, TrendingUp, ArrowUpCircle, Bot
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
 interface PerformanceProps {
@@ -18,6 +19,7 @@ interface PerformanceProps {
 }
 
 const Performance: React.FC<PerformanceProps> = ({ students, performance, onAddPerformance, currentUser }) => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedAsgnId, setSelectedAsgnId] = useState('');

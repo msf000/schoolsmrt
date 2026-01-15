@@ -3,7 +3,8 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Student, AttendanceRecord, PerformanceRecord, SystemUser, AttendanceStatus, StoredLessonPlan, BehaviorIncident, FlippedLesson } from '../types';
 import { 
     Users, CheckCircle, Target, TrendingUp,
-    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap, ArrowUpCircle, Info, AlertTriangle, Clock, ListChecks
+    ShieldAlert, Activity, Heart, MessageSquare, ChevronLeft, BarChart3, Bot, Zap, ArrowUpCircle, Info, AlertTriangle, Clock, ListChecks,
+    LayoutGrid
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
@@ -183,6 +184,26 @@ const Dashboard: React.FC<{ students: Student[], attendance: AttendanceRecord[],
       </div>
     </div>
   );
+};
+
+const KPIStat = ({ label, value, icon: Icon, color }: any) => {
+    const colors: any = {
+        blue: 'text-blue-600 bg-blue-50 border-blue-100',
+        emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+        amber: 'text-amber-600 bg-amber-50 border-amber-100',
+        rose: 'text-rose-600 bg-rose-50 border-rose-100'
+    };
+    return (
+        <div className={`bg-white p-8 rounded-[2.5rem] border-2 shadow-sm flex items-center justify-between group hover:shadow-xl transition-all duration-300 ${colors[color].split(' ')[2]}`}>
+            <div className={`p-4 rounded-2xl ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} group-hover:scale-110 transition-transform duration-500 shadow-inner`}>
+                <Icon size={28} />
+            </div>
+            <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{label}</p>
+                <h4 className="text-3xl font-black text-slate-900">{value}</h4>
+            </div>
+        </div>
+    );
 };
 
 const KPIStat = ({ label, value, icon: Icon, color }: any) => {

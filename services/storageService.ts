@@ -134,8 +134,8 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
     const { data } = await query;
     const mapped = (data || []).map(p => ({
         id: p.id, studentId: p.student_id, subject: p.subject, title: p.title,
-        score: p.score, max_score: p.max_score, date: p.date, category: p.category,
-        created_by_id: p.created_by_id, notes: p.notes
+        score: p.score, maxScore: p.max_score, date: p.date, category: p.category,
+        createdById: p.created_by_id, notes: p.notes
     }));
     setLocal('performance', mapped);
     return mapped;
@@ -296,7 +296,7 @@ export const getCurriculumLessons = (uid: string): CurriculumLesson[] => getLoca
 export const saveCurriculumLesson = async (l: CurriculumLesson) => setLocal('curriculum_lessons', [...getLocal('curriculum_lessons').filter(x => x.id !== l.id), l]);
 export const deleteCurriculumLesson = (id: string) => setLocal('curriculum_lessons', getLocal('curriculum_lessons').filter(l => l.id !== id));
 export const toggleCurriculumLesson = (id: string, completed: boolean) => {
-    const all = getLocal('curriculum_lessons');
+    const all = getCurriculumLessons();
     setLocal('curriculum_lessons', all.map(l => l.id === id ? { ...l, isCompleted: completed } : l));
 };
 

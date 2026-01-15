@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import AIAttendanceScanner from './AIAttendanceScanner';
+import { useNavigate } from 'react-router-dom';
 
 interface AttendanceProps {
   students: Student[];
@@ -18,6 +19,7 @@ interface AttendanceProps {
 }
 
 const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, onSaveAttendance, currentUser }) => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -121,8 +123,8 @@ const Attendance: React.FC<AttendanceProps> = ({ students, attendanceHistory, on
                         <div key={student.id} className="p-5 flex flex-col md:flex-row items-center justify-between hover:bg-slate-50 transition-colors gap-6 group">
                             <div className="flex items-center gap-5 flex-1 min-w-0">
                                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0 ${
-                                    status === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white' :
-                                    status === AttendanceStatus.ABSENT ? 'bg-rose-500 text-white' :
+                                    status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-white' :
+                                    status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-white' :
                                     'bg-slate-100 text-slate-400'
                                 }`}>
                                     {student.name.charAt(0)}
