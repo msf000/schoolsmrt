@@ -23,6 +23,18 @@ export const getFlippedLessons = (tid?: string): FlippedLesson[] => {
     return tid ? all.filter(l => l.teacherId === tid) : all;
 };
 
+export const getFlippedStatsByClass = (tid: string, className: string) => {
+    const lessons = getFlippedLessons(tid).filter(l => l.className === className);
+    if (lessons.length === 0) return null;
+    const latest = lessons[lessons.length - 1];
+    return {
+        title: latest.title,
+        readyCount: latest.preparedStudentIds.length,
+        totalQuestions: latest.questions?.length || 0,
+        lessonId: latest.id
+    };
+};
+
 export const saveFlippedLesson = async (lesson: FlippedLesson) => {
     const all = getFlippedLessons();
     const updated = [...all.filter(l => l.id !== lesson.id), lesson];
@@ -122,8 +134,8 @@ export const fetchPerformance = async (tid?: string): Promise<PerformanceRecord[
     const { data } = await query;
     const mapped = (data || []).map(p => ({
         id: p.id, studentId: p.student_id, subject: p.subject, title: p.title,
-        score: p.score, maxScore: p.max_score, date: p.date, category: p.category,
-        createdById: p.created_by_id, notes: p.notes
+        score: p.score, max_score: p.max_score, date: p.date, category: p.category,
+        created_by_id: p.created_by_id, notes: p.notes
     }));
     setLocal('performance', mapped);
     return mapped;
@@ -175,7 +187,6 @@ export const getSubjects = (tid: string): Subject[] => getLocal('subjects').filt
 export const addSubject = (s: Subject) => setLocal('subjects', [...getLocal('subjects'), s]);
 export const deleteSubject = (id: string) => setLocal('subjects', getLocal('subjects').filter(s => s.id !== id));
 
-// Added missing getTeacherAssignments
 export const getTeacherAssignments = (tid: string): TeacherAssignment[] => getLocal('teacher_assignments').filter(a => a.teacherId === tid);
 export const addTeacherAssignment = (a: any) => setLocal('teacher_assignments', [...getLocal('teacher_assignments'), a]);
 export const deleteTeacherAssignment = (id: string) => setLocal('teacher_assignments', getLocal('teacher_assignments').filter(a => a.id !== id));
@@ -226,7 +237,6 @@ export const updateStudentLearningStyle = (id: string, s: LearningStyle) => {
 export const getMessages = (tid?: string): MessageLog[] => getLocal('messages').filter(m => !tid || m.teacherId === tid);
 export const saveMessage = (m: MessageLog) => setLocal('messages', [m, ...getMessages()]);
 
-// Corrected type for updatePurchaseStatus and getPurchaseRequests
 export const getPurchaseRequests = (tid: string): PurchaseRequest[] => getLocal('purchase_requests').filter(r => r.teacherId === tid);
 export const updatePurchaseStatus = async (id: string, s: any) => {
     const all = getLocal('purchase_requests');
@@ -260,9 +270,8 @@ export const getRewards = (tid: string): Reward[] => getLocal('rewards');
 export const saveReward = (r: Reward, tid: string) => setLocal('rewards', [...getRewards(tid).filter(x=>x.id!==r.id), r]);
 export const deleteReward = (id: string, tid: string) => setLocal('rewards', getRewards(tid).filter(r=>r.id!==id));
 export const fetchParentRequests = async (uid: string): Promise<ParentRequest[]> => getLocal('parent_requests').filter(r=>r.teacherId===uid || r.parentId===uid);
-export const saveParentRequest = async (r: ParentRequest) => setLocal('parent_requests', [...getLocal('parent_requests').filter(x=>x.id!==r.id), r]);
+export const saveParentRequest = async (r: ParentRequest) => setLocal('parent_requests', [...getLocal('parent_requests').filter(x => x.id !== r.id), r]);
 
-// Added missing getSchools and getTeachers and other exports requested by components
 export const getSchools = (): School[] => getLocal('schools');
 export const getTeachers = (): Teacher[] => getLocal('system_users').filter(u => u.role === 'TEACHER');
 

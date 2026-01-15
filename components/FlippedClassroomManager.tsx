@@ -6,9 +6,7 @@ import { summarizeFlippedContent, generateFlippedCheckupQuestions } from '../ser
 import { 
     BookOpen, Plus, Trash2, Video, Globe, Save, 
     Sparkles, Loader2, Users, CheckCircle, Clock, 
-    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle, Eye, X, MessageSquare, Send, BarChart3, AlertCircle, LayoutGrid,
-    // Fix: Added missing ArrowUpCircle import
-    ArrowUpCircle
+    ArrowRight, Activity, TrendingUp, Info, ListChecks, HelpCircle, Eye, X, MessageSquare, Send, BarChart3, AlertCircle, LayoutGrid, ArrowUpCircle
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { formatDualDate } from '../services/dateService';

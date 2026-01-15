@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, TeacherAssignment, Exam } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, BehaviorStatus, SystemUser, TeacherAssignment, Exam, FlippedLesson } from '../types';
 import { 
     Shuffle, Clock, Grid, Play, Pause, RefreshCw, Trophy, Maximize, X, ChevronLeft, ChevronRight, 
     PenTool, Eraser, Trash2, Minimize, Sparkles, Star, Siren, BrainCircuit, Loader2, Plus, ArrowRight, 
-    QrCode, Zap, Ghost, MessageSquare, Lightbulb, Activity, BarChart2, CheckCircle2, HelpCircle, FileText, Swords, Mic
+    QrCode, Zap, Ghost, MessageSquare, Lightbulb, Activity, BarChart2, CheckCircle2, HelpCircle, FileText, Swords, Mic, ArrowUpCircle, Users
 } from 'lucide-react';
-import { getTeacherAssignments, getExams } from '../services/storageService';
+import { getTeacherAssignments, getExams, getFlippedLessons } from '../services/storageService';
 import { analyzeClassroomVibe, generateBrainstormingIdea } from '../services/geminiService';
 import { GoogleGenAI } from "@google/genai";
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +25,7 @@ interface ClassroomScreenProps {
 const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance, onSaveAttendance, currentUser }) => {
     const navigate = useNavigate();
     const [selectedClass, setSelectedClass] = useState('');
-    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'VIBE' | 'QR' | 'POLL' | 'FLASHCARDS' | 'BATTLE'>('PRESENTATION');
+    const [activeTool, setActiveTool] = useState<'PICKER' | 'TIMER' | 'GROUPS' | 'PRESENTATION' | 'REWARDS' | 'VIBE' | 'QR' | 'POLL' | 'FLASHCARDS' | 'BATTLE' | 'READY'>('PRESENTATION');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isWheelOpen, setIsWheelOpen] = useState(false);
     const [isBattleOpen, setIsBattleOpen] = useState(false);
@@ -64,6 +64,12 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
         return getExams(currentUser.id).filter(e => e.questions.length > 0);
     }, [currentUser]);
 
+    const latestFlippedLesson = useMemo(() => {
+        if (!currentUser) return null;
+        const all = getFlippedLessons(currentUser.id);
+        return all.filter(l => l.className === selectedClass).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
+    }, [currentUser, selectedClass]);
+
     return (
         <div className="fixed inset-0 h-screen w-screen flex flex-col bg-slate-900 text-white animate-fade-in z-[100] overflow-hidden font-tajawal">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 z-0"></div>
@@ -81,6 +87,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
 
                 <div className="flex items-center gap-1 overflow-x-auto p-1 bg-black/20 rounded-xl max-w-[65%] no-scrollbar">
                     <TabBtn icon={<PenTool size={18}/>} label="السبورة" active={activeTool === 'PRESENTATION'} onClick={() => setActiveTool('PRESENTATION')} />
+                    <TabBtn icon={<ArrowUpCircle size={18}/>} label="الجاهزية" active={activeTool === 'READY'} onClick={() => setActiveTool('READY')} />
                     <TabBtn icon={<Swords size={18}/>} label="المسابقة" active={activeTool === 'BATTLE'} onClick={() => setIsBattleOpen(true)} />
                     <TabBtn icon={<Mic size={18}/>} label="رصد صوتي" active={false} onClick={() => setIsVoiceOpen(true)} />
                     <TabBtn icon={<FileText size={18}/>} label="بطاقات AI" active={activeTool === 'FLASHCARDS'} onClick={() => setActiveTool('FLASHCARDS')} />
@@ -97,6 +104,7 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
 
             <div className="relative z-10 flex-1 flex items-center justify-center p-4 overflow-hidden">
                 {activeTool === 'PRESENTATION' && <PresentationBoard />}
+                {activeTool === 'READY' && <FlippedReadinessView students={presentStudents} lesson={latestFlippedLesson} />}
                 {activeTool === 'REWARDS' && <RewardsView students={presentStudents} onSaveAttendance={onSaveAttendance} currentUser={currentUser} />}
                 {activeTool === 'TIMER' && <ClassroomTimer />}
                 {activeTool === 'GROUPS' && <GroupGenerator students={presentStudents} />}
@@ -123,6 +131,61 @@ const ClassroomScreen: React.FC<ClassroomScreenProps> = ({ students, attendance,
                     onClose={() => setActiveTool('PRESENTATION')} 
                 />
             )}
+        </div>
+    );
+};
+
+const FlippedReadinessView = ({ students, lesson }: { students: Student[], lesson: FlippedLesson | null }) => {
+    if (!lesson) return <div className="text-center opacity-30"><ArrowUpCircle size={100} className="mx-auto mb-4"/><p className="text-2xl font-black">لا توجد دروس فصل مقلوب حالياً</p></div>;
+    const readyStudents = students.filter(s => lesson.preparedStudentIds.includes(s.id));
+    const notReadyStudents = students.filter(s => !lesson.preparedStudentIds.includes(s.id));
+
+    return (
+        <div className="w-full max-w-6xl h-full flex flex-col gap-10 animate-fade-in">
+            <div className="bg-white/10 backdrop-blur-3xl p-10 rounded-[4rem] border-4 border-white/5 shadow-2xl flex flex-col md:flex-row justify-between items-center gap-10 shrink-0">
+                <div className="flex items-center gap-6">
+                    <div className="p-5 bg-indigo-600 rounded-[2rem] shadow-xl"><ArrowUpCircle size={48}/></div>
+                    <div className="text-right">
+                        <h3 className="text-4xl font-black tracking-tighter">{lesson.title}</h3>
+                        <p className="text-indigo-300 font-bold uppercase tracking-widest text-sm">تحليل جاهزية الطلاب للحصة الحالية</p>
+                    </div>
+                </div>
+                <div className="flex gap-10">
+                    <div className="text-center">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase mb-2">الأبطال الجاهزون</p>
+                        <p className="text-5xl font-black text-white">{readyStudents.length}</p>
+                    </div>
+                    <div className="text-center">
+                        <p className="text-[10px] font-black text-rose-400 uppercase mb-2">بانتظار التحضير</p>
+                        <p className="text-5xl font-black text-white/40">{notReadyStudents.length}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-10 overflow-hidden pb-10">
+                <div className="bg-emerald-600/10 border-4 border-emerald-500/20 rounded-[4rem] p-10 flex flex-col shadow-2xl">
+                    <h4 className="text-2xl font-black text-emerald-400 mb-8 flex items-center gap-4"><CheckCircle2 size={32}/> أبطال التحضير (+{lesson.xpReward} XP)</h4>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-4 pr-2">
+                        {readyStudents.map(s => (
+                            <div key={s.id} className="p-5 bg-white/5 rounded-3xl border border-white/5 flex items-center gap-4 animate-zoom-in">
+                                <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg">{s.name.charAt(0)}</div>
+                                <span className="font-bold text-lg">{s.name}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="bg-white/5 border-4 border-white/5 rounded-[4rem] p-10 flex flex-col opacity-60">
+                    <h4 className="text-2xl font-black text-slate-400 mb-8 flex items-center gap-4"><Users size={32}/> طلاب يحتاجون مراجعة</h4>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-4 pr-2">
+                        {notReadyStudents.map(s => (
+                            <div key={s.id} className="p-5 bg-white/5 rounded-3xl border border-white/5 flex items-center gap-4">
+                                <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center font-black text-xl">{s.name.charAt(0)}</div>
+                                <span className="font-bold text-lg text-slate-500">{s.name}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -503,7 +566,7 @@ const RewardsView = ({ students, onSaveAttendance, currentUser }: any) => {
     return (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full h-full overflow-y-auto p-4 custom-scrollbar">
             {students.map((s: any) => (
-                <div key={s.id} onClick={()=>handlePoint(s.id)} className="bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-yellow-500/10 hover:border-yellow-500 transition-all active:scale-95 group shadow-xl">
+                <div key={s.id} onClick={()=>handlePoint(s.id)} className="bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-yellow-50/10 hover:border-yellow-500 transition-all active:scale-95 group shadow-xl">
                     <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center text-2xl font-bold mb-2 group-hover:bg-yellow-500 group-hover:text-black transition-colors">{s.name.charAt(0)}</div>
                     <span className="text-[10px] font-bold text-center truncate w-full">{s.name}</span>
                 </div>

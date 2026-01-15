@@ -54,8 +54,9 @@ const StudentFlippedPortal: React.FC<{ student: Student }> = ({ student }) => {
         if (!selectedLesson) return;
         setIsProcessing(true);
         try {
-            const wrongIds = selectedLesson.questions?.filter((q, i) => answers[i] !== q.correctAnswer).map(q => q.id) || [];
-            const score = (selectedLesson.questions?.length || 0) - wrongIds.length;
+            const questions = selectedLesson.questions || [];
+            const wrongIds = questions.filter((q, i) => answers[i] !== q.correctAnswer).map(q => q.id);
+            const score = questions.length - wrongIds.length;
             
             await markLessonPrepared(student.id, selectedLesson.id, { score, wrongIds });
             showToast('رائع! أثبتّ جاهزيتك وحصلت على XP إضافي.', 'SUCCESS');
